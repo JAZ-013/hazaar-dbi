@@ -99,12 +99,10 @@ class Adapter {
 
     static public function getDefaultConfig($env = NULL) {
 
-        if (!array_key_exists($env, DBI::$default_config)) {
+        if (!array_key_exists($env, Adapter::$default_config))
+            Adapter::$default_config[$env] = new \Hazaar\Application\Config('database.ini', $env);
 
-            DBI::$default_config[$env] = new \Hazaar\Application\Config('database.ini', $env);
-        }
-
-        return DBI::$default_config[$env];
+        return Adapter::$default_config[$env];
 
     }
 
@@ -113,10 +111,10 @@ class Adapter {
         $driver = ucfirst(substr($dsn, 0, strpos($dsn, ':')));
 
         if (!$driver)
-            throw new DBI\Exception\DriverNotSpecified();
+            throw new Exception\DriverNotSpecified();
 
-        if (!array_key_exists($driver, DBI::$connections))
-            DBI::$connections[$driver] = array();
+        if (!array_key_exists($driver, Adapter::$connections))
+            Adapter::$connections[$driver] = array();
 
         $hash = md5(serialize(array(
             $driver,
@@ -126,16 +124,16 @@ class Adapter {
             $driver_options
         )));
 
-        if (array_key_exists($hash, DBI::$connections)) {
+        if (array_key_exists($hash, Adapter::$connections)) {
 
-            $this->driver = DBI::$connections[$hash];
+            $this->driver = Adapter::$connections[$hash];
 
         } else {
 
             $class = 'Hazaar\DBI\DBD\\' . $driver;
 
             if (!class_exists($class))
-                throw new DBI\Exception\DriverNotFound($driver);
+                throw new Exception\DriverNotFound($driver);
 
             $this->driver = new $class($this->config);
 
@@ -148,9 +146,9 @@ class Adapter {
             ), $driver_options);
 
             if (!($this->driver->connect($dsn, $username, $password, $driver_options)))
-                throw new DBI\Exception\ConnectionFailed($dsn);
+                throw new Exception\ConnectionFailed($dsn);
 
-            DBI::$connections[$hash] = $this->driver;
+            Adapter::$connections[$hash] = $this->driver;
         }
 
         return TRUE;
@@ -191,10 +189,9 @@ class Adapter {
 
         while($file = $dir->read()) {
 
-            if (preg_match('/class (\w*) extends \\\Hazaar\\\DBI\\\BaseDriver\W/m', $file->getContents(), $matches)) {
-
+            if (preg_match('/class (\w*) extends BaseDriver\W/m', $file->getContents(), $matches))
                 $drivers[] = $matches[1];
-            }
+
         }
 
         return $drivers;
@@ -254,7 +251,7 @@ class Adapter {
         $result = $this->driver->query($sql);
 
         if($result instanceof \PDOStatement)
-            return new \Hazaar\DBI\Result($result);
+            return new Result($result);
 
         return $result;
 
@@ -311,7 +308,7 @@ class Adapter {
 
     public function table($name, $alias = NULL) {
 
-        return new DBI\Table($this->driver, $name, $alias);
+        return new Table($this->driver, $name, $alias);
 
     }
 
@@ -612,7 +609,7 @@ class Adapter {
     /**
      * Snapshot the database schema and create a new schema version with migration replay files.
      *
-     * This method is used to create the database schema migration files. These files are used by the \Hazaar\DBI::migrate()
+     * This method is used to create the database schema migration files. These files are used by the \Hazaar\Adapter::migrate()
      * method to bring a database up to a certain version. Using this method simplifies creating these migration files
      * and removes the need to create them manually when there are trivial changes.
      *
@@ -1021,12 +1018,12 @@ class Adapter {
      * # All migration files between the two selected versions (current and requested) will be replayed using the migration mode.
      *
      * This process can be used to bring a database schema up to the latest version using database migration files stored in the
-     * db/migrate project subdirectory. These migration files are typically created using the \Hazaar\DBI::snapshot() method
+     * db/migrate project subdirectory. These migration files are typically created using the \Hazaar\Adapter::snapshot() method
      * although they can be created manually. Take care when using manually created migration files.
      *
      * The migration is performed in a database transaction (if the database supports it) so that if anything goes wrong there
      * is no damage to the database. If something goes wrong, errors will be availabl in the migration log accessible with
-     * \Hazaar\DBI::getMigrationLog(). Errors in the migration files can be fixed and the migration retried.
+     * \Hazaar\Adapter::getMigrationLog(). Errors in the migration files can be fixed and the migration retried.
      *
      * @param int $version
      *            The database schema version to migrate to.
@@ -1455,8 +1452,8 @@ class Adapter {
      * Snapshots and migrations are complex processes where many things happen in a single execution. This means stuff
      * can go wrong and you will probably want to know what/why when they do.
      *
-     * When running \Hazaar\DBI::snapshot() or \Hazaar\DBI::migrate() a log of what has been done is stored internally
-     * in an array of timestamped messages. You can use the \Hazaar\DBI::getMigrationLog() method to retrieve this
+     * When running \Hazaar\Adapter::snapshot() or \Hazaar\Adapter::migrate() a log of what has been done is stored internally
+     * in an array of timestamped messages. You can use the \Hazaar\Adapter::getMigrationLog() method to retrieve this
      * log so that if anything goes wrong, you can see what and fix it/
      */
     public function getMigrationLog() {
