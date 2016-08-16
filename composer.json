@@ -1,0 +1,39 @@
+{
+  "name": "hazaarlabs/hazaar-dbi",
+  "description": "The DataBase Interface for Hazaar MVC",
+  "type": "library",
+  "homepage": "http://hazaarmvc.com",
+  "license": "Apache-2.0",
+  "authors": [
+    {
+      "name": "Jamie Carl",
+      "email": "jamie@hazaarlabs.com",
+      "homepage": "http://www.hazaarlabs.com",
+      "role": "developer"
+    }
+  ],
+  "support": {
+    "email": "support@hazaarlabs.com",
+    "issues": "https://git.hazaarlabs.com/hazaar/hazaar-mvc/issues",
+    "wiki": "https://git.hazaarlabs.com/hazaar/hazaar-mvc/wikis/home",
+    "docs": "https://hazaarmvc.com/docs",
+    "source": "https://git.hazaarlabs.com/hazaar/hazaar-mvc/tree/master"
+  },
+  "keywords": [
+    "php",
+    "hazaar",
+    "hmvc",
+    "database",
+    "pdo"
+  ],
+  "autoload": {
+    "psr-4": {
+      "Hazaar\\DBI\\": "src/"
+    }
+  },
+  "require": {
+    "php": "^5.6 || ^7.0",
+    "ext-pdo": "*",
+    "hazaarlabs/hazaar-mvc": "^2.1.2"
+  }
+}
