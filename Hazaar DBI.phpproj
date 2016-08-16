@@ -1,3 +1,4 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <PropertyGroup>
     <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
@@ -20,11 +21,11 @@
     <Compile Include="src\DBD\Mysql.php" />
     <Compile Include="src\DBD\Pgsql.php" />
     <Compile Include="src\DBD\Sqlite.php" />
+    <Compile Include="src\Adapter.php" />
     <Compile Include="src\Exception\ConnectionFailed.php" />
     <Compile Include="src\Exception\DriverNotFound.php" />
     <Compile Include="src\Exception\DriverNotSpecified.php" />
     <Compile Include="src\Exception\MissingJoin.php" />
-    <Compile Include="src\.hazaar" />
     <Compile Include="src\Result.php" />
     <Compile Include="src\Table.php" />
   </ItemGroup>
@@ -33,5 +34,8 @@
     <Folder Include="src\DBD" />
     <Folder Include="src\Exception" />
     <Folder Include="src" />
+  </ItemGroup>
+  <ItemGroup>
+    <Content Include="composer.json" />
   </ItemGroup>
 </Project>
