@@ -57,21 +57,33 @@ class Adapter {
 
     function __construct($config_env = NULL) {
 
+        $config = null;
+
         if ($config_env == NULL || is_string($config_env)) {
 
-            $this->config = $this->getDefaultConfig($config_env);
+            $config = $this->getDefaultConfig($config_env);
 
         } elseif (is_array($config_env)) {
 
-            $this->config = new \Hazaar\Map($config_env);
+            $config = new \Hazaar\Map($config_env);
 
         } elseif ($config_env instanceof \Hazaar\Map) {
 
-            $this->config = $config_env;
+            $config = $config_env;
 
         }
 
-        if (\Hazaar\Map::is_array($this->config)) {
+        $this->configure($config);
+
+        $this->schema_file = realpath(APPLICATION_PATH . '/..') . '/db/schema.json';
+
+    }
+
+    public function configure($config){
+
+        if (\Hazaar\Map::is_array($config)) {
+
+            $this->config = $config;
 
             if (!$this->config->has('dsn')) {
 
@@ -87,20 +99,22 @@ class Adapter {
 
             $this->connect($this->config->dsn, $this->config->user, $this->config->password);
 
-        } else {
-
-            throw new \Exception('No DBI configuration found!');
-
         }
-
-        $this->schema_file = realpath(APPLICATION_PATH . '/..') . '/db/schema.json';
 
     }
 
     static public function getDefaultConfig($env = NULL) {
 
-        if (!array_key_exists($env, Adapter::$default_config))
-            Adapter::$default_config[$env] = new \Hazaar\Application\Config('database.ini', $env);
+        if (!array_key_exists($env, Adapter::$default_config)){
+
+            $config = new \Hazaar\Application\Config('database.ini', $env);
+
+            if(!$config->loaded())
+                return null;
+
+            Adapter::$default_config[$env] = $config;
+
+        }
 
         return Adapter::$default_config[$env];
 
@@ -135,7 +149,7 @@ class Adapter {
             if (!class_exists($class))
                 throw new Exception\DriverNotFound($driver);
 
-            $this->driver = new $class($this->config);
+            $this->driver = new $class(array_unflatten(substr($dsn, strpos($dsn, ':') + 1)));
 
             if (!$driver_options)
                 $driver_options = array();

@@ -78,7 +78,16 @@ abstract class BaseDriver implements Driver_Interface {
 
     public function __construct($config){
 
-        $this->schema = $config->get('dbname', 'public');
+        if(!is_array($config))
+            return;
+
+        $this->schema = ake($config, 'dbname', 'public');
+
+    }
+
+    public function getSchemaName(){
+
+        return $this->schema;
 
     }
 
