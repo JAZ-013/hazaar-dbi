@@ -1150,9 +1150,6 @@ class Adapter {
 
         $this->log('Starting database migration process.');
 
-        if (!$test)
-            $this->beginTransaction();
-
         $committed_versions = array();
 
         if (!$current_version && $version == $schema['version']) {
@@ -1258,14 +1255,9 @@ class Adapter {
 
         }
 
-        if ($test || $this->commit()) {
+        $this->log('Migration completed successfully.');
 
-            $this->log('Migration completed successfully.');
-
-            return true;
-        }
-
-        throw new \Exception('Migration failed when committing transaction.');
+        return true;
 
     }
 
