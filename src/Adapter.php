@@ -171,6 +171,9 @@ class Adapter {
 
     public function getDriver() {
 
+        if(!$this->driver)
+            return false;
+
         $class = get_class($this->driver);
 
         return substr($class, strrpos($class, '\\') + 1);
@@ -179,17 +182,26 @@ class Adapter {
 
     public function beginTransaction() {
 
+        if(!$this->driver)
+            return false;
+
         return $this->driver->beginTransaction();
 
     }
 
     public function commit() {
 
+        if(!$this->driver)
+            return false;
+
         return $this->driver->commit();
 
     }
 
     public function getAttribute($option) {
+
+        if(!$this->driver)
+            return false;
 
         return $this->driver->getAttribute($option);
 
@@ -214,11 +226,17 @@ class Adapter {
 
     public function inTransaction() {
 
+        if(!$this->driver)
+            return false;
+
         return $this->driver->inTransaction();
 
     }
 
     public function lastInsertId() {
+
+        if(!$this->driver)
+            return false;
 
         return $this->driver->lastInsertId();
 
@@ -226,11 +244,17 @@ class Adapter {
 
     public function quote($string) {
 
+        if(!$this->driver)
+            return false;
+
         return $this->driver->quote($string);
 
     }
 
     public function rollBack() {
+
+        if(!$this->driver)
+            return false;
 
         return $this->driver->rollback();
 
@@ -238,11 +262,17 @@ class Adapter {
 
     public function setAttribute() {
 
+        if(!$this->driver)
+            return false;
+
         return $this->driver->setAttribute();
 
     }
 
     public function errorCode() {
+
+        if(!$this->driver)
+            return false;
 
         return $this->driver->errorCode();
 
@@ -250,17 +280,26 @@ class Adapter {
 
     public function errorInfo() {
 
+        if(!$this->driver)
+            return false;
+
         return $this->driver->errorInfo();
 
     }
 
     public function exec($sql) {
 
+        if(!$this->driver)
+            return false;
+
         return $this->driver->exec($sql);
 
     }
 
     public function query($sql) {
+
+        if(!$this->driver)
+            return false;
 
         $result = $this->driver->query($sql);
 
@@ -273,11 +312,17 @@ class Adapter {
 
     public function exists($table, $criteria = array()) {
 
+        if(!$this->driver)
+            return false;
+
         return $this->table($table)->exists($criteria);
 
     }
 
     public function insert($table, $fields, $returning = NULL) {
+
+        if(!$this->driver)
+            return false;
 
         return $this->driver->insert($table, $fields, $returning);
 
@@ -285,17 +330,26 @@ class Adapter {
 
     public function update($table, $fields, $criteria = array()) {
 
+        if(!$this->driver)
+            return false;
+
         return $this->driver->update($table, $fields, $criteria);
 
     }
 
     public function delete($table, $criteria) {
 
+        if(!$this->driver)
+            return false;
+
         return $this->driver->delete($table, $criteria);
 
     }
 
     public function deleteAll($table) {
+
+        if(!$this->driver)
+            return false;
 
         return $this->driver->deleteAll($table);
 
@@ -346,6 +400,9 @@ class Adapter {
      */
     public function listTables() {
 
+        if(!$this->driver)
+            return false;
+
         return $this->driver->listTables();
 
     }
@@ -361,6 +418,9 @@ class Adapter {
      */
     public function tableExists($table) {
 
+        if(!$this->driver)
+            return false;
+
         return $this->driver->tableExists($table);
 
     }
@@ -374,11 +434,17 @@ class Adapter {
      */
     public function createTable($name, $columns) {
 
+        if(!$this->driver)
+            return false;
+
         return $this->driver->createTable($name, $columns);
 
     }
 
     public function describeTable($name, $sort = NULL) {
+
+        if(!$this->driver)
+            return false;
 
         return $this->driver->describeTable($name, $sort);
 
@@ -386,11 +452,17 @@ class Adapter {
 
     public function renameTable($from_name, $to_name) {
 
+        if(!$this->driver)
+            return false;
+
         return $this->driver->renameTable($from_name, $to_name);
 
     }
 
     public function dropTable($name) {
+
+        if(!$this->driver)
+            return false;
 
         return $this->driver->dropTable($name);
 
@@ -398,11 +470,17 @@ class Adapter {
 
     public function addColumn($table, $column_spec) {
 
+        if(!$this->driver)
+            return false;
+
         return $this->driver->addColumn($table, $column_spec);
 
     }
 
     public function alterColumn($table, $column, $column_spec) {
+
+        if(!$this->driver)
+            return false;
 
         return $this->driver->alterColumn($table, $column, $column_spec);
 
@@ -410,11 +488,17 @@ class Adapter {
 
     public function dropColumn($table, $column) {
 
+        if(!$this->driver)
+            return false;
+
         return $this->driver->dropColumn($table, $column);
 
     }
 
     public function listSequences() {
+
+        if(!$this->driver)
+            return false;
 
         return $this->driver->listSequences();
 
@@ -422,11 +506,17 @@ class Adapter {
 
     public function describeSequence($name) {
 
+        if(!$this->driver)
+            return false;
+
         return $this->driver->describeSequence($name);
 
     }
 
     public function listIndexes($table = NULL) {
+
+        if(!$this->driver)
+            return false;
 
         return $this->driver->listIndexes($table);
 
@@ -434,11 +524,17 @@ class Adapter {
 
     public function createIndex($index_name, $idx_info) {
 
+        if(!$this->driver)
+            return false;
+
         return $this->driver->createIndex($index_name, $idx_info);
 
     }
 
     public function dropIndex($name) {
+
+        if(!$this->driver)
+            return false;
 
         return $this->driver->dropIndex($name);
 
@@ -446,15 +542,26 @@ class Adapter {
 
     public function listPrimaryKeys($table = NULL){
 
+        if(!$this->driver)
+            return false;
+
         return $this->driver->listConstraints($table, 'PRIMARY KEY');
+
     }
 
     public function listForeignKeys($table = NULL){
 
+        if(!$this->driver)
+            return false;
+
         return $this->driver->listConstraints($table, 'FOREIGN KEY');
+
     }
 
     public function listConstraints($table = NULL, $type = NULL, $invert_type = FALSE) {
+
+        if(!$this->driver)
+            return false;
 
         return $this->driver->listConstraints($table, $type, $invert_type);
 
@@ -462,11 +569,17 @@ class Adapter {
 
     public function addConstraint($info, $table) {
 
+        if(!$this->driver)
+            return false;
+
         return $this->driver->addConstraint($info, $table);
 
     }
 
     public function dropConstraint($name, $table) {
+
+        if(!$this->driver)
+            return false;
 
         return $this->driver->dropConstraint($name, $table);
 
@@ -474,11 +587,17 @@ class Adapter {
 
     public function execCount() {
 
+        if(!$this->driver)
+            return false;
+
         return $this->driver->execCount();
 
     }
 
     public function getSchemaVersion() {
+
+        if(!$this->driver)
+            return false;
 
         if (!$this->schema_info->exists())
             return false;
@@ -537,6 +656,9 @@ class Adapter {
      */
     private function createInfoTable() {
 
+        if(!$this->driver)
+            return false;
+
         $table = 'schema_info';
 
         if (!$this->tableExists($table)) {
@@ -583,6 +705,9 @@ class Adapter {
     }
 
     private function getTableDiffs($new, $old) {
+
+        if(!$this->driver)
+            return false;
 
         $diff = array();
 
@@ -648,6 +773,9 @@ class Adapter {
      * @return boolean True if the snapshot was successful. False if no changes were detected and nothing needed to be done.
      */
     public function snapshot($comment = null, $test = false) {
+
+        if(!$this->driver)
+            return false;
 
         $this->log('Snapshot process starting');
 
@@ -1046,6 +1174,9 @@ class Adapter {
      */
     public function migrate($version = null, $test = false) {
 
+        if(!$this->driver)
+            return false;
+
         $this->log('Migration process starting');
 
         if ($test)
@@ -1268,6 +1399,9 @@ class Adapter {
      */
     public function createSchema($schema){
 
+        if(!$this->driver)
+            return false;
+
         $this->beginTransaction();
 
         try{
@@ -1337,6 +1471,9 @@ class Adapter {
      *            The JSON decoded schema to replay.
      */
     private function replay($schema, $test = false) {
+
+        if(!$this->driver)
+            return false;
 
         foreach($schema as $action => $data) {
 
@@ -1472,6 +1609,9 @@ class Adapter {
      * Prepared statements
      */
     public function prepare($sql, $name = null) {
+
+        if(!$this->driver)
+            return false;
 
         $statement = $this->driver->prepare($sql);
 
