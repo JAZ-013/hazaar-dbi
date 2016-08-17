@@ -554,7 +554,7 @@ abstract class BaseDriver implements Driver_Interface {
 
             } else {
 
-                $def = "\t$name $info";
+                $def = "\t" . $this->field($name) . ' ' . $info;
 
             }
 
