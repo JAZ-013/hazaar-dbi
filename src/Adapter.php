@@ -1411,9 +1411,9 @@ class Adapter {
 
                 foreach($tables as $table => $columns){
 
-                    $this->createTable($table, $columns);
+                    $ret = $this->createTable($table, $columns);
 
-                    if($this->errorCode() > 0)
+                    if(!$ret || $this->errorCode() > 0)
                         throw new \Exception('Error creating table ' . $table . ': ' . $this->errorInfo()[2]);
 
                 }
@@ -1425,9 +1425,9 @@ class Adapter {
 
                 foreach($indexes as $index_name => $index_info){
 
-                    $this->createIndex($index_name, $index_info);
+                    $ret = $this->createIndex($index_name, $index_info);
 
-                    if($this->errorCode() > 0)
+                    if(!$ret || $this->errorCode() > 0)
                         throw new \Exception('Error creating index ' . $index_name . ': ' . $this->errorInfo()[2]);
 
                 }
@@ -1439,9 +1439,9 @@ class Adapter {
 
                 foreach($constraints as $fkey_name => $fkey_info){
 
-                    $this->addConstraint($fkey_name, $fkey_info);
+                    $ret = $this->addConstraint($fkey_name, $fkey_info);
 
-                    if($this->errorCode() > 0)
+                    if(!$ret || $this->errorCode() > 0)
                         throw new \Exception('Error creating constraint ' . $fkey_name . ': ' . $this->errorInfo()[2]);
 
                 }
