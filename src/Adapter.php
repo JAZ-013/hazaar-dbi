@@ -57,6 +57,9 @@ class Adapter {
 
     function __construct($config_env = NULL) {
 
+        if(!$config_env)
+            $config_env = APPLICATION_ENV;
+
         $config = null;
 
         if ($config_env == NULL || is_string($config_env)) {
@@ -97,13 +100,25 @@ class Adapter {
 
             }
 
-            $this->connect($this->config->dsn, $this->config->user, $this->config->password);
+            $this->connect($this->config->dsn, $this->config->get('user'), $this->config->get('password'));
 
         }
 
     }
 
+    static public function setDefaultConfig($config, $env = NULL){
+
+        if(!$env)
+            $env = APPLICATION_ENV;
+
+        Adapter::$default_config[$env] = $config;
+
+    }
+
     static public function getDefaultConfig($env = NULL) {
+
+        if(!$env)
+            $env = APPLICATION_ENV;
 
         if (!array_key_exists($env, Adapter::$default_config)){
 
@@ -375,6 +390,9 @@ class Adapter {
     }
 
     public function table($name, $alias = NULL) {
+
+        if(!$this->driver)
+            return null;
 
         return new Table($this->driver, $name, $alias);
 

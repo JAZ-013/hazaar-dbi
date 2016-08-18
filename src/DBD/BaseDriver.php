@@ -384,15 +384,19 @@ abstract class BaseDriver implements Driver_Interface {
         } elseif ($value instanceof \Hazaar\Date) {
 
             $value = $this->quote($value->format('Y-m-d H:i:s'));
+
         } else if (is_null($value)) {
 
             $value = 'NULL';
+
         } else if (is_bool($value)) {
 
             $value = ($value ? 'TRUE' : 'FALSE');
+
         } else if (!is_int($value)) {
 
             $value = $this->quote((string) $value);
+
         }
 
         return $value;
