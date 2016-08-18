@@ -181,6 +181,15 @@ class Sqlite extends BaseDriver {
 
     }
 
+    public function prepareValue($value) {
+
+        if (is_bool($value))
+            $value = ($value ? 1 : 0);
+
+        return parent::prepareValue($value);
+
+    }
+
 }
 
 
