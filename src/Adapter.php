@@ -904,15 +904,15 @@ class Adapter {
 
             $this->log("Processing table '$name'.");
 
-            $cols = $this->describeTable($table['name'], $table['schema'], 'ordinal_position');
+            $cols = $this->describeTable($table['name'], 'ordinal_position');
 
             $current_schema['tables'][$name] = $cols;
 
-            if (array_key_exists('tables') && array_key_exists($name['tables'])) {
+            if (array_key_exists('tables', $schema) && array_key_exists($name, $schema['tables'])) {
 
                 $this->log("Table '$name' already exists.  Checking differences.");
 
-                $diff = $this->getTableDiffs($cols['tables'][$name]);
+                $diff = $this->getTableDiffs($cols, $schema['tables'][$name]);
 
                 if (count($diff) > 0) {
 
@@ -928,7 +928,7 @@ class Adapter {
 
                             if ($diff_mode == 'add') {
 
-                                $info = $this->getColumn($col_info['tables'][$name]);
+                                $info = $this->getColumn($col_info, $schema['tables'][$name]);
 
                                 $changes['down']['alter']['table'][$name][$diff_mode][$col_name] = $info;
 
@@ -970,7 +970,7 @@ class Adapter {
             if ($indexes)
                 $current_schema['indexes'][$name] = $indexes;
 
-            if (array_key_exists('indexes') && array_key_exists($name['indexes'])) {
+            if (array_key_exists('indexes', $schema) && array_key_exists($name, $schema['indexes'])) {
 
                 $this->log('Table index diff is not completed yet!');
 
@@ -991,7 +991,7 @@ class Adapter {
 
         }
 
-        if (array_key_exists('tables')) {
+        if (array_key_exists('tables', $schema)) {
 
             /**
              * Now look for any tables that have been removed
@@ -1476,13 +1476,13 @@ class Adapter {
                     $this->log('Inserting ' . count($records) . ' into table ' . $table);
 
                     foreach($records as $id => $record){
-                        
+
                         if($this->insert($table, $record)){
 
                             $this->log('OK');
 
                         }else{
-                            
+
                             $this->log('Error inserting record #' . $id);
 
                         }

@@ -587,22 +587,21 @@ abstract class BaseDriver implements Driver_Interface {
         if (!$sort)
             $sort = 'ordinal_position';
 
+        $pkeys = array();
+
+        if ($constraints = $this->listConstraints($name, 'PRIMARY KEY')) {
+
+            foreach($constraints as $constraint)
+                $pkeys[] = $constraint['column'];
+
+        }
+
         $info = new \Hazaar\DBI\Table($this, 'information_schema.columns');
 
         $result = $info->find(array(
             'table_name' => $name,
             'table_schema' => $this->schema
         ))->sort($sort);
-
-        $pkeys = array();
-
-        if ($constraints = $this->listTableConstraints($name, 'PRIMARY KEY')) {
-
-            foreach($constraints as $constraint) {
-
-                $pkeys[] = $constraint['column'];
-            }
-        }
 
         $columns = array();
 
