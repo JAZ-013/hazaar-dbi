@@ -1466,6 +1466,34 @@ class Adapter {
 
             }
 
+            /* Insert data records */
+            if($data = ake($schema, 'data')){
+
+                $this->log('Inserting data records');
+
+                foreach($data as $table => $records){
+
+                    $this->log('Inserting ' . count($records) . ' into table ' . $table);
+
+                    foreach($records as $id => $record){
+                        
+                        if($this->insert($table, $record)){
+
+                            $this->log('OK');
+
+                        }else{
+                            
+                            $this->log('Error inserting record #' . $id);
+
+                        }
+
+                    }
+
+                }
+
+            }
+
+
         }
         catch(\Exception $e){
 
