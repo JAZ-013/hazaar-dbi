@@ -206,6 +206,9 @@ abstract class BaseDriver implements Driver_Interface {
 
     public function prepareCriteria($criteria, $bind_type = 'AND', $tissue = '=', $parent_ref = NULL) {
 
+        if(!is_array($criteria))
+            return $criteria;
+
         $parts = array();
 
         foreach($criteria as $key => $value) {
@@ -263,9 +266,21 @@ abstract class BaseDriver implements Driver_Interface {
 
                         break;
 
+                    case 'gte':
+
+                        $parts[] = '>= ' . $this->prepareValue($value);
+
+                        break;
+
                     case 'lt':
 
                         $parts[] = '< ' . $this->prepareValue($value);
+
+                        break;
+
+                    case 'lte':
+
+                        $parts[] = '<= ' . $this->prepareValue($value);
 
                         break;
 
