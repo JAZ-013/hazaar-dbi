@@ -291,6 +291,14 @@ class Mysql extends BaseDriver {
 
     }
 
+    public function insert($table, $fields, $returning = FALSE){
+
+        if(!is_bool($returning))
+            $returning = (strtolower($returning) == 'id');
+
+        return parent::insert($table, $fields, $returning);
+
+    }
 }
 
 
