@@ -434,7 +434,7 @@ abstract class BaseDriver implements Driver_Interface {
 
         $return_value = FALSE;
 
-        if ($returning === NULL) {
+        if ($returning === NULL || $returning === FALSE) {
 
             $sql .= ';';
 
