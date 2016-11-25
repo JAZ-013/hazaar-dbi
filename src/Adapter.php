@@ -122,7 +122,7 @@ class Adapter {
 
         if (!array_key_exists($env, Adapter::$default_config)){
 
-            $config = new \Hazaar\Application\Config('database.ini', $env);
+            $config = new \Hazaar\Application\Config('database', $env);
 
             if(!$config->loaded())
                 return null;
