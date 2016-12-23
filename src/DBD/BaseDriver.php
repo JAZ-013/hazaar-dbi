@@ -138,6 +138,24 @@ abstract class BaseDriver implements Driver_Interface {
 
     }
 
+    public function quoteSpecial($string) {
+
+        if (is_string($string)){
+
+            $parts = explode('.', $string);
+
+            array_walk($parts, function(&$item){
+                $item = $this->quote_special . $item . $this->quote_special;
+            });
+
+            return implode('.', $parts);
+
+        }
+
+        return $string;
+
+    }
+
     public function rollBack() {
 
         return $this->pdo->rollback();
@@ -183,7 +201,7 @@ abstract class BaseDriver implements Driver_Interface {
     public function field($string) {
 
         if (in_array(strtoupper($string), $this->reserved_words))
-            $string = $this->quote_special . $string . $this->quote_special;
+            $string = $this->quoteSpecial($string);
 
         return $string;
 
