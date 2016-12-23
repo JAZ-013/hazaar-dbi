@@ -61,7 +61,7 @@ class Table {
 
     private function from() {
 
-        return $this->name . ($this->alias ? ' ' . $this->alias : NULL);
+        return $this->driver->quoteSpecial($this->name) . ($this->alias ? ' ' . $this->alias : NULL);
 
     }
 
