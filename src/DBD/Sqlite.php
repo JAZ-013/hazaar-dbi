@@ -134,6 +134,13 @@ class Sqlite extends BaseDriver {
         'WITHOUT'
     );
 
+    static function mkdsn($config){
+
+        $filename = ($config->has('filename') ? $config->filename : 'database.sqlite' );
+
+        return 'sqlite:' . \Hazaar\Application::getInstance()->runtimePath($filename);
+
+    }
 
     public function connect($dsn, $username = null, $password = null, $driver_options = null) {
 

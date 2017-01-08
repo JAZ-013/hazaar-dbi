@@ -86,21 +86,30 @@ class Adapter {
 
         if (\Hazaar\Map::is_array($config)) {
 
-            $this->config = $config;
+            $this->config = clone $config;
 
-            if (!$this->config->has('dsn')) {
+            $user = ( $this->config->has('user') ? $this->config->user : null );
+
+            $password = ( $this->config->has('password') ? $this->config->password : null );
+
+            if ($this->config->has('dsn')){
+
+                $dsn = $this->config->dsn;
+
+            }else{
 
                 $dsn = $this->config->driver . ':';
 
-                $this->config->del('driver');
+                $DBD = 'Hazaar\DBI\DBD\\' . ucfirst(substr($dsn, 0, strpos($dsn, ':')));
 
-                $dsn .= $this->config->flatten('=', ';');
+                if(!class_exists($DBD))
+                    return false;
 
-                $this->config->dsn = $dsn;
+                $dsn = $DBD::mkdsn($this->config);
 
             }
 
-            $this->connect($this->config->dsn, $this->config->get('user'), $this->config->get('password'));
+            $this->connect($dsn, $user, $password);
 
         }
 
@@ -137,16 +146,16 @@ class Adapter {
 
     public function connect($dsn, $username = NULL, $password = NULL, $driver_options = NULL) {
 
-        $driver = ucfirst(substr($dsn, 0, strpos($dsn, ':')));
+        $DBD = ucfirst(substr($dsn, 0, strpos($dsn, ':')));
 
-        if (!$driver)
+        if (!$DBD)
             throw new Exception\DriverNotSpecified();
 
-        if (!array_key_exists($driver, Adapter::$connections))
-            Adapter::$connections[$driver] = array();
+        if (!array_key_exists($DBD, Adapter::$connections))
+            Adapter::$connections[$DBD] = array();
 
         $hash = md5(serialize(array(
-            $driver,
+            $DBD,
             $dsn,
             $username,
             $password,
@@ -159,10 +168,10 @@ class Adapter {
 
         } else {
 
-            $class = 'Hazaar\DBI\DBD\\' . $driver;
+            $class = 'Hazaar\DBI\DBD\\' . $DBD;
 
             if (!class_exists($class))
-                throw new Exception\DriverNotFound($driver);
+                throw new Exception\DriverNotFound($DBD);
 
             $this->driver = new $class(array_unflatten(substr($dsn, strpos($dsn, ':') + 1)));
 

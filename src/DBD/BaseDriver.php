@@ -85,6 +85,19 @@ abstract class BaseDriver implements Driver_Interface {
 
     }
 
+    static function mkdsn($config){
+
+        $options = $config->toArray();
+
+        if(array_key_exists('driver', $options))
+            unset($options['driver']);
+
+        $dsn = $config->driver . ':' . array_flatten($options, '=', ';');
+
+        return $dsn;
+
+    }
+
     public function getSchemaName(){
 
         return $this->schema;
