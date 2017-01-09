@@ -4,7 +4,6 @@ namespace Hazaar\DBI\DBD;
 
 class Sqlite extends BaseDriver {
 
-
     public $allow_constraints = false;
 
     protected $reserved_words = array(
@@ -186,6 +185,35 @@ class Sqlite extends BaseDriver {
             'type' => 'table'
         ));
 
+    }
+
+    public function describeTable($name, $sort = NULL){
+
+        $columns = array();
+
+        $sql = "PRAGMA table_info('$name');";
+
+        $result = $this->query($sql);
+
+        $ordinal_position = 0;
+
+        while($col = $result->fetch(\PDO::FETCH_ASSOC)) {
+
+            //SQLite does not have ordinal position so we generate it
+            $ordinal_position++;
+
+            $columns[] = array(
+                'name' => $col['name'],
+                'ordinal_position' => $ordinal_position,
+                'default' => $col['dflt_value'],
+                'not_null' => boolify($col['notnull']),
+                'data_type' => $this->type($col['type']),
+                'primarykey' => boolify($col['pk'])
+            );
+
+        }
+
+        return $columns;
     }
 
     public function prepareValue($value) {
