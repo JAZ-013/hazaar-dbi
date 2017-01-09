@@ -12,7 +12,7 @@ class Pgsql extends BaseDriver {
 
     }
 
-    public function connect($dsn, $username = null, $password = null, $driver_options = null) {
+    public function connects($dsn, $username = null, $password = null, $driver_options = null) {
 
         $d_pos = strpos($dsn, ':');
 
@@ -73,6 +73,23 @@ class Pgsql extends BaseDriver {
 
     }
 
+    public function listTables() {
+
+        $sql = "SELECT table_schema as \"schema\", table_name as name FROM information_schema.tables t WHERE table_type = 'BASE TABLE'";
+
+        if($this->schema != 'public')
+            $sql .= " AND table_schema = '$this->schema'";
+        else
+            $sql .= "AND table_schema NOT IN ( 'information_schema', 'pg_catalog' )";
+
+        $sql .= " ORDER BY table_name DESC;";
+
+        if ($result = $this->query($sql))
+            return $result->fetchAll(\PDO::FETCH_ASSOC);
+
+        return NULL;
+
+    }
 }
 
 

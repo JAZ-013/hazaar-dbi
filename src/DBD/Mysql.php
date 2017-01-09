@@ -299,6 +299,19 @@ class Mysql extends BaseDriver {
         return parent::insert($table, $fields, $returning);
 
     }
+
+    public function listTables(){
+
+        $list = array();
+
+        $result = $this->query('SHOW TABLES;');
+
+        while($table = $result->fetch(\PDO::FETCH_ASSOC))
+            $list[] = array('name' => array_values($table)[0]);
+
+        return $list;
+
+    }
 }
 
 
