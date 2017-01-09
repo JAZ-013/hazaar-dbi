@@ -168,11 +168,23 @@ class Sqlite extends BaseDriver {
 
     public function listTables(){
 
+        $tables = array();
+
         $sql = "SELECT tbl_name as name FROM sqlite_master WHERE type = 'table';";
 
         $result = $this->query($sql);
 
-        return $result->fetchAll(\PDO::FETCH_ASSOC);
+        while($table = $result->fetch(\PDO::FETCH_ASSOC)){
+
+            //Ignore internal SQLite tables.
+            if(substr($table['name'], 0, 7) == 'sqlite_')
+                continue;
+
+            $tables[] = array('name' => $table['name']);
+
+        }
+
+        return $tables;
 
     }
 
