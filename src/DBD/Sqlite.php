@@ -220,6 +220,7 @@ class Sqlite extends BaseDriver {
                 'default' => $col['dflt_value'],
                 'not_null' => boolify($col['notnull']),
                 'data_type' => $this->type($col['type']),
+                'length' => null,
                 'primarykey' => boolify($col['pk'])
             );
 
