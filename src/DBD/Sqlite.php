@@ -203,6 +203,8 @@ class Sqlite extends BaseDriver {
 
         $columns = array();
 
+        $name = $this->tableName($name);
+
         $sql = "PRAGMA table_info('$name');";
 
         $result = $this->query($sql);
@@ -235,6 +237,17 @@ class Sqlite extends BaseDriver {
             $value = ($value ? 1 : 0);
 
         return parent::prepareValue($value);
+
+    }
+
+    public function tableName($name){
+
+        $parts = explode('.', $name);
+
+        if(count($parts) > 1)
+            $name = $parts[1];
+
+        return $name;
 
     }
 

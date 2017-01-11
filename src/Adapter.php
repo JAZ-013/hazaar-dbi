@@ -549,12 +549,12 @@ class Adapter {
 
     }
 
-    public function createIndex($index_name, $idx_info) {
+    public function createIndex($index_name, $table_name, $idx_info) {
 
         if(!$this->driver)
             return false;
 
-        return $this->driver->createIndex($index_name, $idx_info);
+        return $this->driver->createIndex($index_name, $table_name, $idx_info);
 
     }
 
@@ -659,14 +659,16 @@ class Adapter {
 
                 if (preg_match('/(\d*)_(\w*)/', $file, $matches)) {
 
-                    if ($with_file_obj) {
+                    $version = $matches[1];
 
-                        $versions[(int) $matches[1]] = $file;
-                    } else {
+                    if ($with_file_obj)
+                        $versions[$version] = $file;
 
-                        $versions[(int) $matches[1]] = str_replace('_', ' ', $matches[2]);
-                    }
+                    else
+                        $versions[$version] = str_replace('_', ' ', $matches[2]);
+
                 }
+
             }
 
             ksort($versions);
@@ -841,9 +843,9 @@ class Adapter {
 
         try {
 
-            $result = $this->query('SELECT now()');
+            $result = $this->query('SELECT CURRENT_TIMESTAMP');
 
-            if ($result->count() == 0)
+            if (!$result instanceof Result)
                 throw new \Exception('No rows returned!');
 
             $this->log("Starting at: " . $result->fetchColumn(0));
@@ -899,6 +901,9 @@ class Adapter {
          */
         $changes = array();
 
+        if($init)
+            $changes['down']['raise'] = 'Can not revert initial snapshot';
+
         /**
          * Check for any new tables or changes to existing tables.
          * This pretty much looks just for tables to add and
@@ -906,14 +911,14 @@ class Adapter {
          */
         foreach($this->listTables() as $table) {
 
-            $name = $table['schema'] . '.' . $table['name'];
+            $name = $table['name'];
 
-            if ($name == 'public.schema_info')
+            if ($name == 'schema_info')
                 continue;
 
             $this->log("Processing table '$name'.");
 
-            $cols = $this->describeTable($table['name'], 'ordinal_position');
+            $cols = $this->describeTable($name, 'ordinal_position');
 
             $current_schema['tables'][$name] = $cols;
 
@@ -966,33 +971,83 @@ class Adapter {
                     'cols' => $cols
                 );
 
-                if ($init)
-                    $changes['down']['raise'] = 'Can not revert initial snapshot';
-
-                else
+                if (!$init)
                     $changes['down']['remove']['table'][] = $name;
 
             }
 
-            $indexes = $this->listIndexes($table['name'], $table['schema']);
+            $indexes = $this->listIndexes($name);
 
-            if ($indexes)
-                $current_schema['indexes'][$name] = $indexes;
+            if(count($indexes) > 0){
+
+                if(!array_key_exists('indexes', $current_schema))
+                    $current_schema['indexes'] = array();
+
+                $current_schema['indexes'][$name] = array_merge($current_schema['indexes'], $indexes);
+
+            }
 
             if (array_key_exists('indexes', $schema) && array_key_exists($name, $schema['indexes'])) {
 
-                $this->log('Table index diff is not completed yet!');
-
                 $diff = array();
 
-                foreach($indexes as $key => $index) {
+                //Look for new indexes
+                foreach($indexes as $index_name => $index){
 
-                    $def = array(
-                        'type' => 'index',
-                        'def' => $index
+                    if(!array_key_exists($index_name, $schema['indexes'][$name])){
+
+                        $this->log("Added new index '$index_name' on table '$name'.");
+
+                        $changes['up']['create']['index'][] = $index;
+
+                    }
+
+                }
+
+                $this->log('Looking for removed indexes');
+
+                //Look for any removed indexes.  If there is no indexes in the current schema, then all have been removed.
+                if(array_key_exists('indexes', $current_schema) && array_key_exists($name, $current_schema['indexes']))
+                    $missing = array_diff(array_keys($schema['indexes'][$name]), array_keys($current_schema['indexes'][$name]));
+                else
+                    $missing = array_keys($schema['indexes'][$name]);
+
+                if (count($missing) > 0) {
+
+                    foreach($missing as $index) {
+
+                        $this->log("Index '$index' has been removed from table '$name'.");
+
+                        $idef = $schema['indexes'][$name][$index];
+
+                        $changes['up']['remove']['index'][] = $index;
+
+                        $changes['down']['create']['index'][] = array(
+                            'name' => $index,
+                            'table' => $name,
+                            'columns' => $idef['columns'],
+                            'unique' => $idef['unique']
+                        );
+
+                    }
+
+                }
+
+            }else{
+
+                $this->log("Indexes on '$name' have been created.");
+
+                foreach($indexes as $index_name => $index){
+
+                    $changes['up']['create']['index'][] = array(
+                        'name' => $index_name,
+                        'table' => $name,
+                        'columns' => $index['columns'],
+                        'unique' => $index['unique']
                     );
 
-                    $changes['up']['create'][] = $def;
+                    if (!$init)
+                        $changes['down']['remove']['index'][] = $name;
 
                 }
 
@@ -1119,18 +1174,8 @@ class Adapter {
 
             $this->log('Comment: ' . $comment);
 
-            if ($init == true) {
-
-                $changes = array(
-                    'version' => $version,
-                    'schema' => $current_schema
-                );
-
-            } else {
-
+            if ($init !== true)
                 $this->log('Migration diffs are not fully supported yet! Be careful!');
-
-            }
 
             $migrate_dir = $db_dir . '/migrate';
 
@@ -1161,6 +1206,7 @@ class Adapter {
             $this->commit();
 
             return true;
+
         }
 
         $this->log('No changes detected.');
@@ -1194,8 +1240,7 @@ class Adapter {
      * is no damage to the database. If something goes wrong, errors will be availabl in the migration log accessible with
      * \Hazaar\Adapter::getMigrationLog(). Errors in the migration files can be fixed and the migration retried.
      *
-     * @param int $version
-     *            The database schema version to migrate to.
+     * @param string $version The database schema version to migrate to.
      *
      * @return boolean Returns true on successful migration. False if no migration was neccessary. Throws an Exception on error.
      */
@@ -1225,6 +1270,9 @@ class Adapter {
 
         if(!array_key_exists('version', $schema))
             $schema['version'] = 1;
+
+        if(!is_string($version))
+            settype($version, 'string');
 
         if ($version) {
 
@@ -1285,9 +1333,8 @@ class Adapter {
 
             if ($result = $this->table('schema_info')->find(array(), array('version'))->sort('version', true)) {
 
-                $row = $result->fetch();
-
-                $current_version = $row['version'];
+                if($row = $result->fetch())
+                    $current_version = $row['version'];
 
                 $this->log("Current database version: " . ($current_version ? $current_version : "None"));
 
@@ -1334,7 +1381,7 @@ class Adapter {
             if ($schema['version'] > 0){
 
                 if($test || $this->createSchema($schema))
-                    $committed_versions[] = $schema['version'];
+                    $committed_versions = array_keys($this->getSchemaVersions());
 
             }
 
@@ -1450,12 +1497,16 @@ class Adapter {
             /* Create indexes */
             if($indexes = ake($schema, 'indexes')){
 
-                foreach($indexes as $index_name => $index_info){
+                foreach($indexes as $table => $table_indexes){
 
-                    $ret = $this->createIndex($index_name, $index_info);
+                    foreach($table_indexes as $index_name => $index_info){
 
-                    if(!$ret || $this->errorCode() > 0)
-                        throw new \Exception('Error creating index ' . $index_name . ': ' . $this->errorInfo()[2]);
+                        $ret = $this->createIndex($index_name, $table, $index_info);
+
+                        if(!$ret || $this->errorCode() > 0)
+                            throw new \Exception('Error creating index ' . $index_name . ': ' . $this->errorInfo()[2]);
+
+                    }
 
                 }
 
@@ -1548,6 +1599,9 @@ class Adapter {
                             if ($type == 'table')
                                 $this->createTable($item['name'], $item['cols']);
 
+                            elseif($type == 'index')
+                                $this->createIndex($item['name'], $item['table'], array('columns' => $item['columns'], 'unique' => $item['unique']));
+
                             else
                                 $this->log("I don't know how to create {$type}s!");
 
@@ -1561,6 +1615,9 @@ class Adapter {
 
                             if ($type == 'table')
                                 $this->dropTable($item);
+
+                            elseif($type == 'index')
+                                $this->dropIndex($item);
 
                             else
                                 $this->log("I don't know how to remove {$type}s!");

@@ -449,6 +449,21 @@ abstract class BaseDriver implements Driver_Interface {
 
     }
 
+    /**
+     * Special internal function to fix the default column value.
+     * 
+     * This function is normally overridden by the DBD class being used so that values can be "fixed".
+     *
+     * @param mixed $value
+     *
+     * @return mixed
+     */
+    protected function fixValue($value){
+
+        return $value;
+
+    }
+
     public function insert($table, $fields, $returning = TRUE) {
 
         $field_def = array_keys($fields);
@@ -609,7 +624,7 @@ abstract class BaseDriver implements Driver_Interface {
         $affected = $this->exec($sql);
 
         if ($affected === FALSE)
-            return FALSE;
+            throw new \Exception('Could not create table. ' . $this->errorInfo()[2]);
 
         return TRUE;
 
@@ -626,6 +641,10 @@ abstract class BaseDriver implements Driver_Interface {
 
             foreach($constraints as $constraint)
                 $pkeys[] = $constraint['column'];
+
+        }else{
+
+            return false;
 
         }
 
@@ -649,13 +668,15 @@ abstract class BaseDriver implements Driver_Interface {
                     $col['data_type'] = 'serial';
 
                     $col['column_default'] = NULL;
+
                 }
+
             }
 
             $columns[] = array(
                 'name' => $col['column_name'],
                 'ordinal_position' => $col['ordinal_position'],
-                'default' => $col['column_default'],
+                'default' => $this->fixValue($col['column_default']),
                 'not_null' => (($col['is_nullable'] == 'NO') ? TRUE : FALSE),
                 'data_type' => $this->type($col['data_type']),
                 'length' => $col['character_maximum_length'],
@@ -797,54 +818,26 @@ abstract class BaseDriver implements Driver_Interface {
 
     public function listIndexes($table = NULL){
 
-        $sql = "SELECT table_name AS `table`,
-            index_name AS `name`,
-            CASE WHEN non_unique=1 THEN FALSE ELSE TRUE END as `unique`,
-            GROUP_CONCAT(column_name ORDER BY seq_in_index) AS `columns`
-            FROM information_schema.statistics
-            WHERE table_schema = '{$this->schema}'";
-
-        if($table)
-            $sql .= "\nAND table_name='$table'";
-
-        $sql .= "\nGROUP BY 1,2;";
-
-        if($result = $this->query($sql)){
-
-            $indexes = array();
-
-            while($row = $result->fetch(\PDO::FETCH_ASSOC)){
-
-                $indexes[$row['name']] = array(
-                    'table' => $row['table'],
-                    'columns' => explode(',', $row['columns']),
-                    'unique' => boolify($row['unique'])
-                );
-
-            }
-
-            return $indexes;
-
-        }
-
-        return false;
+        return array();
 
     }
 
-    public function createIndex($index_name, $idx_info) {
-
-        if (!array_key_exists('table', $idx_info))
-            return false;
+    public function createIndex($index_name, $table_name, $idx_info) {
 
         if (!array_key_exists('columns', $idx_info))
             return false;
+
+        $indexes = $this->listIndexes($table_name);
+
+        if(array_key_exists($index_name, $indexes))
+            return true;
 
         $sql = 'CREATE';
 
         if (array_key_exists('unique', $idx_info) && $idx_info['unique'])
             $sql .= ' UNIQUE';
 
-        $sql .= " INDEX $index_name ON $idx_info[table] (" . implode(',', $idx_info['columns']) . ')';
+        $sql .= " INDEX $index_name ON $table_name (" . implode(',', array_map(array($this, 'field'), $idx_info['columns'])) . ')';
 
         if (array_key_exists('using', $idx_info) && $idx_info['using'])
             $sql .= ' USING ' . $idx_info['using'];
@@ -875,65 +868,7 @@ abstract class BaseDriver implements Driver_Interface {
 
     public function listConstraints($table = NULL, $type = NULL, $invert_type = FALSE) {
 
-        if(!$this->allow_constraints)
-            return false;
-
-        $constraints = array();
-
-        $sql = "SELECT
-                tc.constraint_name as name,
-                tc.table_name as `table`,
-                tc.table_schema as `schema`,
-                kcu.column_name as `column`,
-                kcu.REFERENCED_TABLE_SCHEMA AS foreign_schema,
-                kcu.REFERENCED_TABLE_NAME AS foreign_table,
-                kcu.REFERENCED_COLUMN_NAME AS foreign_column,
-                tc.constraint_type as type,
-                rc.match_option,
-                rc.update_rule,
-                rc.delete_rule
-            FROM information_schema.table_constraints tc
-            INNER JOIN information_schema.key_column_usage kcu
-                ON kcu.constraint_schema = tc.constraint_schema
-                AND kcu.constraint_name = tc.constraint_name
-                AND kcu.table_schema = tc.table_schema
-                AND kcu.table_name = tc.table_name
-            LEFT JOIN information_schema.referential_constraints rc ON tc.constraint_name = rc.constraint_name
-            WHERE tc.CONSTRAINT_SCHEMA='{$this->schema}'";
-
-        if($table)
-            $sql .= "\nAND tc.table_name='$table'";
-
-        if ($type)
-            $sql .= "\nAND tc.constraint_type" . ($invert_type ? '!=' : '=') . "'$type'";
-
-        $sql .= ';';
-
-        if ($result = $this->query($sql)) {
-
-            while($row = $result->fetch(\PDO::FETCH_ASSOC)){
-
-                $constraint = array(
-                   'table' => $row['table'],
-                   'column' => $row['column'],
-                   'type' => $row['type']
-                );
-
-                if($row['foreign_table']){
-                    $constraint['references'] = array(
-                        'table' => $row['foreign_table'],
-                        'column' => $row['foreign_column']
-                    );
-                }
-
-                $constraints[$row['name']] = $constraint;
-
-            }
-
-            return $constraints;
-        }
-
-        return FALSE;
+        return array();
 
     }
 

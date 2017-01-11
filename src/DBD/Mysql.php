@@ -307,11 +307,110 @@ class Mysql extends BaseDriver {
         $result = $this->query('SHOW TABLES;');
 
         while($table = $result->fetch(\PDO::FETCH_ASSOC))
-            $list[] = array('name' => array_values($table)[0]);
+            $list[] = array(
+                'name' => array_values($table)[0]
+            );
 
         return $list;
 
     }
+
+    public function listConstraints($table = NULL, $type = NULL, $invert_type = FALSE) {
+
+        if(!$this->allow_constraints)
+            return false;
+
+        $constraints = array();
+
+        $sql = "SELECT
+                tc.constraint_name as name,
+                tc.table_name as " . $this->field('table') . ",
+                tc.table_schema as " . $this->field('schema') . ",
+                kcu.column_name as " . $this->field('column') . ",
+                kcu.REFERENCED_TABLE_SCHEMA AS foreign_schema,
+                kcu.REFERENCED_TABLE_NAME AS foreign_table,
+                kcu.REFERENCED_COLUMN_NAME AS foreign_column,
+                tc.constraint_type as type,
+                rc.match_option,
+                rc.update_rule,
+                rc.delete_rule
+            FROM information_schema.table_constraints tc
+            INNER JOIN information_schema.key_column_usage kcu
+                ON kcu.constraint_schema = tc.constraint_schema
+                AND kcu.constraint_name = tc.constraint_name
+                AND kcu.table_schema = tc.table_schema
+                AND kcu.table_name = tc.table_name
+            LEFT JOIN information_schema.referential_constraints rc ON tc.constraint_name = rc.constraint_name
+            WHERE tc.CONSTRAINT_SCHEMA='{$this->schema}'";
+
+        if($table)
+            $sql .= "\nAND tc.table_name='$table'";
+
+        if ($type)
+            $sql .= "\nAND tc.constraint_type" . ($invert_type ? '!=' : '=') . "'$type'";
+
+        $sql .= ';';
+
+        if ($result = $this->query($sql)) {
+
+            while($row = $result->fetch(\PDO::FETCH_ASSOC)){
+
+                $constraint = array(
+                   'table' => $row['table'],
+                   'column' => $row['column'],
+                   'type' => $row['type']
+                );
+
+                if($row['foreign_table']){
+                    $constraint['references'] = array(
+                        'table' => $row['foreign_table'],
+                        'column' => $row['foreign_column']
+                    );
+                }
+
+                $constraints[$row['name']] = $constraint;
+
+            }
+
+            return $constraints;
+        }
+
+        return FALSE;
+
+    }
+
+    public function listIndexes($table = NULL){
+
+        $sql = "SELECT table_name AS " . $this->field('table') . ",
+            index_name AS " . $this->field('name') . ",
+            CASE WHEN non_unique=1 THEN FALSE ELSE TRUE END as " . $this->field('unique') . ",
+            GROUP_CONCAT(column_name ORDER BY seq_in_index) AS " . $this->field('columns') . "
+            FROM information_schema.statistics
+            WHERE table_schema = '{$this->schema}'";
+
+        if($table)
+            $sql .= "\nAND table_name='$table'";
+
+        $sql .= "\nGROUP BY 1,2;";
+
+        if(!($result = $this->query($sql)))
+            throw new \Exception('Index list failed. ' . $this->errorInfo()[2]);
+
+        $indexes = array();
+
+        while($row = $result->fetch(\PDO::FETCH_ASSOC)){
+
+            $indexes[$row['name']] = array(
+                'columns' => array_map('trim', explode(',', $row['columns'])),
+                'unique' => boolify($row['unique'])
+            );
+
+        }
+
+        return $indexes;
+
+    }
+
 }
 
 
