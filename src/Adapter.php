@@ -989,8 +989,6 @@ class Adapter {
 
             if (array_key_exists('indexes', $schema) && array_key_exists($name, $schema['indexes'])) {
 
-                $diff = array();
-
                 //Look for new indexes
                 foreach($indexes as $index_name => $index){
 
@@ -1006,7 +1004,7 @@ class Adapter {
 
                 $this->log('Looking for removed indexes');
 
-                //Look for any removed indexes.  If there is no indexes in the current schema, then all have been removed.
+                //Look for any removed indexes.  If there are no indexes in the current schema, then all have been removed.
                 if(array_key_exists('indexes', $current_schema) && array_key_exists($name, $current_schema['indexes']))
                     $missing = array_diff(array_keys($schema['indexes'][$name]), array_keys($current_schema['indexes'][$name]));
                 else
@@ -1048,6 +1046,70 @@ class Adapter {
 
                     if (!$init)
                         $changes['down']['remove']['index'][] = $name;
+
+                }
+
+            }
+
+        }
+
+        /**
+         * Process any constraints if supported by the DBD
+         */
+        $constraints = $this->listConstraints(NULL, 'FOREIGN KEY');
+
+        $current_schema['constraints'] = $constraints;
+
+        //Look for new constraints
+        foreach($constraints as $name => $info){
+
+            if(!array_key_exists('constraints', $schema)
+                || !array_key_exists($name, $schema['constraints'])){
+
+                $this->log("Added new constraint '$name' on table '$info[table]'.");
+
+                $changes['up']['create']['constraint'][] = array(
+                    'name' => $name,
+                    'table' => $info['table'],
+                    'column' => $info['column'],
+                    'type' => $info['type'],
+                    'references' => $info['references']
+                );
+
+                if (!$init)
+                    $changes['down']['remove']['constraint'][] = $name;
+
+            }
+
+        }
+
+        if(array_key_exists('constraints', $schema)){
+
+            $this->log('Looking for removed constraints');
+
+            //Look for any removed constraints.  If there are no constraints in the current schema, then all have been removed.
+            if(array_key_exists('constraints', $current_schema))
+                $missing = array_diff(array_keys($schema['constraints']), array_keys($current_schema['constraints']));
+            else
+                $missing = array_keys($schema['constraints']);
+
+            if (count($missing) > 0) {
+
+                foreach($missing as $constraint) {
+
+                    $this->log("Constraint '$constraint' has been removed.");
+
+                    $idef = $schema['constraints'][$constraint];
+
+                    $changes['up']['remove']['constraint'][] = $constraint;
+
+                    $changes['up']['create']['constraint'][] = array(
+                        'name' => $constraint,
+                        'table' => $idef['table'],
+                        'column' => $idef['column'],
+                        'type' => $idef['type'],
+                        'references' => $idef['references']
+                    );
 
                 }
 
