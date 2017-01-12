@@ -451,7 +451,7 @@ abstract class BaseDriver implements Driver_Interface {
 
     /**
      * Special internal function to fix the default column value.
-     * 
+     *
      * This function is normally overridden by the DBD class being used so that values can be "fixed".
      *
      * @param mixed $value
@@ -565,7 +565,7 @@ abstract class BaseDriver implements Driver_Interface {
 
     public function createTable($name, $columns) {
 
-        $sql = "CREATE TABLE $name (\n";
+        $sql = "CREATE TABLE " . $this->field($name) . " (\n";
 
         $coldefs = array();
 
@@ -701,7 +701,7 @@ abstract class BaseDriver implements Driver_Interface {
 
         }
 
-        $sql = "ALTER TABLE $from_name RENAME TO $to_name;";
+        $sql = "ALTER TABLE " . $this->field($from_name) . " RENAME TO " . $this->field($to_name) . ";";
 
         $affected = $this->exec($sql);
 
@@ -714,7 +714,7 @@ abstract class BaseDriver implements Driver_Interface {
 
     public function dropTable($name) {
 
-        $sql = "DROP TABLE $name;";
+        $sql = "DROP TABLE " . $this->field($name) . ";";
 
         $affected = $this->exec($sql);
 
@@ -733,7 +733,7 @@ abstract class BaseDriver implements Driver_Interface {
         if (!array_key_exists('data_type', $column_spec))
             return FALSE;
 
-        $sql = "ALTER TABLE $table ADD COLUMN $column_spec[name] " . $this->type($column_spec['data_type']);
+        $sql = "ALTER TABLE " . $this->field($table) . " ADD COLUMN $column_spec[name] " . $this->type($column_spec['data_type']);
 
         if (array_key_exists('not_null', $column_spec) && $column_spec['not_null'])
             $sql .= ' NOT NULL';
@@ -756,7 +756,7 @@ abstract class BaseDriver implements Driver_Interface {
 
         $sqls = array();
 
-        $prefix = "ALTER TABLE $table ALTER COLUMN $column";
+        $prefix = "ALTER TABLE " . $this->field($table) . " ALTER COLUMN " . $this->field($column);
 
         if (array_key_exists('data_type', $column_spec))
             $sqls[] = $prefix . " TYPE " . $this->type($column_spec['data_type']) . ((array_key_exists('length', $column_spec) && $column_spec['length'] > 0) ? '(' . $column_spec['length'] . ')' : NULL);
@@ -778,7 +778,7 @@ abstract class BaseDriver implements Driver_Interface {
 
     public function dropColumn($table, $column) {
 
-        $sql = "ALTER TABLE $table DROP COLUMN $column;";
+        $sql = "ALTER TABLE " . $this->field($table) . " DROP COLUMN " . $this->field($column) . ";";
 
         $affected = $this->exec($sql);
 
@@ -837,7 +837,7 @@ abstract class BaseDriver implements Driver_Interface {
         if (array_key_exists('unique', $idx_info) && $idx_info['unique'])
             $sql .= ' UNIQUE';
 
-        $sql .= " INDEX $index_name ON $table_name (" . implode(',', array_map(array($this, 'field'), $idx_info['columns'])) . ')';
+        $sql .= " INDEX " . $this->field($index_name) . " ON " . $this->field($table_name) . " (" . implode(',', array_map(array($this, 'field'), $idx_info['columns'])) . ')';
 
         if (array_key_exists('using', $idx_info) && $idx_info['using'])
             $sql .= ' USING ' . $idx_info['using'];
@@ -855,7 +855,7 @@ abstract class BaseDriver implements Driver_Interface {
 
     public function dropIndex($name) {
 
-        $sql = $this->exec('DROP INDEX ' . $name);
+        $sql = $this->exec('DROP INDEX ' . $this->field($name));
 
         $affected = $this->exec($sql);
 
@@ -913,7 +913,7 @@ abstract class BaseDriver implements Driver_Interface {
 
     public function dropConstraint($name, $table) {
 
-        $sql = "ALTER TABLE $table DROP CONSTRAINT $name";
+        $sql = "ALTER TABLE " . $this->field($table) . " DROP CONSTRAINT " . $this->field($name);
 
         $affected = $this->exec($sql);
 
