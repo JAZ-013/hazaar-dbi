@@ -895,7 +895,7 @@ abstract class BaseDriver implements Driver_Interface {
         if(!array_key_exists('delete_rule', $info))
             $info['delete_rule'] = 'NO ACTION';
 
-        $sql = "ALTER TABLE $info[table] ADD CONSTRAINT $name $info[type] ($info[column])";
+        $sql = "ALTER TABLE " . $this->field($info['table']) . " ADD CONSTRAINT $name $info[type] ($info[column])";
 
         if (array_key_exists('references', $info))
             $sql .= " REFERENCES {$info['references']['table']} ({$info['references']['column']}) ON UPDATE $info[update_rule] ON DELETE $info[delete_rule]";

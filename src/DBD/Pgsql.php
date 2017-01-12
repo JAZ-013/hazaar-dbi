@@ -91,9 +91,9 @@ class Pgsql extends BaseDriver {
                 tc.table_name as " . $this->field('table') . ",
                 tc.table_schema as " . $this->field('schema') . ",
                 kcu.column_name as " . $this->field('column') . ",
-                kcu.table_schema AS foreign_schema,
-                kcu.table_name AS foreign_table,
-                kcu.column_name AS foreign_column,
+                ccu.table_schema AS foreign_schema,
+                ccu.table_name AS foreign_table,
+                ccu.column_name AS foreign_column,
                 tc.constraint_type as type,
                 rc.match_option,
                 rc.update_rule,
@@ -104,6 +104,8 @@ class Pgsql extends BaseDriver {
                 AND kcu.constraint_name = tc.constraint_name
                 AND kcu.table_schema = tc.table_schema
                 AND kcu.table_name = tc.table_name
+            JOIN information_schema.constraint_column_usage AS ccu
+                ON ccu.constraint_name = tc.constraint_name
             LEFT JOIN information_schema.referential_constraints rc ON tc.constraint_name = rc.constraint_name
             WHERE tc.CONSTRAINT_SCHEMA='{$this->schema}'";
 
