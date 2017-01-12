@@ -983,7 +983,7 @@ class Adapter {
                 if(!array_key_exists('indexes', $current_schema))
                     $current_schema['indexes'] = array();
 
-                $current_schema['indexes'][$name] = array_merge($current_schema['indexes'], $indexes);
+                $current_schema['indexes'][$name] =  $indexes;
 
             }
 
