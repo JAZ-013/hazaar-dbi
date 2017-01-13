@@ -888,13 +888,19 @@ class Adapter {
 
         } else {
 
-            $comment = 'Initial Snapshot';
+            if (!$comment)
+                $comment = 'Initial Snapshot';
 
             $this->log('No existing schema.  Creating initial snapshot.');
 
             $init = true;
 
         }
+
+        if (!$comment)
+            $comment = "New Snapshot";
+
+        $this->log('Comment: ' . $comment);
 
         /**
          * Prepare a new version number based on the current date and time
@@ -928,7 +934,8 @@ class Adapter {
 
             $this->log("Processing table '$name'.");
 
-            $cols = $this->describeTable($name, 'ordinal_position');
+            if(!($cols = $this->describeTable($name, 'ordinal_position')))
+                throw new \Exception("Error getting table definition for table '$name'.  Does the connected user have the correct permissions?");
 
             $current_schema['tables'][$name] = $cols;
 
@@ -1241,14 +1248,6 @@ class Adapter {
              */
         } elseif (count($changes) > 0) {
 
-            if (!$comment)
-                $comment = "New Snapshot";
-
-            $this->log('Comment: ' . $comment);
-
-            if ($init !== true)
-                $this->log('Migration diffs are not fully supported yet! Be careful!');
-
             $migrate_dir = $db_dir . '/migrate';
 
             if (!file_exists($migrate_dir)) {
@@ -1264,6 +1263,17 @@ class Adapter {
             $this->log("Writing migration file to '$migrate_file'");
 
             file_put_contents($migrate_file, json_encode($changes, JSON_PRETTY_PRINT));
+
+            /**
+             * Merge in static schema elements (like data) and save the current schema file
+             */
+            if($data = ake($schema, 'data')){
+
+                $this->log("Merging schema data records into current schema");
+
+                $current_schema['data'] = $data;
+
+            }
 
             $this->log("Saving current schema ($this->schema_file)");
 
@@ -1503,10 +1513,15 @@ class Adapter {
                 if (!($current_schema = json_decode($source->get_contents(), true)))
                     throw new \Exception("Unable to parse the migration file.  Bad JSON?");
 
-                if (!$this->replay($current_schema[$mode], $test))
+                if ($this->replay($current_schema[$mode], $test)){
+
+                    $committed_versions[] = $ver;
+
+                }elseif(!$test){
+
                     throw new \Exception("An error occurred replaying the migration script.");
 
-                $committed_versions[] = $ver;
+                }
 
             } while($source = next($versions));
 
@@ -1527,6 +1542,28 @@ class Adapter {
 
                 if (!$test)
                     $this->delete('schema_info', array('version' => $ver));
+
+            }
+
+        }
+
+        /* Insert data records.  Will only happen in an up migration non-test mode.*/
+        if($mode == 'up' && $data = ake($schema, 'data')){
+
+            $this->beginTransaction();
+
+            $this->log('Inserting data records');
+
+            if(!$this->syncSchemaData($data) || $test){
+
+                $this->rollBack();
+
+                if(!$test)
+                    return false;
+
+            }else{
+
+                $this->commit();
 
             }
 
@@ -1598,40 +1635,13 @@ class Adapter {
 
             }
 
-            /* Insert data records */
-            if($data = ake($schema, 'data')){
-
-                $this->log('Inserting data records');
-
-                foreach($data as $table => $records){
-
-                    $this->log('Inserting ' . count($records) . ' into table ' . $table);
-
-                    foreach($records as $id => $record){
-
-                        if($this->insert($table, $record)){
-
-                            $this->log('OK');
-
-                        }else{
-
-                            $this->log('Error inserting record #' . $id);
-
-                        }
-
-                    }
-
-                }
-
-            }
-
-
         }
         catch(\Exception $e){
 
             $this->rollBack();
 
             throw $e;
+
         }
 
         $this->commit();
@@ -1654,6 +1664,19 @@ class Adapter {
             return false;
 
         foreach($schema as $action => $data) {
+
+            if($action == 'data'){
+
+                $this->beginTransaction();
+
+                $this->syncSchemaData($data);
+
+                if($test)
+                    $this->rollBack();
+                else
+                    $this->commit();
+
+            }
 
             foreach($data as $type => $items) {
 
@@ -1752,6 +1775,103 @@ class Adapter {
                     }
                 }
             }
+        }
+
+        return !$test;
+
+    }
+
+    public function syncSchemaData($data){
+
+        foreach($data as $table => $records){
+
+            if(($def = $this->describeTable($table)) == false){
+
+                $this->log("Can not insert rows into non-existant table '$table'!");
+
+                continue;
+
+            }
+
+            $pkey = null;
+
+            foreach($def as $col){
+
+                if(ake($col, 'primarykey', false)){
+
+                    $pkey = $col['name'];
+
+                    break;
+
+                }
+
+            }
+
+            if(!$pkey){
+
+                $this->log("Can not migrate data on table '$table' without primary key!");
+
+                continue;
+
+            }
+
+            $this->log("Processing " . count($records) . " records in table '$table'");
+
+            foreach($records as $id => $record){
+
+                $do_diff = false;
+
+                /**
+                 * If the primary key is in the record, find the record using only that field, then
+                 * we will check for differences between the records
+                 */
+                if(array_key_exists($pkey, $record)){
+
+                    $criteria = array($pkey => $record[$pkey]);
+
+                    $do_diff = true;
+
+                }else{ //Otherwise, look for the record in it's entirity and only insert if it doesn't exist.
+
+                    $criteria = $record;
+
+                }
+
+                if($row = $this->table($table)->findOne($criteria)){
+
+                    if($do_diff){
+
+                        $diff = array_diff_assoc($record, $row);
+
+                        if(count($diff) > 0){
+
+                            $this->log("Updating record in table '$table' with $pkey={$record[$pkey]}");
+
+                            if(!$this->update($table, $record, array($pkey => $record[$pkey])))
+                                $this->log('Update failed: ' . $this->errorInfo()[2]);
+
+                        }
+
+                    }
+
+                }else{
+
+                    if(($row_id = $this->insert($table, $record)) == false){
+
+                        $this->log("Error inserting record #$id into table '$table'");
+
+                        $this->log($this->errorInfo()[2]);
+
+                        return false;
+
+                    }
+
+                    $this->log("Inserted record into table '$table' with row ID #$row_id");
+
+                }
+
+            }
+
         }
 
         return true;
