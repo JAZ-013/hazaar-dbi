@@ -680,6 +680,16 @@ class Adapter {
 
     }
 
+    public function getLatestSchemaVersion($with_file_obj = false){
+
+        $versions = $this->getSchemaVersions($with_file_obj);
+
+        end($versions);
+
+        return key($versions);
+
+    }
+
     /**
      * Creates the info table that stores the version info of the current database.
      */
