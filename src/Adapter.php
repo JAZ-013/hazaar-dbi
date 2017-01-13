@@ -1781,7 +1781,22 @@ class Adapter {
 
     }
 
-    public function syncSchemaData($data){
+    public function syncSchemaData($data = null){
+
+        if($data === null){
+
+            $file = new \Hazaar\File($this->schema_file);
+
+            if (!$file->exists())
+                throw new \Exception("This application has no schema file.  Database schema is not being managed.");
+
+            if (!($schema = json_decode($file->get_contents(), true)))
+                throw new \Exception("Unable to parse the migration file.  Bad JSON?");
+
+            if(!($data = ake($schema, 'data')))
+                return false;
+
+        }
 
         foreach($data as $table => $records){
 
