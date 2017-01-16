@@ -1911,6 +1911,29 @@ class Adapter {
 
             }
 
+            if($updates = ake($info, 'update')){
+
+                foreach($updates as $update){
+
+                    if(!($table = ake($info, 'table'))){
+
+                        $this->log('Can no update rows without a table name!');
+
+                        continue;
+
+                    }
+
+                    $affected = $this->table($table)->update(ake($update, 'where'), ake($update, 'set'));
+
+                    if($affected === false)
+                        $this->log('Update failed: ' . $this->errorInfo()[2]);
+                    elseif($affected > 0)
+                        $this->log("Updated $affected rows");
+
+                }
+
+            }
+
         }
 
         return true;
