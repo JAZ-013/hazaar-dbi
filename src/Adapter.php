@@ -1798,7 +1798,15 @@ class Adapter {
 
         }
 
-        foreach($data as $table => $records){
+        foreach($data as $info){
+
+            if(!($table = ake($info, 'table'))){
+
+                $this->log('Skipping bad data record that has no table defined.');
+
+                continue;
+
+            }
 
             if(($def = $this->describeTable($table)) == false){
 
@@ -1830,9 +1838,17 @@ class Adapter {
 
             }
 
-            $this->log("Processing " . count($records) . " records in table '$table'");
+            if(!($rows = ake($info, 'rows'))){
 
-            foreach($records as $id => $record){
+                $this->log("Skipping bad data record for table '$table' which has no rows defined.");
+
+                continue;
+
+            }
+
+            $this->log("Processing " . count($rows) . " records in table '$table'");
+
+            foreach($rows as $id => $row){
 
                 $do_diff = false;
 
@@ -1840,29 +1856,33 @@ class Adapter {
                  * If the primary key is in the record, find the record using only that field, then
                  * we will check for differences between the records
                  */
-                if(array_key_exists($pkey, $record)){
+                if(array_key_exists($pkey, $row)){
 
-                    $criteria = array($pkey => $record[$pkey]);
+                    $criteria = array($pkey => $row[$pkey]);
 
                     $do_diff = true;
 
                 }else{ //Otherwise, look for the record in it's entirity and only insert if it doesn't exist.
 
-                    $criteria = $record;
+                    $criteria = $row;
 
                 }
 
-                if($row = $this->table($table)->findOne($criteria)){
+                if($current = $this->table($table)->findOne($criteria)){
+
+                    //If this is an insert only row then move on because this row exists
+                    if(ake($info, 'insertonly'))
+                        continue;
 
                     if($do_diff){
 
-                        $diff = array_diff_assoc($record, $row);
+                        $diff = array_diff_assoc($row, $current);
 
                         if(count($diff) > 0){
 
-                            $this->log("Updating record in table '$table' with $pkey={$record[$pkey]}");
+                            $this->log("Updating record in table '$table' with $pkey={$row[$pkey]}");
 
-                            if(!$this->update($table, $record, array($pkey => $record[$pkey])))
+                            if(!$this->update($table, $row, array($pkey => $row[$pkey])))
                                 $this->log('Update failed: ' . $this->errorInfo()[2]);
 
                         }
@@ -1871,7 +1891,11 @@ class Adapter {
 
                 }else{
 
-                    if(($row_id = $this->insert($table, $record)) == false){
+                    //If this is an update only row then move on because this row does not exist
+                    if(ake($info, 'updateonly'))
+                        continue;
+
+                    if(($row_id = $this->insert($table, $row)) == false){
 
                         $this->log("Error inserting record #$id into table '$table'");
 
