@@ -85,6 +85,12 @@ abstract class BaseDriver implements Driver_Interface {
 
     }
 
+    public function __toString(){
+
+        return strtoupper(basename(str_replace('\\', DIRECTORY_SEPARATOR, get_class($this))));
+
+    }
+
     static function mkdsn($config){
 
         $options = $config->toArray();
