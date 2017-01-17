@@ -1936,6 +1936,16 @@ class Adapter {
 
         }
 
+        if(method_exists($this->driver, 'repair')){
+
+            $this->log('Running ' . $this->driver . ' repair process');
+
+            $result = $this->driver->repair();
+
+            $this->log('Repair ' . ($result?'completed successfully':'failed'));
+
+        }
+
         return true;
 
     }
