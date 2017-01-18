@@ -592,7 +592,7 @@ abstract class BaseDriver implements Driver_Interface {
 
                 $def = $this->field($name) . ' ' . $this->type($info['data_type']) . (ake($info, 'length') ? '(' . $info['length'] . ')' : NULL);
 
-                if (array_key_exists('default', $info) && !empty($info['default']))
+                if (array_key_exists('default', $info) && $info['default'] !== NULL)
                     $def .= ' DEFAULT ' . $info['default'];
 
                 if (array_key_exists('not_null', $info) && $info['not_null'])
