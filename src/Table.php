@@ -139,7 +139,7 @@ class Table {
 
             foreach($this->joins as $join) {
 
-                $sql .= ' ' . $join['type'] . ' JOIN ' . $join['ref'];
+                $sql .= ' ' . $join['type'] . ' JOIN ' . $this->driver->field($join['ref']);
 
                 if ($join['alias'])
                     $sql .= ' ' . $join['alias'];
