@@ -1239,15 +1239,19 @@ class Adapter {
 
         }
 
-        if ($test) {
+        if (count($changes) > 0) {
 
-            return ake($changes,'up');
+            if ($test){
+
+                $this->log('Detected changes to ' . count($changes['up']) . ' tables.');
+
+                return ake($changes,'up');
+
+            }
 
             /**
              * Save the migrate diff file
              */
-        } elseif (count($changes) > 0) {
-
             $migrate_dir = $db_dir . '/migrate';
 
             if (!file_exists($migrate_dir)) {
