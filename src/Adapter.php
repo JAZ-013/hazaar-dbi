@@ -1241,13 +1241,33 @@ class Adapter {
 
         if (count($changes) > 0) {
 
-            if ($test){
+            if(array_key_exists('up', $changes)){
 
-                $this->log('Detected changes to ' . count($changes['up']) . ' tables.');
+                if(ake($changes['up'], 'create')){
 
-                return ake($changes,'up');
+                    foreach($changes['up']['create'] as $type => $items)
+                        $this->log('Creating ' . count($items) . ' new ' . $type . 's.');
+
+                }
+
+                if(ake($changes['up'], 'alter')){
+
+                    foreach($changes['up']['alter'] as $type => $items)
+                        $this->log('Detected ' . count($items) . ' changes to ' . $type . '.');
+
+                }
+
+                if(ake($changes['up'], 'remove')){
+
+                    foreach($changes['up']['remove'] as $type => $items)
+                        $this->log('Removing ' . count($items) . ' ' . $type . 's.');
+
+                }
 
             }
+
+            if ($test)
+                return ake($changes,'up');
 
             /**
              * Save the migrate diff file
