@@ -455,6 +455,19 @@ class Table {
 
             $sql = 'SELECT count(*) FROM ' . $this->from();
 
+            if (count($this->joins) > 0) {
+
+                foreach($this->joins as $join) {
+
+                    $sql .= ' ' . $join['type'] . ' JOIN ' . $this->driver->field($join['ref']);
+
+                    if ($join['alias'])
+                        $sql .= ' ' . $join['alias'];
+
+                    $sql .= ' ON ' . $this->driver->prepareCriteria($join['on']);
+                }
+            }
+
             if ($this->criteria)
                 $sql .= ' WHERE ' . $this->driver->prepareCriteria($this->criteria);
 
