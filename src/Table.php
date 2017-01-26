@@ -125,13 +125,10 @@ class Table {
 
         $sql = 'SELECT';
 
-        if (!is_array($this->fields) || count($this->fields) == 0) {
-
+        if (!is_array($this->fields) || count($this->fields) == 0)
             $sql .= ' *';
-        } else {
-
+        else
             $sql .= ' ' . $this->driver->prepareFields($this->fields);
-        }
 
         $sql .= ' FROM ' . $this->from();
 

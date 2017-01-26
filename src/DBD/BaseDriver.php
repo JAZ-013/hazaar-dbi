@@ -414,13 +414,11 @@ abstract class BaseDriver implements Driver_Interface {
 
         foreach($fields as $key => $value) {
 
-            if (is_numeric($key)) {
-
+            if (is_numeric($key))
                 $field_def[] = $this->field($value);
-            } else {
+            else
+                $field_def[] = $this->field($value) . ' AS ' . $this->field($key);
 
-                $field_def[] = $this->field($key) . ' AS ' . $this->field($value);
-            }
         }
 
         return implode(', ', $field_def);
