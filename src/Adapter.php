@@ -594,12 +594,12 @@ class Adapter {
 
     }
 
-    public function addConstraint($info, $table) {
+    public function addConstraint($name, $info) {
 
         if(!$this->driver)
             return false;
 
-        return $this->driver->addConstraint($info, $table);
+        return $this->driver->addConstraint($name, $info);
 
     }
 
@@ -762,7 +762,7 @@ class Adapter {
              */
             if (!$this->colExists($col['name'], $old)) {
 
-                $this->log("Column '$col[name]' is new.");
+                $this->log("+ Column '$col[name]' is new.");
 
                 $diff['add'][$col['name']] = $col;
             }
@@ -774,7 +774,7 @@ class Adapter {
 
             if (!$this->colExists($col['name'], $new)) {
 
-                $this->log("Column '$col[name]' has been removed.");
+                $this->log("- Column '$col[name]' has been removed.");
 
                 $diff['drop'][] = $col['name'];
             }
@@ -939,6 +939,7 @@ class Adapter {
 
             $current_schema['tables'][$name] = $cols;
 
+            //BEGIN PROCESSING TABLE
             if (array_key_exists('tables', $schema) && array_key_exists($name, $schema['tables'])) {
 
                 $this->log("Table '$name' already exists.  Checking differences.");
@@ -947,7 +948,7 @@ class Adapter {
 
                 if (count($diff) > 0) {
 
-                    $this->log("Table '$name' has changed.");
+                    $this->log("> Table '$name' has changed.");
 
                     $changes['up']['alter']['table'][$name] = $diff;
 
@@ -981,7 +982,7 @@ class Adapter {
 
             } else { // Table doesn't exist, so we add a command to create the whole thing
 
-                $this->log("Table '$name' has been created.");
+                $this->log("+ Table '$name' has been created.");
 
                 $changes['up']['create']['table'][] = array(
                     'name' => $name,
@@ -991,31 +992,135 @@ class Adapter {
                 if (!$init)
                     $changes['down']['remove']['table'][] = $name;
 
+            } //END PROCESSING TABLES
+
+            //BEGIN PROCESSING CONSTRAINTS
+            $constraints = $this->listConstraints($name);
+
+            if(count($constraints) > 0){
+
+                if(!array_key_exists('constraints', $current_schema))
+                    $current_schema['constraints'] = array();
+
+                $current_schema['constraints'][$name] =  $constraints;
+
             }
 
+            if (array_key_exists('constraints', $schema) && array_key_exists($name, $schema['constraints'])) {
+
+                $this->log("Looking for new constraints on table '$name'.");
+
+                //Look for new constraints
+                foreach($constraints as $constraint_name => $constraint){
+
+                    if(!array_key_exists($constraint_name, $schema['constraints'][$name])){
+
+                        $this->log("+ Added new constraint '$constraint_name' on table '$name'.");
+
+                        $changes['up']['create']['constraint'][] = array_merge($constraint, array(
+                            'name' => $constraint_name,
+                        ));
+
+                        //If the constraint was added at the same time as the table, we don't need to add the removes
+                        if(! $init && !(array_key_exists('down', $changes)
+                            && array_key_exists('remove', $changes['down'])
+                            && array_key_exists('table', $changes['down']['remove'])
+                            && in_array($name, $changes['down']['remove']['table'])))
+
+                            $changes['down']['remove']['constraint'][] = array('table' => $name, 'name' => $constraint_name);
+
+                    }
+
+                }
+
+                $this->log('Looking for removed constraints');
+
+                //Look for any removed constraints.  If there are no constraints in the current schema, then all have been removed.
+                if(array_key_exists('constraints', $current_schema) && array_key_exists($name, $current_schema['constraints']))
+                    $missing = array_diff(array_keys($schema['constraints'][$name]), array_keys($current_schema['constraints'][$name]));
+                else
+                    $missing = array_keys($schema['constraints'][$name]);
+
+                if (count($missing) > 0) {
+
+                    foreach($missing as $constraint) {
+
+                        $this->log("- Constraint '$constraint' has been removed from table '$name'.");
+
+                        $idef = $schema['constraints'][$name][$constraint];
+
+                        $changes['up']['remove']['constraint'][] = array('table' => $name, 'name' => $constraint);
+
+                        $changes['down']['create']['constraint'][] = array_merge($idef, array(
+                            'name' => $constraint,
+                            'table' => $name
+                        ));
+
+                    }
+
+                }
+
+            }elseif(count($constraints) > 0){
+
+                foreach($constraints as $constraint_name => $constraint){
+
+                    $this->log("+ Added new constraint '$constraint_name' on table '$name'.");
+
+                    $changes['up']['create']['constraint'][] = array_merge($constraint, array(
+                        'name' => $constraint_name,
+                    ));
+
+                    if (!$init)
+                        $changes['down']['remove']['constraint'][] = array('table' => $name, 'name' => $constraint_name);
+
+                }
+
+            } //END PROCESSING CONSTRAINTS
+
+            //BEGIN PROCESSING INDEXES
             $indexes = $this->listIndexes($name);
 
             if(count($indexes) > 0){
 
-                if(!array_key_exists('indexes', $current_schema))
-                    $current_schema['indexes'] = array();
+                foreach($indexes as $index_name => $index){
 
-                $current_schema['indexes'][$name] =  $indexes;
+                    //Check if the index is actually a constraint
+                    if(array_key_exists('constraints', $current_schema)
+                        && array_key_exists($name, $current_schema['constraints'])
+                        && array_key_exists($index_name, $current_schema['constraints'][$name]))
+                        continue;
+
+                    if(!array_key_exists('indexes', $current_schema))
+                        $current_schema['indexes'] = array();
+
+                    $current_schema['indexes'][$name][$index_name] =  $index;
+
+                }
 
             }
 
             if (array_key_exists('indexes', $schema) && array_key_exists($name, $schema['indexes'])) {
 
+                $this->log("Looking for new indexes on table '$name'.");
+
                 //Look for new indexes
                 foreach($indexes as $index_name => $index){
 
-                    if(!array_key_exists($index_name, $schema['indexes'][$name])){
+                    //Check if the index is actually a constraint
+                    if(array_key_exists('constraints', $current_schema)
+                        && array_key_exists($name, $current_schema['constraints'])
+                        && array_key_exists($index_name, $current_schema['constraints'][$name]))
+                        continue;
 
-                        $this->log("Added new index '$index_name' on table '$name'.");
+                    if(array_key_exists($index_name, $schema['indexes'][$name]))
+                        continue;
 
-                        $changes['up']['create']['index'][] = $index;
+                    $this->log("+ Added new index '$index_name' on table '$name'.");
 
-                    }
+                    $changes['up']['create']['index'][] = $index;
+
+                    if(!$init)
+                        $changes['down']['remove']['index'][] = $index_name;
 
                 }
 
@@ -1031,106 +1136,44 @@ class Adapter {
 
                     foreach($missing as $index) {
 
-                        $this->log("Index '$index' has been removed from table '$name'.");
+                        $this->log("- Index '$index' has been removed from table '$name'.");
 
                         $idef = $schema['indexes'][$name][$index];
 
                         $changes['up']['remove']['index'][] = $index;
 
-                        $changes['down']['create']['index'][] = array(
+                        $changes['down']['create']['index'][] = array_merge($idef, array(
                             'name' => $index,
                             'table' => $name,
-                            'columns' => $idef['columns'],
-                            'unique' => $idef['unique']
-                        );
+                        ));
 
                     }
 
                 }
 
-            }else{
-
-                $this->log("Indexes on '$name' have been created.");
+            }elseif(count($indexes) > 0){
 
                 foreach($indexes as $index_name => $index){
 
-                    $changes['up']['create']['index'][] = array(
+                    //Check if the index is actually a constraint
+                    if(array_key_exists('constraints', $current_schema)
+                        && array_key_exists($name, $current_schema['constraints'])
+                        && array_key_exists($index_name, $current_schema['constraints'][$name]))
+                        continue;
+
+                    $this->log("+ Added new index '$index_name' on table '$name'.");
+
+                    $changes['up']['create']['index'][] = array_merge($index, array(
                         'name' => $index_name,
                         'table' => $name,
-                        'columns' => $index['columns'],
-                        'unique' => $index['unique']
-                    );
+                    ));
 
                     if (!$init)
-                        $changes['down']['remove']['index'][] = $name;
+                        $changes['down']['remove']['index'][] = $index_name;
 
                 }
 
-            }
-
-        }
-
-        /**
-         * Process any constraints if supported by the DBD
-         */
-        $constraints = $this->listConstraints(NULL, 'FOREIGN KEY');
-
-        $current_schema['constraints'] = $constraints;
-
-        //Look for new constraints
-        foreach($constraints as $name => $info){
-
-            if(!array_key_exists('constraints', $schema)
-                || !array_key_exists($name, $schema['constraints'])){
-
-                $this->log("Added new constraint '$name' on table '$info[table]'.");
-
-                $changes['up']['create']['constraint'][] = array(
-                    'name' => $name,
-                    'table' => $info['table'],
-                    'column' => $info['column'],
-                    'type' => $info['type'],
-                    'references' => $info['references']
-                );
-
-                if (!$init)
-                    $changes['down']['remove']['constraint'][] = $name;
-
-            }
-
-        }
-
-        if(array_key_exists('constraints', $schema)){
-
-            $this->log('Looking for removed constraints');
-
-            //Look for any removed constraints.  If there are no constraints in the current schema, then all have been removed.
-            if(array_key_exists('constraints', $current_schema))
-                $missing = array_diff(array_keys($schema['constraints']), array_keys($current_schema['constraints']));
-            else
-                $missing = array_keys($schema['constraints']);
-
-            if (count($missing) > 0) {
-
-                foreach($missing as $constraint) {
-
-                    $this->log("Constraint '$constraint' has been removed.");
-
-                    $idef = $schema['constraints'][$constraint];
-
-                    $changes['up']['remove']['constraint'][] = $constraint;
-
-                    $changes['up']['create']['constraint'][] = array(
-                        'name' => $constraint,
-                        'table' => $idef['table'],
-                        'column' => $idef['column'],
-                        'type' => $idef['type'],
-                        'references' => $idef['references']
-                    );
-
-                }
-
-            }
+            } //END PROCESSING INDEXES
 
         }
 
@@ -1145,7 +1188,7 @@ class Adapter {
 
                 foreach($missing as $table) {
 
-                    $this->log("Table '$table' has been removed.");
+                    $this->log("- Table '$table' has been removed.");
 
                     $changes['up']['remove']['table'][] = $table;
 
@@ -1153,6 +1196,40 @@ class Adapter {
                         'name' => $table,
                         'cols' => $schema['tables'][$table]
                     );
+
+                    //Add any constraints that were on this table to the down script so they get re-created
+                    if(array_key_exists('constraints', $schema)
+                        && array_key_exists($table, $schema['constraints'])){
+
+                        $changes['down']['create']['constraint'] = array();
+
+                        foreach($schema['constraints'][$table] as $constraint_name => $constraint){
+
+                            $changes['down']['create']['constraint'][] = array_merge($constraint, array(
+                                'name' => $constraint_name,
+                                'table' => $table
+                            ));
+
+                        }
+
+                    }
+
+                    //Add any indexes that were on this table to the down script so they get re-created
+                    if(array_key_exists('indexes', $schema)
+                        && array_key_exists($table, $schema['indexes'])){
+
+                        $changes['down']['create']['index'] == array();
+
+                        foreach($schema['indexes'][$table] as $index_name => $index){
+
+                            $changes['down']['create']['index'][] = array_merge($index, array(
+                                'name' => $index_name,
+                                'table' => $table
+                            ));
+
+                        }
+
+                    }
 
                 }
 
@@ -1180,7 +1257,7 @@ class Adapter {
 
                         if (!array_diff_assoc($schema['tables'][$remove], $changes['up']['remove']['table'])) {
 
-                            $this->log("Table '$remove' has been renamed to '{$create['name']}'.", LOG_NOTICE);
+                            $this->log("> Table '$remove' has been renamed to '{$create['name']}'.", LOG_NOTICE);
 
                             $changes['up']['rename']['table'][] = array(
                                 'from' => $remove,
@@ -1246,21 +1323,21 @@ class Adapter {
                 if(ake($changes['up'], 'create')){
 
                     foreach($changes['up']['create'] as $type => $items)
-                        $this->log('Creating ' . count($items) . ' new ' . $type . 's.');
+                        $this->log('+ New ' . $type . ' count: ' . count($items));
 
                 }
 
                 if(ake($changes['up'], 'alter')){
 
                     foreach($changes['up']['alter'] as $type => $items)
-                        $this->log('Detected ' . count($items) . ' changes to ' . $type . '.');
+                        $this->log('> Changed ' . $type . ' count: ' . count($items));
 
                 }
 
                 if(ake($changes['up'], 'remove')){
 
                     foreach($changes['up']['remove'] as $type => $items)
-                        $this->log('Removing ' . count($items) . ' ' . $type . 's.');
+                        $this->log('- Removed ' . $type . ' count: ' . count($items));
 
                 }
 
@@ -1522,11 +1599,11 @@ class Adapter {
 
                 if ($mode == 'up') {
 
-                    $this->log("Replaying version '$ver' from file '$source'.");
+                    $this->log("--> Replaying version '$ver' from file '$source'.");
 
                 } elseif ($mode == 'down') {
 
-                    $this->log("Rolling back version '$ver' from file '$source'.");
+                    $this->log("<-- Rolling back version '$ver' from file '$source'.");
 
                 } else {
 
@@ -1627,6 +1704,24 @@ class Adapter {
 
             }
 
+            /* Create foreign keys */
+            if($constraints = ake($schema, 'constraints')){
+
+                foreach($constraints as $table => $table_constraints){
+
+                    foreach($table_constraints as $constraint_name => $constraint){
+
+                        $ret = $this->addConstraint($constraint_name, $constraint);
+
+                        if(!$ret || $this->errorCode() > 0)
+                            throw new \Exception('Error creating constraint ' . $constraint_name . ': ' . $this->errorInfo()[2]);
+
+                    }
+
+                }
+
+            }
+
             /* Create indexes */
             if($indexes = ake($schema, 'indexes')){
 
@@ -1640,20 +1735,6 @@ class Adapter {
                             throw new \Exception('Error creating index ' . $index_name . ': ' . $this->errorInfo()[2]);
 
                     }
-
-                }
-
-            }
-
-            /* Create foreign keys */
-            if($constraints = ake($schema, 'constraints')){
-
-                foreach($constraints as $fkey_name => $fkey_info){
-
-                    $ret = $this->addConstraint($fkey_name, $fkey_info);
-
-                    if(!$ret || $this->errorCode() > 0)
-                        throw new \Exception('Error creating constraint ' . $fkey_name . ': ' . $this->errorInfo()[2]);
 
                 }
 
@@ -1710,41 +1791,78 @@ class Adapter {
 
                         case 'create' :
 
-                            $this->log("Creating $type item: $item[name]");
+                            if ($type == 'table'){
 
-                            if ($test)
-                                continue;
+                                $this->log("+ Creating table '$item[name]'.");
 
-                            if ($type == 'table')
+                                if ($test)
+                                    continue;
+
                                 $this->createTable($item['name'], $item['cols']);
 
-                            elseif($type == 'index')
+                            }elseif($type == 'index'){
+
+                                $this->log("+ Creating index '$item[name]' on table '$item[table]'.");
+
+                                if ($test)
+                                    continue;
+
                                 $this->createIndex($item['name'], $item['table'], array('columns' => $item['columns'], 'unique' => $item['unique']));
 
-                            else
-                                $this->log("I don't know how to create {$type}s!");
+                            }elseif($type == 'constraint'){
+
+                                $this->log("+ Creating constraint '$item[name]' on table '$item[table]'.");
+
+                                if ($test)
+                                    continue;
+
+                                $this->addConstraint($item['name'], $item);
+
+                            }else
+                                $this->log("I don't know how to create a {$type}!");
 
                             break;
 
                         case 'remove' :
-                            $this->log("Removing $type item: $item");
 
-                            if ($test)
-                                continue;
+                            if ($type == 'table'){
 
-                            if ($type == 'table')
+                                $this->log("- Removing table '$item'.");
+
+                                if ($test)
+                                    continue;
+
                                 $this->dropTable($item);
 
-                            elseif($type == 'index')
+                            }elseif($type == 'constraint'){
+
+                                $this->log("- Removing constraint '$item[name]' from table '$item[table]'.");
+
+                                if ($test)
+                                    continue;
+
+                                $this->dropConstraint($item['name'], $item['table']);
+
+                            }elseif($type == 'index'){
+
+                                $this->log("- Removing index '$item'.");
+
+                                if ($test)
+                                    continue;
+
                                 $this->dropIndex($item);
 
-                            else
-                                $this->log("I don't know how to remove {$type}s!");
+                            }else
+                                $this->log("I don't know how to remove a {$type}!");
 
                             break;
 
                         case 'alter' :
-                            $this->log("Altering $type $item_name");
+
+                            $this->log("> Altering $type $item_name");
+
+                            if ($test)
+                                continue;
 
                             if ($type == 'table') {
 
@@ -1754,7 +1872,7 @@ class Adapter {
 
                                         if ($alter_action == 'add') {
 
-                                            $this->log("Adding column '$col[name]'.");
+                                            $this->log("+ Adding column '$col[name]'.");
 
                                             if ($test)
                                                 continue;
@@ -1762,7 +1880,7 @@ class Adapter {
                                             $this->addColumn($item_name, $col);
                                         } elseif ($alter_action == 'drop') {
 
-                                            $this->log("Dropping column '$col'.");
+                                            $this->log("- Dropping column '$col'.");
 
                                             if ($test)
                                                 continue;
@@ -1773,13 +1891,15 @@ class Adapter {
                                 }
                             } else {
 
-                                $this->log("I don't know how to alter {$type}s!");
+                                $this->log("I don't know how to alter a {$type}!");
+
                             }
 
                             break;
 
                         case 'rename' :
-                            $this->log("Renaming $type item: $item[from] => $item[to]");
+
+                            $this->log("> Renaming $type item: $item[from] => $item[to]");
 
                             if ($test)
                                 continue;
@@ -1788,17 +1908,20 @@ class Adapter {
                                 $this->renameTable($item['from'], $item['to']);
 
                             else
-                                $this->log("I don't know how to rename {$type}s!");
+                                $this->log("I don't know how to rename a {$type}!");
 
                             break;
 
                         default :
-                            $this->log("I don't know how to $action {$type}s!");
+                            $this->log("I don't know how to $action a {$type}!");
 
                             break;
                     }
+
                 }
+
             }
+
         }
 
         return !$test;
