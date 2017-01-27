@@ -893,13 +893,32 @@ abstract class BaseDriver implements Driver_Interface {
 
         }
 
-        if(!array_key_exists('update_rule', $info))
-            $info['update_rule'] = 'NO ACTION';
+        if($info['type'] == 'FOREIGN KEY'){
 
-        if(!array_key_exists('delete_rule', $info))
-            $info['delete_rule'] = 'NO ACTION';
+            if(!array_key_exists('update_rule', $info))
+                $info['update_rule'] = 'NO ACTION';
 
-        $sql = "ALTER TABLE " . $this->field($info['table']) . " ADD CONSTRAINT " . $this->field($name) . " $info[type] (" . $this->field($info['column']) . ")";
+            if(!array_key_exists('delete_rule', $info))
+                $info['delete_rule'] = 'NO ACTION';
+
+        }
+
+        $column = $info['column'];
+
+        if(is_array($column)){
+
+            foreach($column as &$col)
+                $col = $this->field($col);
+
+            $column = implode(', ', $column);
+
+        }else{
+
+            $column = $this->field($column);
+
+        }
+
+        $sql = "ALTER TABLE " . $this->field($info['table']) . " ADD CONSTRAINT " . $this->field($name) . " $info[type] (" . $column . ")";
 
         if (array_key_exists('references', $info))
             $sql .= " REFERENCES " . $this->field($info['references']['table']) . " (" . $this->field($info['references']['column']) . ") ON UPDATE $info[update_rule] ON DELETE $info[delete_rule]";
