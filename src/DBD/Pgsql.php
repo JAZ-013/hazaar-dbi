@@ -127,11 +127,13 @@ class Pgsql extends BaseDriver {
                    'type' => $row['type']
                 );
 
-                if($row['foreign_table']){
+                if($row['type'] == 'FOREIGN KEY' && $row['foreign_table']){
+
                     $constraint['references'] = array(
                         'table' => $row['foreign_table'],
                         'column' => $row['foreign_column']
                     );
+
                 }
 
                 $constraints[$row['name']] = $constraint;
