@@ -639,19 +639,6 @@ abstract class BaseDriver implements Driver_Interface {
         if (!$sort)
             $sort = 'ordinal_position';
 
-        $pkeys = array();
-
-        if ($constraints = $this->listConstraints($name, 'PRIMARY KEY')) {
-
-            foreach($constraints as $constraint)
-                $pkeys[] = $constraint['column'];
-
-        }else{
-
-            return false;
-
-        }
-
         $info = new \Hazaar\DBI\Table($this, 'information_schema.columns');
 
         $result = $info->find(array(
@@ -683,9 +670,9 @@ abstract class BaseDriver implements Driver_Interface {
                 'default' => $this->fixValue($col['column_default']),
                 'not_null' => (($col['is_nullable'] == 'NO') ? TRUE : FALSE),
                 'data_type' => $this->type($col['data_type']),
-                'length' => $col['character_maximum_length'],
-                'primarykey' => in_array($col['column_name'], $pkeys)
+                'length' => $col['character_maximum_length']
             );
+
         }
 
         return $columns;
