@@ -690,6 +690,12 @@ class Adapter {
 
     }
 
+    public function isSchemaLatest(){
+
+        return $this->getLatestSchemaVersion() == $this->getSchemaVersion();
+
+    }
+
     /**
      * Creates the info table that stores the version info of the current database.
      */
@@ -1878,6 +1884,7 @@ class Adapter {
                                                 continue;
 
                                             $this->addColumn($item_name, $col);
+
                                         } elseif ($alter_action == 'drop') {
 
                                             $this->log("- Dropping column '$col'.");
@@ -1886,9 +1893,13 @@ class Adapter {
                                                 continue;
 
                                             $this->dropColumn($item_name, $col);
+
                                         }
+
                                     }
+
                                 }
+
                             } else {
 
                                 $this->log("I don't know how to alter a {$type}!");
@@ -1916,6 +1927,7 @@ class Adapter {
                             $this->log("I don't know how to $action a {$type}!");
 
                             break;
+
                     }
 
                 }
