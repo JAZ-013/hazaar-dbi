@@ -84,7 +84,8 @@ class Table {
                 $fields
             );
 
-        $this->fields = $fields;
+        if(is_array($fields) && count($fields) > 0)
+            $this->fields = $fields;
 
         return $this;
 
@@ -488,6 +489,30 @@ class Table {
             $this->execute();
 
         return $this->result;
+
+    }
+
+    /**
+     * Collates a result into a simple key/value array.
+     *
+     * This is useful for generating SELECT lists directly from a resultset.
+     *
+     * @param mixed $index_column The column to use as the array index.
+     * @param mixed $value_column The column to use as the array value.
+     *
+     * @return array
+     */
+    public function collate($index_column, $value_column){
+
+        if (!$this->result)
+            $this->execute();
+
+        $list = array();
+
+        foreach($this->result as $row)
+            $list[ake($row, $index_column)] = ake($row, $value_column);
+
+        return $list;
 
     }
 
