@@ -673,10 +673,9 @@ class Adapter {
 
             ksort($versions);
 
-            return $versions;
         }
 
-        return null;
+        return $versions;
 
     }
 
