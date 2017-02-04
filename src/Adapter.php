@@ -1712,9 +1712,30 @@ class Adapter {
             /* Create foreign keys */
             if($constraints = ake($schema, 'constraints')){
 
+                //Do primary keys first
                 foreach($constraints as $table => $table_constraints){
 
                     foreach($table_constraints as $constraint_name => $constraint){
+
+                        if($constraint['type'] !== 'PRIMARY KEY')
+                            continue;
+
+                        $ret = $this->addConstraint($constraint_name, $constraint);
+
+                        if(!$ret || $this->errorCode() > 0)
+                            throw new \Exception('Error creating constraint ' . $constraint_name . ': ' . $this->errorInfo()[2]);
+
+                    }
+
+                }
+
+                //Now do all other constraints
+                foreach($constraints as $table => $table_constraints){
+
+                    foreach($table_constraints as $constraint_name => $constraint){
+
+                        if($constraint['type'] == 'PRIMARY KEY')
+                            continue;
 
                         $ret = $this->addConstraint($constraint_name, $constraint);
 
@@ -1966,7 +1987,7 @@ class Adapter {
 
             }
 
-            if(($def = $this->describeTable($table)) == false){
+            if($this->describeTable($table) == false){
 
                 $this->log("Can not insert rows into non-existant table '$table'!");
 
@@ -1976,19 +1997,11 @@ class Adapter {
 
             $pkey = null;
 
-            foreach($def as $col){
+            if($constraints = $this->listConstraints($table, 'PRIMARY KEY')){
 
-                if(ake($col, 'primarykey', false)){
+                $pkey = ake(reset($constraints), 'column');
 
-                    $pkey = $col['name'];
-
-                    break;
-
-                }
-
-            }
-
-            if(!$pkey){
+            }else{
 
                 $this->log("Can not migrate data on table '$table' without primary key!");
 
@@ -2014,7 +2027,7 @@ class Adapter {
                  * If the primary key is in the record, find the record using only that field, then
                  * we will check for differences between the records
                  */
-                if(array_key_exists($pkey, $row)){
+                if(array_key_exists(ake($pkey, 'column'), $row)){
 
                     $criteria = array($pkey => $row[$pkey]);
 
