@@ -57,7 +57,7 @@ class Pgsql extends BaseDriver {
         if (strpos($string, '.') !== false || strpos($string, '(') !== false)
             return $string;
 
-        return '"' . $string . '"';
+        return parent::field($string);
 
     }
 
