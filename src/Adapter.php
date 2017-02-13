@@ -1223,7 +1223,7 @@ class Adapter {
                     if(array_key_exists('indexes', $schema)
                         && array_key_exists($table, $schema['indexes'])){
 
-                        $changes['down']['create']['index'] == array();
+                        $changes['down']['create']['index'] = array();
 
                         foreach($schema['indexes'][$table] as $index_name => $index){
 
@@ -1249,18 +1249,16 @@ class Adapter {
 
             $this->log('Looking for renamed tables.');
 
-            foreach($changes['up']['create'] as $create_key => $create) {
+            if(array_key_exists('table', $changes['up']['create'])){
 
-                if ($create['type'] == 'table') {
-
-                    $cols = array();
-
-                    foreach($create['cols'] as $col)
-                        $cols[$col['name']] = $col;
+                foreach($changes['up']['create']['table'] as $create) {
 
                     foreach($changes['up']['remove']['table'] as $remove_key => $remove) {
 
-                        if (!array_diff_assoc($schema['tables'][$remove], $changes['up']['remove']['table'])) {
+                        if(!array_udiff($schema['tables'][$remove], $create['cols'], function($a, $b){
+                            if($a['name'] == $b['name']) return 0;
+                            return (($a['name'] > $b['name']) ? 1: -1);
+                        })){
 
                             $this->log("> Table '$remove' has been renamed to '{$create['name']}'.", LOG_NOTICE);
 
