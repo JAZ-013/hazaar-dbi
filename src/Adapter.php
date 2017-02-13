@@ -1805,146 +1805,148 @@ class Adapter {
                 else
                     $this->commit();
 
-            }
+            }else{
 
-            foreach($data as $type => $items) {
+                foreach($data as $type => $items) {
 
-                foreach($items as $item_name => $item) {
+                    foreach($items as $item_name => $item) {
 
-                    switch ($action) {
+                        switch ($action) {
 
-                        case 'create' :
+                            case 'create' :
 
-                            if ($type == 'table'){
+                                if ($type == 'table'){
 
-                                $this->log("+ Creating table '$item[name]'.");
+                                    $this->log("+ Creating table '$item[name]'.");
+
+                                    if ($test)
+                                        continue;
+
+                                    $this->createTable($item['name'], $item['cols']);
+
+                                }elseif($type == 'index'){
+
+                                    $this->log("+ Creating index '$item[name]' on table '$item[table]'.");
+
+                                    if ($test)
+                                        continue;
+
+                                    $this->createIndex($item['name'], $item['table'], array('columns' => $item['columns'], 'unique' => $item['unique']));
+
+                                }elseif($type == 'constraint'){
+
+                                    $this->log("+ Creating constraint '$item[name]' on table '$item[table]'.");
+
+                                    if ($test)
+                                        continue;
+
+                                    $this->addConstraint($item['name'], $item);
+
+                                }else
+                                    $this->log("I don't know how to create a {$type}!");
+
+                                break;
+
+                            case 'remove' :
+
+                                if ($type == 'table'){
+
+                                    $this->log("- Removing table '$item'.");
+
+                                    if ($test)
+                                        continue;
+
+                                    $this->dropTable($item);
+
+                                }elseif($type == 'constraint'){
+
+                                    $this->log("- Removing constraint '$item[name]' from table '$item[table]'.");
+
+                                    if ($test)
+                                        continue;
+
+                                    $this->dropConstraint($item['name'], $item['table']);
+
+                                }elseif($type == 'index'){
+
+                                    $this->log("- Removing index '$item'.");
+
+                                    if ($test)
+                                        continue;
+
+                                    $this->dropIndex($item);
+
+                                }else
+                                    $this->log("I don't know how to remove a {$type}!");
+
+                                break;
+
+                            case 'alter' :
+
+                                $this->log("> Altering $type $item_name");
 
                                 if ($test)
                                     continue;
 
-                                $this->createTable($item['name'], $item['cols']);
+                                if ($type == 'table') {
 
-                            }elseif($type == 'index'){
+                                    foreach($item as $alter_action => $columns) {
 
-                                $this->log("+ Creating index '$item[name]' on table '$item[table]'.");
+                                        foreach($columns as $col) {
 
-                                if ($test)
-                                    continue;
+                                            if ($alter_action == 'add') {
 
-                                $this->createIndex($item['name'], $item['table'], array('columns' => $item['columns'], 'unique' => $item['unique']));
+                                                $this->log("+ Adding column '$col[name]'.");
 
-                            }elseif($type == 'constraint'){
+                                                if ($test)
+                                                    continue;
 
-                                $this->log("+ Creating constraint '$item[name]' on table '$item[table]'.");
+                                                $this->addColumn($item_name, $col);
 
-                                if ($test)
-                                    continue;
+                                            } elseif ($alter_action == 'drop') {
 
-                                $this->addConstraint($item['name'], $item);
+                                                $this->log("- Dropping column '$col'.");
 
-                            }else
-                                $this->log("I don't know how to create a {$type}!");
+                                                if ($test)
+                                                    continue;
 
-                            break;
+                                                $this->dropColumn($item_name, $col);
 
-                        case 'remove' :
-
-                            if ($type == 'table'){
-
-                                $this->log("- Removing table '$item'.");
-
-                                if ($test)
-                                    continue;
-
-                                $this->dropTable($item);
-
-                            }elseif($type == 'constraint'){
-
-                                $this->log("- Removing constraint '$item[name]' from table '$item[table]'.");
-
-                                if ($test)
-                                    continue;
-
-                                $this->dropConstraint($item['name'], $item['table']);
-
-                            }elseif($type == 'index'){
-
-                                $this->log("- Removing index '$item'.");
-
-                                if ($test)
-                                    continue;
-
-                                $this->dropIndex($item);
-
-                            }else
-                                $this->log("I don't know how to remove a {$type}!");
-
-                            break;
-
-                        case 'alter' :
-
-                            $this->log("> Altering $type $item_name");
-
-                            if ($test)
-                                continue;
-
-                            if ($type == 'table') {
-
-                                foreach($item as $alter_action => $columns) {
-
-                                    foreach($columns as $col) {
-
-                                        if ($alter_action == 'add') {
-
-                                            $this->log("+ Adding column '$col[name]'.");
-
-                                            if ($test)
-                                                continue;
-
-                                            $this->addColumn($item_name, $col);
-
-                                        } elseif ($alter_action == 'drop') {
-
-                                            $this->log("- Dropping column '$col'.");
-
-                                            if ($test)
-                                                continue;
-
-                                            $this->dropColumn($item_name, $col);
+                                            }
 
                                         }
 
                                     }
 
+                                } else {
+
+                                    $this->log("I don't know how to alter a {$type}!");
+
                                 }
 
-                            } else {
+                                break;
 
-                                $this->log("I don't know how to alter a {$type}!");
+                            case 'rename' :
 
-                            }
+                                $this->log("> Renaming $type item: $item[from] => $item[to]");
 
-                            break;
+                                if ($test)
+                                    continue;
 
-                        case 'rename' :
+                                if ($type == 'table')
+                                    $this->renameTable($item['from'], $item['to']);
 
-                            $this->log("> Renaming $type item: $item[from] => $item[to]");
+                                else
+                                    $this->log("I don't know how to rename a {$type}!");
 
-                            if ($test)
-                                continue;
+                                break;
 
-                            if ($type == 'table')
-                                $this->renameTable($item['from'], $item['to']);
+                            default :
+                                $this->log("I don't know how to $action a {$type}!");
 
-                            else
-                                $this->log("I don't know how to rename a {$type}!");
+                                break;
 
-                            break;
-
-                        default :
-                            $this->log("I don't know how to $action a {$type}!");
-
-                            break;
+                        }
 
                     }
 
