@@ -2025,7 +2025,7 @@ class Adapter {
                  * If the primary key is in the record, find the record using only that field, then
                  * we will check for differences between the records
                  */
-                if(array_key_exists(ake($pkey, 'column'), $row)){
+                if(array_key_exists($pkey, $row)){
 
                     $criteria = array($pkey => $row[$pkey]);
 
