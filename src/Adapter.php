@@ -1541,8 +1541,6 @@ class Adapter {
 
         $this->log('Starting database migration process.');
 
-        $committed_versions = array();
-
         if (!$current_version && $version == $schema['version']) {
 
             /**
@@ -1567,7 +1565,7 @@ class Adapter {
             if ($schema['version'] > 0){
 
                 if($test || $this->createSchema($schema))
-                    $committed_versions = array_keys($this->getSchemaVersions());
+                    $this->insert('schema_info', array('version' => $schema['version']));
 
             }
 
@@ -1617,37 +1615,42 @@ class Adapter {
                 if (!($current_schema = json_decode($source->get_contents(), true)))
                     throw new \Exception("Unable to parse the migration file.  Bad JSON?");
 
-                if ($this->replay($current_schema[$mode], $test)){
+                try{
 
-                    $committed_versions[] = $ver;
+                    $this->beginTransaction();
 
-                }elseif(!$test){
+                    $this->replay($current_schema[$mode], $test);
 
-                    throw new \Exception("An error occurred replaying the migration script.");
+                    if ($mode == 'up') {
+
+                        $this->log('Inserting version record: ' . $ver);
+
+                        if (!$test)
+                            $this->insert('schema_info', array('version' => $ver));
+
+                    } elseif ($mode == 'down') {
+
+                        $this->log('Removing version record: ' . $ver);
+
+                        if (!$test)
+                            $this->delete('schema_info', array('version' => $ver));
+
+                    }
+
+                    $this->commit();
+
+                }
+                catch(\Exception $e){
+
+                    $this->rollBack();
+
+                    $this->log($e->getMessage());
+
+                    return false;
 
                 }
 
             } while($source = next($versions));
-
-        }
-
-        foreach($committed_versions as $ver) {
-
-            if ($mode == 'up') {
-
-                $this->log('Inserting version record: ' . $ver);
-
-                if (!$test)
-                    $this->insert('schema_info', array('version' => $ver));
-
-            } elseif ($mode == 'down') {
-
-                $this->log('Removing version record: ' . $ver);
-
-                if (!$test)
-                    $this->delete('schema_info', array('version' => $ver));
-
-            }
 
         }
 
@@ -1796,14 +1799,8 @@ class Adapter {
 
             if($action == 'data'){
 
-                $this->beginTransaction();
-
-                $this->syncSchemaData($data);
-
-                if($test)
-                    $this->rollBack();
-                else
-                    $this->commit();
+                if(!$test)
+                    $this->syncSchemaData($data);
 
             }else{
 
@@ -1914,6 +1911,9 @@ class Adapter {
 
                                             }
 
+                                            if($this->errorCode() > 0)
+                                                throw new \Exception($this->errorInfo()[2]);
+
                                         }
 
                                     }
@@ -1948,6 +1948,9 @@ class Adapter {
 
                         }
 
+                        if($this->errorCode() > 0)
+                            throw new \Exception($this->errorInfo()[2]);
+
                     }
 
                 }
@@ -1979,127 +1982,128 @@ class Adapter {
 
         foreach($data as $info){
 
-            if(!($table = ake($info, 'table'))){
+            if(!($table = ake($info, 'table')))
+                throw new \Exception('Bad data record that has no table defined.');
 
-                $this->log('Skipping bad data record that has no table defined.');
+            //The 'rows' element is used to synchronise table rows in the database.
+            if($rows = ake($info, 'rows')){
 
-                continue;
+                if($this->describeTable($table) == false)
+                    throw new \Exception("Can not insert rows into non-existant table '$table'!");
 
-            }
+                $pkey = null;
 
-            if($this->describeTable($table) == false){
+                if($constraints = $this->listConstraints($table, 'PRIMARY KEY')){
 
-                $this->log("Can not insert rows into non-existant table '$table'!");
-
-                continue;
-
-            }
-
-            $pkey = null;
-
-            if($constraints = $this->listConstraints($table, 'PRIMARY KEY')){
-
-                $pkey = ake(reset($constraints), 'column');
-
-            }else{
-
-                $this->log("Can not migrate data on table '$table' without primary key!");
-
-                continue;
-
-            }
-
-            if(!($rows = ake($info, 'rows'))){
-
-                $this->log("Skipping bad data record for table '$table' which has no rows defined.");
-
-                continue;
-
-            }
-
-            $this->log("Processing " . count($rows) . " records in table '$table'");
-
-            foreach($rows as $id => $row){
-
-                $do_diff = false;
-
-                /**
-                 * If the primary key is in the record, find the record using only that field, then
-                 * we will check for differences between the records
-                 */
-                if(array_key_exists($pkey, $row)){
-
-                    $criteria = array($pkey => $row[$pkey]);
-
-                    $do_diff = true;
-
-                }else{ //Otherwise, look for the record in it's entirity and only insert if it doesn't exist.
-
-                    $criteria = $row;
-
-                }
-
-                if($current = $this->table($table)->findOne($criteria)){
-
-                    //If this is an insert only row then move on because this row exists
-                    if(ake($info, 'insertonly'))
-                        continue;
-
-                    if($do_diff){
-
-                        $diff = array_diff_assoc($row, $current);
-
-                        if(count($diff) > 0){
-
-                            $this->log("Updating record in table '$table' with $pkey={$row[$pkey]}");
-
-                            if(!$this->update($table, $row, array($pkey => $row[$pkey])))
-                                $this->log('Update failed: ' . $this->errorInfo()[2]);
-
-                        }
-
-                    }
+                    $pkey = ake(reset($constraints), 'column');
 
                 }else{
 
-                    //If this is an update only row then move on because this row does not exist
-                    if(ake($info, 'updateonly'))
-                        continue;
+                    throw new \Exception("Can not migrate data on table '$table' without primary key!");
 
-                    if(($row_id = $this->insert($table, $row)) == false){
+                }
 
-                        $this->log("Error inserting record #$id into table '$table'");
+                $this->log("Processing " . count($rows) . " records in table '$table'");
 
-                        $this->log($this->errorInfo()[2]);
+                foreach($rows as $id => $row){
 
-                        return false;
+                    $do_diff = false;
+
+                    /**
+                     * If the primary key is in the record, find the record using only that field, then
+                     * we will check for differences between the records
+                     */
+                    if(array_key_exists($pkey, $row)){
+
+                        $criteria = array($pkey => $row[$pkey]);
+
+                        $do_diff = true;
+
+                    }else{ //Otherwise, look for the record in it's entirity and only insert if it doesn't exist.
+
+                        $criteria = $row;
 
                     }
 
-                    $this->log("Inserted record into table '$table' with row ID #$row_id");
+                    if($current = $this->table($table)->findOne($criteria)){
+
+                        //If this is an insert only row then move on because this row exists
+                        if(ake($info, 'insertonly'))
+                            continue;
+
+                        if($do_diff){
+
+                            $diff = array_diff_assoc($row, $current);
+
+                            if(count($diff) > 0){
+
+                                $this->log("Updating record in table '$table' with $pkey={$row[$pkey]}");
+
+                                if(!$this->update($table, $row, array($pkey => $row[$pkey])))
+                                    throw new \Exception('Update failed: ' . $this->errorInfo()[2]);
+
+                            }
+
+                        }
+
+                    }else{
+
+                        //If this is an update only row then move on because this row does not exist
+                        if(ake($info, 'updateonly'))
+                            continue;
+
+                        if(($row_id = $this->insert($table, $row)) == false)
+                            throw new \Exception('Insert failed: ' . $this->errorInfo()[2]);
+
+                        $this->log("Inserted record into table '$table' with row ID #$row_id");
+
+                    }
 
                 }
 
             }
 
+            //The 'update' element is used to trigger updates on existing rows in a database
             if($updates = ake($info, 'update')){
 
                 foreach($updates as $update){
 
-                    if(!($table = ake($info, 'table'))){
+                    if(!($where = ake($update, 'where')) && ake($update, 'all', false) !== true)
+                        throw new \Exception("Can not update rows in a table without a 'where' element or setting 'all=true'.");
 
-                        $this->log('Can no update rows without a table name!');
+                    $affected = $this->table($table)->update($where, ake($update, 'set'));
 
-                        continue;
+                    if($affected === false)
+                        throw new \Exception('Update failed: ' . $this->errorInfo()[2]);
+
+                    $this->log("Updated $affected rows");
+
+                }
+
+            }
+
+            //The 'delete' element is used to remove existing rows in a database table
+            if($deletes = ake($info, 'delete')){
+
+                foreach($deletes as $delete){
+
+                    if(ake($delete, 'all', false) === true){
+
+                        $affected = $this->table($table)->deleteAll();
+
+                    }else{
+
+                        if(!($where = ake($delete, 'where')))
+                            throw new \Exception("Can not delete rows from a table without a 'where' element or setting 'all=true'.");
+
+                        $affected = $this->table($table)->delete($where);
 
                     }
 
-                    $affected = $this->table($table)->update(ake($update, 'where'), ake($update, 'set'));
-
                     if($affected === false)
-                        $this->log('Update failed: ' . $this->errorInfo()[2]);
-                    elseif($affected > 0)
-                        $this->log("Updated $affected rows");
+                        throw new \Exception('Delete failed: ' . $this->errorInfo()[2]);
+
+                    $this->log("Deleted $affected rows");
 
                 }
 
