@@ -429,7 +429,7 @@ abstract class BaseDriver implements Driver_Interface {
 
         if (is_array($value)) {
 
-            $value = $this->quote(json_encode($value));//$this->prepareCriteria($value, NULL, NULL);
+            $value = $this->prepareCriteria($value, NULL, NULL);
 
         } elseif ($value instanceof \Hazaar\Date) {
 
