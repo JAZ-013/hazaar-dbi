@@ -507,12 +507,7 @@ class Table {
         if (!$this->result)
             $this->execute();
 
-        $list = array();
-
-        foreach($this->result as $row)
-            $list[ake($row, $index_column)] = ake($row, $value_column);
-
-        return $list;
+        return array_collate($this->result, $index_column, $value_column);
 
     }
 
