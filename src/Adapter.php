@@ -2052,10 +2052,10 @@ class Adapter {
                         if(ake($info, 'updateonly'))
                             continue;
 
-                        if(($row_id = $this->insert($table, $row)) == false)
+                        if(($pkey_value = $this->insert($table, $row, $pkey)) == false)
                             throw new \Exception('Insert failed: ' . $this->errorInfo()[2]);
 
-                        $this->log("Inserted record into table '$table' with row ID #$row_id");
+                        $this->log("Inserted record into table '$table' with $pkey={$pkey_value}");
 
                     }
 
