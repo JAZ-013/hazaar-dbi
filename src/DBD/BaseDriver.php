@@ -427,6 +427,11 @@ abstract class BaseDriver implements Driver_Interface {
 
     public function prepareValue($value) {
 
+        if($value instanceof \Hazaar\Map)
+            $value = $value->toArray();
+        elseif($value instanceof \Hazaar\Model\Strict)
+            $value = $value->toArray(true, null, false);
+
         if (is_array($value)) {
 
             $value = $this->prepareCriteria($value, NULL, NULL);
