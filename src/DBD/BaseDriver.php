@@ -427,11 +427,6 @@ abstract class BaseDriver implements Driver_Interface {
 
     public function prepareValue($value) {
 
-        if($value instanceof \Hazaar\Map)
-            $value = $value->toArray();
-        elseif($value instanceof \Hazaar\Model\Strict)
-            $value = $value->toArray(true, null, false);
-
         if (is_array($value)) {
 
             $value = $this->prepareCriteria($value, NULL, NULL);
@@ -474,6 +469,11 @@ abstract class BaseDriver implements Driver_Interface {
     }
 
     public function insert($table, $fields, $returning = TRUE) {
+
+        if($fields instanceof \Hazaar\Map)
+            $fields = $fields->toArray();
+        elseif($fields instanceof \Hazaar\Model\Strict)
+            $fields = $fields->toArray(false, null, false);
 
         $field_def = array_keys($fields);
 
