@@ -517,6 +517,11 @@ abstract class BaseDriver implements Driver_Interface {
 
     public function update($table, $fields, $criteria = array()) {
 
+        if($fields instanceof \Hazaar\Map)
+            $fields = $fields->toArray();
+        elseif($fields instanceof \Hazaar\Model\Strict)
+            $fields = $fields->toArray(false, null, false);
+
         $field_def = array();
 
         foreach($fields as $key => $value)
