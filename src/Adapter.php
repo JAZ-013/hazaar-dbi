@@ -1650,6 +1650,8 @@ class Adapter {
 
                 }
 
+                $this->log("-- Replay of version '$ver' completed.");
+
             } while($source = next($versions));
 
         }
