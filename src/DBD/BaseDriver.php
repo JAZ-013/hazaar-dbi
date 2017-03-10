@@ -757,6 +757,17 @@ abstract class BaseDriver implements Driver_Interface {
 
         $sqls = array();
 
+        //Check if the column is being renamed and update the name first.
+        if(array_key_exists('name', $column_spec)){
+
+            $sql = "ALTER TABLE " . $this->field($table) . " RENAME COLUMN " . $this->field($column) . ' TO ' . $this->field($column_spec['name']);
+
+            $this->exec($sql);
+
+            $column = $column_spec['name'];
+
+        }
+
         $prefix = "ALTER TABLE " . $this->field($table) . " ALTER COLUMN " . $this->field($column);
 
         if (array_key_exists('data_type', $column_spec))
@@ -768,10 +779,8 @@ abstract class BaseDriver implements Driver_Interface {
         if (array_key_exists('default', $column_spec))
             $sqls[] .= $prefix . ' ' . ($column_spec['default'] ? 'SET DEFAULT ' . $column_spec['default'] : 'DROP DEFAULT');
 
-        foreach($sqls as $sql) {
-
+        foreach($sqls as $sql)
             $this->exec($sql);
-        }
 
         return TRUE;
 

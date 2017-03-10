@@ -1889,7 +1889,7 @@ class Adapter {
 
                                     foreach($item as $alter_action => $columns) {
 
-                                        foreach($columns as $col) {
+                                        foreach($columns as $col_name => $col) {
 
                                             if ($alter_action == 'add') {
 
@@ -1899,6 +1899,15 @@ class Adapter {
                                                     continue;
 
                                                 $this->addColumn($item_name, $col);
+
+                                            } elseif ($alter_action == 'alter') {
+
+                                                $this->log("> Altering column '$col_name'.");
+
+                                                if($test)
+                                                    continue;
+
+                                                $this->alterColumn($item_name, $col_name, $col);
 
                                             } elseif ($alter_action == 'drop') {
 
