@@ -486,12 +486,12 @@ class Adapter {
 
     }
 
-    public function dropTable($name) {
+    public function dropTable($name, $cascade = false) {
 
         if(!$this->driver)
             return false;
 
-        return $this->driver->dropTable($name);
+        return $this->driver->dropTable($name, $cascade);
 
     }
 
@@ -603,12 +603,12 @@ class Adapter {
 
     }
 
-    public function dropConstraint($name, $table) {
+    public function dropConstraint($name, $table, $cascade = false) {
 
         if(!$this->driver)
             return false;
 
-        return $this->driver->dropConstraint($name, $table);
+        return $this->driver->dropConstraint($name, $table, $cascade);
 
     }
 
@@ -1853,7 +1853,7 @@ class Adapter {
                                     if ($test)
                                         continue;
 
-                                    $this->dropTable($item);
+                                    $this->dropTable($item, true);
 
                                 }elseif($type == 'constraint'){
 
@@ -1862,7 +1862,7 @@ class Adapter {
                                     if ($test)
                                         continue;
 
-                                    $this->dropConstraint($item['name'], $item['table']);
+                                    $this->dropConstraint($item['name'], $item['table'], true);
 
                                 }elseif($type == 'index'){
 

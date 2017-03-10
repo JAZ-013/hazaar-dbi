@@ -713,9 +713,9 @@ abstract class BaseDriver implements Driver_Interface {
 
     }
 
-    public function dropTable($name) {
+    public function dropTable($name, $cascade = false) {
 
-        $sql = "DROP TABLE " . $this->field($name) . ";";
+        $sql = "DROP TABLE " . $this->field($name) . ($cascade?' CASCADE':'') . ";";
 
         $affected = $this->exec($sql);
 
@@ -931,9 +931,9 @@ abstract class BaseDriver implements Driver_Interface {
 
     }
 
-    public function dropConstraint($name, $table) {
+    public function dropConstraint($name, $table, $cascade = false) {
 
-        $sql = "ALTER TABLE " . $this->field($table) . " DROP CONSTRAINT " . $this->field($name);
+        $sql = "ALTER TABLE " . $this->field($table) . " DROP CONSTRAINT " . $this->field($name) . ($cascade?' CASCADE':'') . ';';
 
         $affected = $this->exec($sql);
 
