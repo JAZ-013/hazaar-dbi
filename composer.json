@@ -35,5 +35,8 @@
     "php": "^5.6 || ^7.0",
     "ext-pdo": "*",
     "hazaarlabs/hazaar-mvc": "dev-2-application-management-console"
+  },
+  "extra": {
+    "hazaar-console-class": "Hazaar\\DBI\\Console"
   }
 }
