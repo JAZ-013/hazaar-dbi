@@ -27,9 +27,12 @@
     <Compile Include="src\Exception\DriverNotSpecified.php" />
     <Compile Include="src\Exception\MissingJoin.php" />
     <Compile Include="src\Result.php" />
+    <Compile Include="src\Console.php" />
     <Compile Include="src\Table.php" />
   </ItemGroup>
   <ItemGroup>
+    <Folder Include="libs\" />
+    <Folder Include="libs\console\" />
     <Folder Include="src\DBD\Exception" />
     <Folder Include="src\DBD" />
     <Folder Include="src\Exception" />
@@ -37,5 +40,9 @@
   </ItemGroup>
   <ItemGroup>
     <Content Include="composer.json" />
+    <Content Include="libs\console\dbi.js" />
+    <Content Include="libs\console\schema.phtml" />
+    <Content Include="libs\console\settings.phtml" />
+    <Content Include="libs\console\sync.phtml" />
   </ItemGroup>
 </Project>

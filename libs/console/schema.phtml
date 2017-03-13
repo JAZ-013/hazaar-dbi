@@ -1,0 +1,56 @@
+
+<h1>Database Schema Management</h1>
+<div style="font: 18px 'Courier New'">
+    <div>Current version:</div>
+    <div>
+        <?=$this->current_version;?>
+    </div>
+</div>
+
+<?php
+if($this->latest)
+    echo $this->html->div('Up to date')->class('label label-success');
+else
+    echo $this->html->div('Update available')->class('label label-warning');
+?>
+
+<div class="row">
+    <div class="col col-md-6">
+        <div style="margin-bottom: 15px;">
+            <h3>Snapshot</h3>
+            <form id="frmSnapshot">
+                <button type="submit" class="btn btn-primary">Snapshot Database</button>
+                <label>
+                    Comment:
+                    <input type="text" name="comment" />
+                </label>
+                <label>
+                    <input type="checkbox" name="testmode" value="true" />Test Mode
+                </label>
+            </form>
+        </div>
+        <div class="panel panel-default">
+            <div class="panel-heading">Snapshot Log</div>
+            <div id="snapshotlog" class="panel-body logoutput"></div>
+        </div>
+    </div>
+    <div class="col col-md-6">
+        <div style="margin-bottom: 15px;">
+            <form id="frmMigrate">
+                <h3>Migrate</h3>
+                <button type="submit" class="btn btn-primary">Migrate Database</button>
+                <label>
+                    Version: <?=$this->html->select('version', $this->versions);?>
+                </label>
+                <label>
+                    <input type="checkbox" name="testmode" value="true" />Test Mode
+                </label>
+            </form>
+        </div>
+        <div class="panel panel-default">
+            <div class="panel-heading">Migration Log</div>
+            <div id="migratelog" class="panel-body logoutput"></div>
+        </div>
+    </div>
+</div>
+
