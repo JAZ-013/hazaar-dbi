@@ -6,13 +6,19 @@ class Console extends \Hazaar\Console\Module {
 
     public function init(){
 
-        $this->addMenuGroup('dbi', 'Databases');
+        $this->addMenuGroup('dbi', 'Databases', 'database');
 
         $this->addMenuItem('dbi', 'Schema Migration', 'schema');
 
         $this->addMenuItem('dbi', 'Data Sync', 'sync');
 
         $this->view->requires('dbi.js');
+
+    }
+
+    public function index(){
+
+        $this->notice('This module is currently under active development!', 'exclamation-triangle', 'warning');
 
     }
 
