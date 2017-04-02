@@ -1,0 +1,29 @@
+
+<div class="row">
+    <div class="col col-8">
+        <div class="panel">
+            <div class="panel-header">Migrate</div>
+            <div class="panel-content">
+                <div class="form-item">
+                    <label>
+                        Version: <?=$this->html->select('version', $this->versions);?>
+                    </label>
+                </div>
+                <div class="form-item">
+                    <label>
+                        <input type="checkbox" name="testmode" value="true" />Test Mode
+                    </label>
+                </div>
+                <button id="btnMigrate" class="primary">Migrate Database</button>
+            </div>
+        </div>
+        <div class="panel">
+            <div class="panel-header">Migration Log</div>
+            <div class="panel-content">
+                <div id="migratelog" class="panel-body logoutput"></div>
+            </div>
+        </div>
+    </div>
+    <div class="col col-4"><?=$this->partial('version_info', $this->version_info);?>
+    </div>
+</div>

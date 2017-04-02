@@ -1,9 +1,8 @@
 
-<h1>Database Settings</h1>
-
-<?php
-
-$db = new Hazaar\DBI\Adapter();
-
-dump($db->listIndexes('user_role'));
-?>
+<div class="row">
+    <div class="col col-4"></div>
+    <div class="col col-4"></div>
+    <div class="col col-4">
+        <?=$this->partial('version_info', $this->version_info); ?>
+    </div>
+</div>

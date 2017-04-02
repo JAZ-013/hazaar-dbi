@@ -1,0 +1,32 @@
+
+<div class="row">
+    <div class="col col-8">
+        <div class="panel">
+            <div class="panel-header">Snapshot</div>
+            <div class="panel-content">
+                <div class="form-item">
+                    <label>
+                        Comment:
+                        <input type="text" name="comment" />
+                    </label>
+                </div>
+                <div class="form-item">
+                    <label>
+                        <input type="checkbox" name="testmode" value="true" />Test Mode
+                    </label>
+                </div>
+                <button id="btnSnapshot" class="primary">Snapshot Database</button>
+            </div>
+        </div>
+        <div class="panel">
+            <div class="panel-header">Snapshot Log</div>
+            <div class="panel-content">
+                <div id="snapshotlog" class="panel-body logoutput"></div>
+            </div>
+        </div>
+    </div>
+    <div class="col col-4">
+        <?=$this->partial('version_info', $this->version_info);?>
+    </div>
+</div>
+

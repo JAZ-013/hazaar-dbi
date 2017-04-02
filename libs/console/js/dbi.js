@@ -10,27 +10,25 @@
     }
 }
 $(document).ready(function () {
-    $('#frmSnapshot').submit(function () {
+    $('#btnSnapshot').click(function () {
         var data = $(this).serializeArray();
         $('#snapshotlog').empty().parent().addClass('panel-default').removeClass('panel-success').removeClass('panel-danger');
         $.post(hazaar.url('dbi', 'snapshot'), data).done(function (result) {
             showLog($('#snapshotlog'), result);
-        });
-        return false;
+        }).error(handleError);
     });
-    $('#frmMigrate').submit(function () {
+    $('#btnMigrate').click(function () {
         var data = $(this).serializeArray();
         $('#migratelog').empty().parent().addClass('panel-default').removeClass('panel-success').removeClass('panel-danger');
         $.post(hazaar.url('dbi', 'migrate'), data).done(function (result) {
             showLog($('#migratelog'), result);
-        });
-        return false;
+        }).error(handleError);
     });
-    $('#frmSync').submit(function () {
+    $('#btnDataSync').click(function () {
         $('#synclog').empty().parent().addClass('panel-default').removeClass('panel-success').removeClass('panel-danger');
-        $.post(hazaar.url('dbi', 'syncdata')).done(function (result) {
+        $.post(hazaar.url('dbi', 'sync')).done(function (result) {
             showLog($('#synclog'), result);
-        });
+        }).error(handleError);
         return false;
     });
 });

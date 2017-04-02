@@ -1,0 +1,16 @@
+
+<div class="panel default">
+    <div class="panel-header">Current version</div>
+    <div class="panel-content">
+        <div class="row">
+            <?=$this->current;?>
+        </div>
+        <?php
+        if($this->latest)
+            echo $this->html->div('Up to date')->class('label success');
+        else
+            echo $this->html->div('Update available')->class('label warning');
+        ?>
+
+    </div>
+</div>

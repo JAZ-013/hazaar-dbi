@@ -1,0 +1,13 @@
+﻿.logoutput {
+    font-family: Courier New, Courier, monospace;
+    font-size: 13px;
+}
+
+    .logoutput .log-time {
+        float: left;
+        font-weight: bold;
+        margin-right: 15px;
+    }
+
+    .logoutput .log-msg {
+    }
