@@ -32,11 +32,11 @@ class DBI implements _Interface {
 
     public function loadRootObject() {
 
-        if(! ($this->rootObject = $this->db->file->findOne(array('parent' => null)))) {
+        if(! ($this->rootObject = $this->db->file->findOne(array('parents' => null)))) {
 
             $root = array(
                 'kind'         => 'dir',
-                'parent'       => null,
+                'parents'      => null,
                 'filename'     => 'ROOT',
                 'created_on'   => new \Hazaar\Date(),
                 'modified_on'  => null,
@@ -57,7 +57,7 @@ class DBI implements _Interface {
              * b) Screwed - In which case this should make everything work again.
              *
              */
-            $this->db->file->update(array('parent' => array('$not' => null)), array('parent' => $root['id']));
+            $this->db->file->update(array('parents' => array('$not' => null)), array('parents' => $root['id']));
 
             $this->rootObject = $root;
 
@@ -80,7 +80,7 @@ class DBI implements _Interface {
 
         $criteria = array(
             array('filename' => array('$ne' => null)),
-            'parent' => $parent['id']
+            'parents' => array($parent['id'])
         );
 
         $q = $this->db->file->find($criteria);
@@ -330,7 +330,7 @@ class DBI implements _Interface {
 
         $info = array(
             'kind'         => 'dir',
-            'parent'       => $parent['id'],
+            'parents'      => array($parent['id']),
             'filename'     => basename($path),
             'length'       => 0,
             'created_on'   => new \Hazaar\Date(),
@@ -444,12 +444,12 @@ class DBI implements _Interface {
 
         if($info = $this->db->file->findOne(array('md5' => $md5))) {
 
-            if(in_array($parent['id'], $info['parent']))
+            if(in_array($parent['id'], $info['parents']))
                 return false;
 
             $data = array(
                 'modifiedDate' => new \Hazaar\Date(),
-                'parent' => $parent['_id'])
+                'parents' => array($parent['id'])
             );
 
             $ret = $this->collection->update(array('_id' => $info['_id']), $data);
@@ -511,12 +511,12 @@ class DBI implements _Interface {
 
         if($info = $this->db->file->findOne(array('md5' => $md5))) {
 
-            if(in_array($parent['id'], $info['parent']))
+            if(in_array($parent['id'], $info['parents']))
                 return false;
 
             $data = array(
                 'modified_on' => new \Hazaar\Date(),
-                'parent' => $parent['id']
+                'parents' => array($parent['id'])
             );
 
             $ret = $this->db->file->update(array('id' => $info['id']), $data);
@@ -536,7 +536,7 @@ class DBI implements _Interface {
 
             $fileInfo = array(
                 'kind'         => 'file',
-                'parent'       => $parent['id'],
+                'parents'      => array($parent['id']),
                 'filename'     => $file['name'],
                 'created_on'   => new \Hazaar\Date(),
                 'modified_on'  => null,
