@@ -39,6 +39,8 @@ class Result implements \ArrayAccess, \Countable, \Iterator {
      */
     private $reset = true;
 
+    private $array_columns = array();
+
     private $json_columns = array();
 
     function __construct(\PDOStatement $statement) {
@@ -51,11 +53,19 @@ class Result implements \ArrayAccess, \Countable, \Iterator {
 
                 $meta = $this->statement->getColumnMeta($i);
 
-                $key = $meta['name'];
+                if(substr($meta['native_type'], 0, 1) == '_'){ //It's an array!
 
-                if ($meta['pdo_type'] == \PDO::PARAM_STR && (substr(ake($meta, 'native_type'), 0, 4) == 'json' || (!array_key_exists('native_type', $meta) && in_array('blob', ake($meta, 'flags')))))
+                    $this->array_columns[] = array(substr($meta['native_type'], 1), $meta['name']);
+
+                }elseif ($meta['pdo_type'] == \PDO::PARAM_STR && (substr(ake($meta, 'native_type'), 0, 4) == 'json' || (!array_key_exists('native_type', $meta) && in_array('blob', ake($meta, 'flags'))))){
+
                     $this->json_columns[] = $meta['name'];
+
+                }
+
+
             }
+
         }
 
     }
@@ -165,7 +175,10 @@ class Result implements \ArrayAccess, \Countable, \Iterator {
 
             $this->reset = true;
 
-            return $this->statement->fetch($fetch_style, $cursor_orientation, $cursor_offset);
+            $record = $this->statement->fetch($fetch_style, $cursor_orientation, $cursor_offset);
+
+            return $this->fix($record);
+
         }
 
         return false;
@@ -239,10 +252,35 @@ class Result implements \ArrayAccess, \Countable, \Iterator {
         if (!$record)
             return null;
 
+        if (count($this->array_columns) > 0) {
+
+            foreach($this->array_columns as $item){
+
+                list($type, $col) = $item;
+
+                if(!($record[$col] && substr($record[$col], 0, 1) == '{' && substr($record[$col], -1, 1) == '}'))
+                    continue;
+
+                $elements = explode(',', trim($record[$col], '{}'));
+
+                foreach($elements as &$element){
+
+                    if(substr($type, 0, 3) == 'int')
+                        $element = intval($element);
+
+                }
+
+                $record[$col] = $elements;
+
+            }
+
+        }
+
         if (count($this->json_columns) > 0) {
 
             foreach($this->json_columns as $col)
                 $record[$col] = json_decode($record[$col], true);
+
         }
 
         return $record;
@@ -330,7 +368,9 @@ class Result implements \ArrayAccess, \Countable, \Iterator {
 
             $this->reset = true;
 
-            return $this->statement->fetch(\PDO::FETCH_ASSOC);
+            $record = $this->statement->fetch(\PDO::FETCH_ASSOC);
+
+            return $this->fix($record);
         }
 
         return false;
