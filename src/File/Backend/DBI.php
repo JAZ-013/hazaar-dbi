@@ -325,7 +325,7 @@ class DBI implements _Interface {
 
         $info = array(
             'kind'         => 'dir',
-            'parents'      => '{' . $parent['id'] . '}',
+            'parents'      => array('$array' => $parent['id']),
             'filename'     => basename($path),
             'length'       => 0,
             'created_on'   => new \Hazaar\Date(),
@@ -361,7 +361,7 @@ class DBI implements _Interface {
 
                     unset($info['parents'][$key]);
 
-                    $this->db->file->update(array('id' => $info['id']), array('parents' => '{' . implode(',', $info['parents']) . '}'));
+                    $this->db->file->update(array('id' => $info['id']), array('parents' => array('$array' => $info['parents'])));
 
                 }
 
@@ -459,8 +459,8 @@ class DBI implements _Interface {
             die('not done yet');
 
             $data = array(
-                'modifiedDate' => new \Hazaar\Date(),
-                'parents' => '{' . $parent['id'] . '}'
+                'modified_on' => new \Hazaar\Date(),
+                'parents'     => array('$array' => $parent['id']),
             );
 
             $ret = $this->collection->update(array('_id' => $info['_id']), $data);
@@ -480,7 +480,7 @@ class DBI implements _Interface {
 
             $fileInfo = array(
                 'kind'         => 'file',
-                'parents'      => '{' . $parent['id'] . '}',
+                'parents'      => array('$array' => $parent['id']),
                 'filename'     => basename($path),
                 'mime_type'    => $content_type,
                 'modifiedDate' => null,
@@ -525,11 +525,9 @@ class DBI implements _Interface {
             if(in_array($parent['id'], $info['parents']))
                 return false;
 
-            array_push($info['parents'], $parent['id']);
-
             $data = array(
                 'modified_on' => new \Hazaar\Date(),
-                'parents' => '{' . implode(', ', $info['parents']) . '}'
+                'parents' => array('$push' => $parent['id'])
             );
 
             if($this->db->file->update(array('id' => $info['id']), $data)){
@@ -547,7 +545,7 @@ class DBI implements _Interface {
 
             $fileInfo = array(
                 'kind'         => 'file',
-                'parents'      => '{' . $parent['id'] . '}',
+                'parents'      => array('$array' => $parent['id']),
                 'filename'     => $file['name'],
                 'created_on'   => new \Hazaar\Date(),
                 'modified_on'  => null,
@@ -625,13 +623,8 @@ class DBI implements _Interface {
             'modified_on' => new \Hazaar\Date()
         );
 
-        if(!in_array($dstParent['id'], $source['parents'])){
-
-            array_push($source['parents'], $dstParent['id']);
-
-            $data['parents'] = '{' . implode(', ', $source['parents']) . '}';
-
-        }
+        if(!in_array($dstParent['id'], $source['parents']))
+            $data['parents'] = array('$push' => $dstParent['id']);
 
         if($this->db->file->update(array('id' => $source['id']), $data)){
 
@@ -721,13 +714,8 @@ class DBI implements _Interface {
             if(($key = array_search($srcParent['id'], $source['parents'])) !== null)
                 unset($source['parents'][$key]);
 
-            if(!in_array($dstParent['id'], $source['parents'])){
-
-                array_push($source['parents'], $dstParent['id']);
-
-                $data['parents'] = '{' . implode(',', $source['parents']) . '}';
-
-            }
+            if(!in_array($dstParent['id'], $source['parents']))
+                $data['parents'] = array('$push' => $dstParent['id']);
 
         } else {
 
