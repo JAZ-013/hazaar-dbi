@@ -57,7 +57,7 @@ class DBI implements _Interface {
              * b) Screwed - In which case this should make everything work again.
              *
              */
-            $this->db->file->update(array('parents' => array('$not' => null)), array('parents' => $root['id']));
+            $this->db->file->update(array('parents' => array('$not' => null)), array('parents' => array('$array' => $root['id'])));
 
             $this->rootObject = $root;
 
@@ -129,11 +129,9 @@ class DBI implements _Interface {
 
     public function fsck() {
 
-        die(__METHOD__);
+        $c = $this->db->file->find(array(), array('filename', 'parents'));
 
-        $c = $this->collection->find(array(), array('filename' => true, 'parents' => true));
-
-        while($file = $c->getNext()) {
+        while($file = $c->row()) {
 
             $update = array();
 
@@ -147,7 +145,7 @@ class DBI implements _Interface {
              */
             foreach($file['parents'] as $index => $parentID) {
 
-                $parent = $this->collection->findOne(array('_id' => $parentID));
+                $parent = $this->db->file->findOne(array('id' => $parentID));
 
                 if(! $parent)
                     $update[] = $index;
@@ -165,7 +163,7 @@ class DBI implements _Interface {
                 if(count($file['parents']) == 0)
                     $file['parents'] = array($this->rootObject['_id']);
 
-                $this->collection->update(array('_id' => $file['_id']), array('$set' => array('parents' => $file['parents'])));
+                $this->db->file->update(array('id' => $file['id']), array('parents' => array('$array' => $file['parents'])));
 
             }
 
@@ -453,75 +451,6 @@ class DBI implements _Interface {
             if(in_array($parent['id'], $info['parents']))
                 return false;
 
-            die('not done yet');
-
-            $data = array(
-                'modified_on' => new \Hazaar\Date(),
-                'parents'     => array('$array' => $parent['id']),
-            );
-
-            $ret = $this->collection->update(array('_id' => $info['_id']), $data);
-
-            if($ret['ok'] == 1) {
-
-                if(! array_key_exists('items', $parent))
-                    $parent['items'] = array();
-
-                $parent['items'][$info['filename']] = $info;
-
-                return true;
-
-            }
-
-        } else {
-
-            $fileInfo = array(
-                'kind'         => 'file',
-                'parents'      => array('$array' => $parent['id']),
-                'filename'     => basename($path),
-                'mime_type'    => $content_type,
-                'modifiedDate' => null,
-                'md5'          => $md5
-            );
-
-            if($info = $this->info($path))
-                $fileInfo['meta'] = ake($info, 'meta');
-
-            if($id = $this->gridFS->storeBytes($bytes, $fileInfo)) {
-
-                $fileInfo['_id'] = $id;
-
-                $fileInfo['length'] = strlen($bytes);
-
-                if(! array_key_exists('items', $parent))
-                    $parent['items'] = array();
-
-                $parent['items'][$fileInfo['filename']] = $fileInfo;
-
-                return true;
-
-            }
-
-        }
-
-        return false;
-
-    }
-
-    public function upload($path, $file, $overwrite = false) {
-
-        $parent =& $this->info($path);
-
-        if(! $parent)
-            return false;
-
-        $md5 = md5_file($file['tmp_name']);
-
-        if($info = $this->db->file->findOne(array('md5' => $md5))) {
-
-            if(in_array($parent['id'], $info['parents']))
-                return false;
-
             $data = array(
                 'modified_on' => new \Hazaar\Date(),
                 'parents' => array('$push' => $parent['id'])
@@ -540,14 +469,16 @@ class DBI implements _Interface {
 
         } else {
 
+            $size = strlen($bytes);
+
             $fileInfo = array(
                 'kind'         => 'file',
                 'parents'      => array('$array' => $parent['id']),
-                'filename'     => $file['name'],
+                'filename'     => basename($path),
                 'created_on'   => new \Hazaar\Date(),
                 'modified_on'  => null,
-                'length'       => $file['size'],
-                'mime_type'    => $file['type'],
+                'length'       => $size,
+                'mime_type'    => $content_type,
                 'md5'          => $md5
             );
 
@@ -561,9 +492,7 @@ class DBI implements _Interface {
 
                 $stmt->bindParam(2, $n); //Support for multiple chunks will come later at some point
 
-                $data = file_get_contents($file['tmp_name']);
-
-                $stmt->bindParam(3, $data, \PDO::PARAM_LOB);
+                $stmt->bindParam(3, $bytes, \PDO::PARAM_LOB);
 
                 //Insert the data chunk.  If this fails then remote the file.  We do this without a transaction due to the potential size.
                 if(!$stmt->execute()){
@@ -575,8 +504,6 @@ class DBI implements _Interface {
                 }
 
                 $fileInfo['id'] = $id;
-
-                $fileInfo['length'] = $file['size'];
 
                 if(! array_key_exists('items', $parent))
                     $parent['items'] = array();
@@ -590,6 +517,12 @@ class DBI implements _Interface {
         }
 
         return false;
+
+    }
+
+    public function upload($path, $file, $overwrite = false) {
+
+        return $this->write(rtrim($path, '/') . '/' . $file['name'], file_get_contents($file['tmp_name']), $file['type'], $overwrite);
 
     }
 
@@ -733,8 +666,6 @@ class DBI implements _Interface {
 
     public function chmod($path, $mode) {
 
-        die(__METHOD__);
-
         if(! is_int($mode))
             return false;
 
@@ -742,9 +673,7 @@ class DBI implements _Interface {
 
             $target['mode'] = $mode;
 
-            $ret = $this->collection->update(array('_id' => $target['_id']), array('$set' => array('mode' => $mode)));
-
-            return ($ret['ok'] == 1);
+            return $this->db->file->update(array('id' => $target['id']), array('mode' => $mode));
 
         }
 
@@ -754,15 +683,11 @@ class DBI implements _Interface {
 
     public function chown($path, $user) {
 
-        die(__METHOD__);
-
         if($target =& $this->info($path)) {
 
             $target['owner'] = $user;
 
-            $ret = $this->collection->update(array('_id' => $target['_id']), array('$set' => array('owner' => $user)));
-
-            return ($ret['ok'] == 1);
+            return $this->db->file->update(array('id' => $target['id']), array('owner' => $user));
 
         }
 
@@ -772,15 +697,11 @@ class DBI implements _Interface {
 
     public function chgrp($path, $group) {
 
-        die(__METHOD__);
-
         if($target =& $this->info($path)) {
 
             $target['group'] = $group;
 
-            $ret = $this->collection->update(array('_id' => $target['_id']), array('$set' => array('group' => $group)));
-
-            return ($ret['ok'] == 1);
+            return $this->collection->update(array('id' => $target['id']), array('group' => $group));
 
         }
 
@@ -790,20 +711,8 @@ class DBI implements _Interface {
 
     public function set_meta($path, $values) {
 
-        die(__METHOD__);
-
-        if($target =& $this->info($path)) {
-
-            $data = array();
-
-            foreach($values as $key => $value)
-                $data['meta.' . $key] = $value;
-
-            $ret = $this->collection->update(array('_id' => $target['_id']), array('$set' => $data));
-
-            return ($ret['ok'] == 1);
-
-        }
+        if($target =& $this->info($path))
+            return $this->db->file->update(array('id' => $target['id']), array('metadata' => json_encode($values)));
 
         if($parent =& $this->info(dirname($path))) {
 
@@ -819,17 +728,15 @@ class DBI implements _Interface {
 
     public function get_meta($path, $key = null) {
 
-        die(__METHOD__);
-
         if(! ($info = $this->info($path)))
             return false;
 
-        if(array_key_exists('meta', $info)) {
+        if(array_key_exists('metadata', $info)) {
 
             if($key)
-                return ake($info['meta'], $key);
+                return ake($info['metadata'], $key);
 
-            return $info['meta'];
+            return $info['metadata'];
 
         }
 
