@@ -332,20 +332,17 @@ class DBI implements _Interface {
             'modified_on'  => null
         );
 
-        if(($id = $this->db->file->insert($info, 'id')) > 0){
+        if(!($id = $this->db->file->insert($info, 'id')) > 0)
+            return false;
 
-            $info['id'] = $id;
+        $info['id'] = $id;
 
-            if(! array_key_exists('items', $parent))
-                $parent['items'] = array();
+        if(! array_key_exists('items', $parent))
+            $parent['items'] = array();
 
-            $parent['items'][$info['filename']] = $info;
+        $parent['items'][$info['filename']] = $info;
 
-            return true;
-
-        }
-
-        return false;
+        return true;
 
     }
 
@@ -575,8 +572,6 @@ class DBI implements _Interface {
 
                     throw new \Exception($this->db->errorInfo()[2]);
 
-                    return false;
-
                 }
 
                 $fileInfo['id'] = $id;
@@ -626,24 +621,19 @@ class DBI implements _Interface {
         if(!in_array($dstParent['id'], $source['parents']))
             $data['parents'] = array('$push' => $dstParent['id']);
 
-        if($this->db->file->update(array('id' => $source['id']), $data)){
+        if(!$this->db->file->update(array('id' => $source['id']), $data))
+            return false;
 
-            if(! array_key_exists('items', $dstParent))
-                $dstParent['items'] = array();
+        if(! array_key_exists('items', $dstParent))
+            $dstParent['items'] = array();
 
-            $dstParent['items'][$source['filename']] = $source;
+        $dstParent['items'][$source['filename']] = $source;
 
-            return true;
-
-        }
-
-        return false;
+        return true;
 
     }
 
     public function link($src, $dst) {
-
-        die(__METHOD__);
 
         if(! ($source = $this->info($src)))
             return false;
@@ -665,26 +655,21 @@ class DBI implements _Interface {
             return false;
 
         $data = array(
-            '$set' => array('modifiedDate' => new \MongoDate)
+            'modified_on' => new \MongoDate
         );
 
-        if(! in_array($dstParent['_id'], $source['parents']))
-            $data['$push'] = array('parents' => $dstParent['_id']);
+        if(! in_array($dstParent['id'], $source['parents']))
+            $data['parents'] = array('$push' => $dstParent['id']);
 
-        $ret = $this->collection->update(array('_id' => $source['_id']), $data);
+        if(!$this->db->file->update(array('id' => $source['id']), $data))
+            return false;
 
-        if($ret['ok'] == 1) {
+        if(! array_key_exists('items', $dstParent))
+            $dstParent['items'] = array();
 
-            if(! array_key_exists('items', $dstParent))
-                $dstParent['items'] = array();
+        $dstParent['items'][$source['filename']] = $source;
 
-            $dstParent['items'][$source['filename']] = $source;
-
-            return true;
-
-        }
-
-        return false;
+        return true;
 
     }
 
@@ -714,8 +699,13 @@ class DBI implements _Interface {
             if(($key = array_search($srcParent['id'], $source['parents'])) !== null)
                 unset($source['parents'][$key]);
 
-            if(!in_array($dstParent['id'], $source['parents']))
-                $data['parents'] = array('$push' => $dstParent['id']);
+            if(!in_array($dstParent['id'], $source['parents'])){
+
+                array_push($source['parents'], $dstParent['id']);
+
+                $data['parents'] = array('$array' => $source['parents']);
+
+            }
 
         } else {
 
