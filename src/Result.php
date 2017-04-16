@@ -41,8 +41,6 @@ class Result implements \ArrayAccess, \Countable, \Iterator {
 
     private $array_columns = array();
 
-    private $json_columns = array();
-
     function __construct(\PDOStatement $statement) {
 
         $this->statement = $statement;
@@ -59,7 +57,7 @@ class Result implements \ArrayAccess, \Countable, \Iterator {
 
                 }elseif ($meta['pdo_type'] == \PDO::PARAM_STR && (substr(ake($meta, 'native_type'), 0, 4) == 'json' || (!array_key_exists('native_type', $meta) && in_array('blob', ake($meta, 'flags'))))){
 
-                    $this->json_columns[] = $meta['name'];
+                    $this->array_columns[] = array('json', $meta['name']);
 
                 }
 
@@ -252,34 +250,36 @@ class Result implements \ArrayAccess, \Countable, \Iterator {
         if (!$record)
             return null;
 
-        if (count($this->array_columns) > 0) {
+        if (!(count($this->array_columns) > 0))
+            return $record;
 
-            foreach($this->array_columns as $item){
+        foreach($this->array_columns as $item){
 
-                list($type, $col) = $item;
+            list($type, $col) = $item;
 
-                if(!($record[$col] && substr($record[$col], 0, 1) == '{' && substr($record[$col], -1, 1) == '}'))
-                    continue;
+            if(!($record[$col] && substr($record[$col], 0, 1) == '{' && substr($record[$col], -1, 1) == '}'))
+                continue;
 
-                $elements = explode(',', trim($record[$col], '{}'));
+            $elements = explode(',', trim($record[$col], '{}'));
 
-                foreach($elements as &$element){
+            foreach($elements as &$element){
 
-                    if(substr($type, 0, 3) == 'int')
-                        $element = intval($element);
-
-                }
-
-                $record[$col] = $elements;
+                if(substr($type, 0, 3) == 'int')
+                    $element = intval($element);
+                elseif(substr($type, 0, 5) == 'float')
+                    $element = floatval($element);
+                elseif($type == 'text' || $type == 'varchar')
+                    $element = trim($element, "'");
+                elseif($type == 'bool')
+                    $element = boolify($element);
+                elseif($type == 'timestamp' || $type == 'date' || $type == 'time')
+                    $element = new \Hazaar\Date(trim($element, '"'));
+                elseif($type == 'json')
+                    $element = json_decode($element, true);
 
             }
 
-        }
-
-        if (count($this->json_columns) > 0) {
-
-            foreach($this->json_columns as $col)
-                $record[$col] = json_decode($record[$col], true);
+            $record[$col] = $elements;
 
         }
 

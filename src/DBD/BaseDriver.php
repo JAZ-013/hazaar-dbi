@@ -241,7 +241,7 @@ abstract class BaseDriver implements Driver_Interface {
 
     }
 
-    public function prepareCriteria($criteria, $bind_type = 'AND', $tissue = '=', $parent_ref = NULL) {
+    public function prepareCriteria($criteria, $bind_type = 'AND', $tissue = '=', $parent_ref = NULL, $optional_key = NULL) {
 
         if(!is_array($criteria))
             return $criteria;
@@ -353,6 +353,30 @@ abstract class BaseDriver implements Driver_Interface {
 
                         break;
 
+                    case 'array':
+
+                        if(!is_array($value))
+                            $value = array($value);
+
+                        foreach($value as &$val)
+                            $val = $this->prepareValue($val);
+
+                        $parts[] = 'ARRAY[' . implode(',', $value) . ']';
+
+                        break;
+
+                    case 'push':
+
+                        if(!is_array($value))
+                            $value = array($value);
+
+                        foreach($value as &$val)
+                            $val = $this->prepareValue($val);
+
+                        $parts[] = $this->field($optional_key) . ' || ARRAY[' . implode(',', $value) . ']';
+
+                        break;
+
                     default :
                         $parts[] = ' ' . $tissue . ' ' . $this->prepareCriteria($value, strtoupper(substr($key, 1)));
 
@@ -398,11 +422,8 @@ abstract class BaseDriver implements Driver_Interface {
 
         $sql = '';
 
-        if(count($parts) > 0) {
-
+        if(count($parts) > 0)
             $sql = ((count($parts) > 1) ? '( ' : NULL) . implode(" $bind_type ", $parts) . ((count($parts) > 1) ? ' )' : NULL);
-
-        }
 
         return $sql;
 
@@ -425,11 +446,11 @@ abstract class BaseDriver implements Driver_Interface {
 
     }
 
-    public function prepareValue($value) {
+    public function prepareValue($value, $key = null) {
 
         if (is_array($value)) {
 
-            $value = $this->prepareCriteria($value, NULL, NULL);
+            $value = $this->prepareCriteria($value, NULL, NULL, NULL, $key);
 
         } elseif ($value instanceof \Hazaar\Date) {
 
@@ -482,8 +503,8 @@ abstract class BaseDriver implements Driver_Interface {
 
         $value_def = array_values($fields);
 
-        foreach($value_def as &$value)
-            $value = $this->prepareValue($value);
+        foreach($value_def as $key => &$value)
+            $value = $this->prepareValue($value, $field_def[$key]);
 
         $sql = 'INSERT INTO ' . $this->field($table) . ' ( ' . implode(', ', $field_def) . ' ) VALUES ( ' . implode(', ', $value_def) . ' )';
 
@@ -525,7 +546,7 @@ abstract class BaseDriver implements Driver_Interface {
         $field_def = array();
 
         foreach($fields as $key => $value)
-            $field_def[] = $this->field($key) . ' = ' . $this->prepareValue($value);
+            $field_def[] = $this->field($key) . ' = ' . $this->prepareValue($value, $key);
 
         if (count($field_def) == 0)
             throw new Exception\NoUpdate();
