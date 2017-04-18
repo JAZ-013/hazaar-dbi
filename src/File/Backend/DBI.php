@@ -16,9 +16,14 @@ class DBI implements _Interface {
 
     public function __construct($options = array()) {
 
-        $this->options = ($options instanceof \Hazaar\Map) ? $options : new \Hazaar\Map($options);
+        if($options instanceof \Hazaar\Map)
+            $options->enhance(\Hazaar\DBI\Adapter::getDefaultConfig());
+        else
+            $options = new \Hazaar\Map(\Hazaar\DBI\Adapter::getDefaultConfig(), $options);
 
-        $this->db = new \Hazaar\DBI\Adapter((($options->count() > 0) ? $options : array()));
+        $this->options = $options;
+
+        $this->db = new \Hazaar\DBI\Adapter($this->options);
 
         $this->loadRootObject();
 
