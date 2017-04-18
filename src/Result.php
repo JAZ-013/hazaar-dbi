@@ -76,8 +76,6 @@ class Result implements \ArrayAccess, \Countable, \Iterator {
 
     public function toString() {
 
-        dump($this->statement);
-
         return $this->statement->queryString;
 
     }
@@ -257,29 +255,37 @@ class Result implements \ArrayAccess, \Countable, \Iterator {
 
             list($type, $col) = $item;
 
-            if(!($record[$col] && substr($record[$col], 0, 1) == '{' && substr($record[$col], -1, 1) == '}'))
-                continue;
+            if($type == 'json'){
 
-            $elements = explode(',', trim($record[$col], '{}'));
+                $record[$col] = json_decode($record[$col], true);
 
-            foreach($elements as &$element){
+            }else{
 
-                if(substr($type, 0, 3) == 'int')
-                    $element = intval($element);
-                elseif(substr($type, 0, 5) == 'float')
-                    $element = floatval($element);
-                elseif($type == 'text' || $type == 'varchar')
-                    $element = trim($element, "'");
-                elseif($type == 'bool')
-                    $element = boolify($element);
-                elseif($type == 'timestamp' || $type == 'date' || $type == 'time')
-                    $element = new \Hazaar\Date(trim($element, '"'));
-                elseif($type == 'json')
-                    $element = json_decode($element, true);
+                if(!($record[$col] && substr($record[$col], 0, 1) == '{' && substr($record[$col], -1, 1) == '}'))
+                    continue;
+
+                $elements = explode(',', trim($record[$col], '{}'));
+
+                foreach($elements as &$element){
+
+                    if(substr($type, 0, 3) == 'int')
+                        $element = intval($element);
+                    elseif(substr($type, 0, 5) == 'float')
+                        $element = floatval($element);
+                    elseif($type == 'text' || $type == 'varchar')
+                        $element = trim($element, "'");
+                    elseif($type == 'bool')
+                        $element = boolify($element);
+                    elseif($type == 'timestamp' || $type == 'date' || $type == 'time')
+                        $element = new \Hazaar\Date(trim($element, '"'));
+                    elseif($type == 'json')
+                        $element = json_decode($element, true);
+
+                }
+
+                $record[$col] = $elements;
 
             }
-
-            $record[$col] = $elements;
 
         }
 
