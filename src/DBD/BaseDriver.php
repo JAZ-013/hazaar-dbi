@@ -389,16 +389,16 @@ abstract class BaseDriver implements Driver_Interface {
 
                     $sub_value = $this->prepareCriteria($value);
 
-                    if(! is_numeric($key)) {
+                    if(is_numeric($key)) {
+
+                        $parts[] = $sub_value;
+
+                    }else{
 
                         if($parent_ref && strpos($key, '.') === FALSE)
                             $key = $parent_ref . '.' . $key;
 
                         $parts[] = $key . ' ' . $sub_value;
-
-                    } else {
-
-                        $parts[] = $sub_value;
 
                     }
 
