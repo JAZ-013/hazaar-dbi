@@ -760,7 +760,7 @@ abstract class BaseDriver implements Driver_Interface {
         if (array_key_exists('not_null', $column_spec) && $column_spec['not_null'])
             $sql .= ' NOT NULL';
 
-        if (array_key_exists('default', $column_spec) && $column_spec['default'])
+        if (array_key_exists('default', $column_spec) && $column_spec['default'] !== null)
             $sql .= ' DEFAULT ' . $column_spec['default'];
 
         $sql .= ';';
@@ -798,7 +798,7 @@ abstract class BaseDriver implements Driver_Interface {
             $sqls[] = $prefix . ' ' . ($column_spec['not_null'] ? 'SET' : 'DROP') . ' NOT NULL';
 
         if (array_key_exists('default', $column_spec))
-            $sqls[] .= $prefix . ' ' . ($column_spec['default'] ? 'SET DEFAULT ' . $column_spec['default'] : 'DROP DEFAULT');
+            $sqls[] .= $prefix . ' ' . ($column_spec['default'] === null ? 'DROP DEFAULT' : 'SET DEFAULT ' . $column_spec['default'] );
 
         foreach($sqls as $sql)
             $this->exec($sql);
