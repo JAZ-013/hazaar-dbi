@@ -59,7 +59,7 @@ class Pgsql extends BaseDriver {
         if (preg_match('/\W/', $string))
             return $string;
 
-        return '"' . $string . '"';
+        return $this->quoteSpecial($string);
 
     }
 

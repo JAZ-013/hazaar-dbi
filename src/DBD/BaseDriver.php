@@ -755,7 +755,7 @@ abstract class BaseDriver implements Driver_Interface {
         if (!array_key_exists('data_type', $column_spec))
             return FALSE;
 
-        $sql = "ALTER TABLE " . $this->field($table) . " ADD COLUMN $column_spec[name] " . $this->type($column_spec['data_type']);
+        $sql = 'ALTER TABLE ' . $this->field($table) . ' ADD COLUMN ' . $this->field($column_spec['name']) . ' ' . $this->type($column_spec['data_type']);
 
         if (array_key_exists('not_null', $column_spec) && $column_spec['not_null'])
             $sql .= ' NOT NULL';
