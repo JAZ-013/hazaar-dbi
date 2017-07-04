@@ -34,6 +34,8 @@
   <ItemGroup>
     <Folder Include="libs\" />
     <Folder Include="libs\console\" />
+    <Folder Include="libs\console\css\" />
+    <Folder Include="libs\console\js\" />
     <Folder Include="src\DBD\Exception" />
     <Folder Include="src\DBD" />
     <Folder Include="src\Exception" />
@@ -43,9 +45,12 @@
   </ItemGroup>
   <ItemGroup>
     <Content Include="composer.json" />
-    <Content Include="libs\console\dbi.js" />
-    <Content Include="libs\console\schema.phtml" />
+    <Content Include="libs\console\css\main.css" />
+    <Content Include="libs\console\js\dbi.js" />
+    <Content Include="libs\console\migrate.phtml" />
     <Content Include="libs\console\settings.phtml" />
+    <Content Include="libs\console\snapshot.phtml" />
     <Content Include="libs\console\sync.phtml" />
+    <Content Include="libs\console\version_info.phtml" />
   </ItemGroup>
 </Project>
