@@ -1994,6 +1994,8 @@ class Adapter {
 
         }
 
+        $this->log("Starting DBI data sync");
+
         foreach($data as $info){
 
             if(!($table = ake($info, 'table')))
