@@ -1430,7 +1430,7 @@ class Adapter {
      *
      * @return boolean Returns true on successful migration. False if no migration was neccessary. Throws an Exception on error.
      */
-    public function migrate($version = null, $test = false) {
+    public function migrate($version = null, $force_data_sync = false, $test = false) {
 
         if(!$this->driver)
             throw new Exception\DriverNotSpecified();
@@ -1534,6 +1534,9 @@ class Adapter {
         if ($current_version == $version) {
 
             $this->log("Database is already at version: $version");
+
+            if($force_data_sync)
+                $this->syncSchemaData();
 
             return true;
 

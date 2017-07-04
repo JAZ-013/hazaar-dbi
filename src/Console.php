@@ -54,7 +54,7 @@ class Console extends \Hazaar\Console\Module {
             if($version == 'latest')
                 $version = null;
 
-            $result = $this->db->migrate($version, boolify($request->get('testmode', false)));
+            $result = $this->db->migrate($version, boolify($request->get('sync')), boolify($request->get('testmode', false)));
 
             return array('ok' => $result, 'log' => $this->db->getMigrationLog());
 
