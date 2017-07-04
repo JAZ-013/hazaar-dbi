@@ -1535,7 +1535,7 @@ class Adapter {
 
             $this->log("Database is already at version: $version");
 
-            return false;
+            return true;
 
         }
 
