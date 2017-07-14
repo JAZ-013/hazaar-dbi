@@ -8,10 +8,6 @@ class DBI implements _Interface {
 
     private $db;
 
-    private $gridFS;
-
-    private $collection;
-
     private $rootObject;
 
     public function __construct($options = array()) {
