@@ -80,9 +80,9 @@ class Adapter {
 
         $this->configure($config);
 
-        $this->schema_file = realpath(APPLICATION_PATH . '/..') . '/db/schema.json';
+        $this->schema_file = realpath(APPLICATION_PATH . DIRECTORY_SEPARATOR . '..') . DIRECTORY_SEPARATOR . 'db' . DIRECTORY_SEPARATOR . 'schema.json';
 
-        $this->data_file = realpath(APPLICATION_PATH . '/..') . '/db/data.json';
+        $this->data_file = realpath(APPLICATION_PATH . DIRECTORY_SEPARATOR . '..') . DIRECTORY_SEPARATOR . 'db' . DIRECTORY_SEPARATOR . 'data.json';
 
     }
 
@@ -1977,7 +1977,9 @@ class Adapter {
             $file = new \Hazaar\File($this->data_file);
 
             if (!$file->exists())
-                throw new \Exception("This application has no schema file.  Database schema is not being managed.");
+                throw new \Exception('File not found loading DBI data file: ' . $file);
+
+            $this->log('Loading data from file: ' . $file);
 
             if (!($data = json_decode($file->get_contents(), true)))
                 throw new \Exception("Unable to parse the DBI data file.  Bad JSON?");
@@ -1986,136 +1988,8 @@ class Adapter {
 
         $this->log("Starting DBI data sync");
 
-        foreach($data as $info){
-
-            if(!($table = ake($info, 'table')))
-                throw new \Exception('Bad data record that has no table defined.');
-
-            //The 'rows' element is used to synchronise table rows in the database.
-            if($rows = ake($info, 'rows')){
-
-                if($this->describeTable($table) == false)
-                    throw new \Exception("Can not insert rows into non-existant table '$table'!");
-
-                $pkey = null;
-
-                if($constraints = $this->listConstraints($table, 'PRIMARY KEY')){
-
-                    $pkey = ake(reset($constraints), 'column');
-
-                }else{
-
-                    throw new \Exception("Can not migrate data on table '$table' without primary key!");
-
-                }
-
-                $this->log("Processing " . count($rows) . " records in table '$table'");
-
-                foreach($rows as $id => $row){
-
-                    $do_diff = false;
-
-                    /**
-                     * If the primary key is in the record, find the record using only that field, then
-                     * we will check for differences between the records
-                     */
-                    if(array_key_exists($pkey, $row)){
-
-                        $criteria = array($pkey => $row[$pkey]);
-
-                        $do_diff = true;
-
-                    }else{ //Otherwise, look for the record in it's entirity and only insert if it doesn't exist.
-
-                        $criteria = $row;
-
-                    }
-
-                    if($current = $this->table($table)->findOne($criteria)){
-
-                        //If this is an insert only row then move on because this row exists
-                        if(ake($info, 'insertonly'))
-                            continue;
-
-                        if($do_diff){
-
-                            $diff = array_diff_assoc($row, $current);
-
-                            if(count($diff) > 0){
-
-                                $this->log("Updating record in table '$table' with $pkey={$row[$pkey]}");
-
-                                if(!$this->update($table, $row, array($pkey => $row[$pkey])))
-                                    throw new \Exception('Update failed: ' . $this->errorInfo()[2]);
-
-                            }
-
-                        }
-
-                    }else{
-
-                        //If this is an update only row then move on because this row does not exist
-                        if(ake($info, 'updateonly'))
-                            continue;
-
-                        if(($pkey_value = $this->insert($table, $row, $pkey)) == false)
-                            throw new \Exception('Insert failed: ' . $this->errorInfo()[2]);
-
-                        $this->log("Inserted record into table '$table' with $pkey={$pkey_value}");
-
-                    }
-
-                }
-
-            }
-
-            //The 'update' element is used to trigger updates on existing rows in a database
-            if($updates = ake($info, 'update')){
-
-                foreach($updates as $update){
-
-                    if(!($where = ake($update, 'where')) && ake($update, 'all', false) !== true)
-                        throw new \Exception("Can not update rows in a table without a 'where' element or setting 'all=true'.");
-
-                    $affected = $this->table($table)->update($where, ake($update, 'set'));
-
-                    if($affected === false)
-                        throw new \Exception('Update failed: ' . $this->errorInfo()[2]);
-
-                    $this->log("Updated $affected rows");
-
-                }
-
-            }
-
-            //The 'delete' element is used to remove existing rows in a database table
-            if($deletes = ake($info, 'delete')){
-
-                foreach($deletes as $delete){
-
-                    if(ake($delete, 'all', false) === true){
-
-                        $affected = $this->table($table)->deleteAll();
-
-                    }else{
-
-                        if(!($where = ake($delete, 'where')))
-                            throw new \Exception("Can not delete rows from a table without a 'where' element or setting 'all=true'.");
-
-                        $affected = $this->table($table)->delete($where);
-
-                    }
-
-                    if($affected === false)
-                        throw new \Exception('Delete failed: ' . $this->errorInfo()[2]);
-
-                    $this->log("Deleted $affected rows");
-
-                }
-
-            }
-
-        }
+        foreach($data as $info)
+            $this->processDataObject($info);
 
         if(method_exists($this->driver, 'repair')){
 
@@ -2128,6 +2002,156 @@ class Adapter {
         }
 
         return true;
+
+    }
+
+    private function processDataObject($info){
+
+        if(is_string($info)){
+
+            $file = new \Hazaar\File(dirname($this->data_file) . DIRECTORY_SEPARATOR . ltrim($info, DIRECTORY_SEPARATOR));
+
+            if (!$file->exists())
+                throw new \Exception('File not found loading DBI data file: ' . $file);
+
+            $this->log('Loading data from file: ' . $file);
+
+            if (!is_array($data = json_decode($file->get_contents(), true)))
+                throw new \Exception("Unable to parse the DBI data file.  Bad JSON?");
+
+            foreach($data as $item)
+                $this->processDataObject($item);
+
+            return;
+
+        }
+
+        if(!($table = ake($info, 'table')))
+            throw new \Exception('Bad data record that has no table defined.');
+
+        //The 'rows' element is used to synchronise table rows in the database.
+        if($rows = ake($info, 'rows')){
+
+            if($this->describeTable($table) == false)
+                throw new \Exception("Can not insert rows into non-existant table '$table'!");
+
+            $pkey = null;
+
+            if($constraints = $this->listConstraints($table, 'PRIMARY KEY')){
+
+                $pkey = ake(reset($constraints), 'column');
+
+            }else{
+
+                throw new \Exception("Can not migrate data on table '$table' without primary key!");
+
+            }
+
+            $this->log("Processing " . count($rows) . " records in table '$table'");
+
+            foreach($rows as $id => $row){
+
+                $do_diff = false;
+
+                /**
+                 * If the primary key is in the record, find the record using only that field, then
+                 * we will check for differences between the records
+                 */
+                if(array_key_exists($pkey, $row)){
+
+                    $criteria = array($pkey => $row[$pkey]);
+
+                    $do_diff = true;
+
+                }else{ //Otherwise, look for the record in it's entirity and only insert if it doesn't exist.
+
+                    $criteria = $row;
+
+                }
+
+                if($current = $this->table($table)->findOne($criteria)){
+
+                    //If this is an insert only row then move on because this row exists
+                    if(ake($info, 'insertonly'))
+                        continue;
+
+                    if($do_diff){
+
+                        $diff = array_diff_assoc($row, $current);
+
+                        if(count($diff) > 0){
+
+                            $this->log("Updating record in table '$table' with $pkey={$row[$pkey]}");
+
+                            if(!$this->update($table, $row, array($pkey => $row[$pkey])))
+                                throw new \Exception('Update failed: ' . $this->errorInfo()[2]);
+
+                        }
+
+                    }
+
+                }else{
+
+                    //If this is an update only row then move on because this row does not exist
+                    if(ake($info, 'updateonly'))
+                        continue;
+
+                    if(($pkey_value = $this->insert($table, $row, $pkey)) == false)
+                        throw new \Exception('Insert failed: ' . $this->errorInfo()[2]);
+
+                    $this->log("Inserted record into table '$table' with $pkey={$pkey_value}");
+
+                }
+
+            }
+
+        }
+
+        //The 'update' element is used to trigger updates on existing rows in a database
+        if($updates = ake($info, 'update')){
+
+            foreach($updates as $update){
+
+                if(!($where = ake($update, 'where')) && ake($update, 'all', false) !== true)
+                    throw new \Exception("Can not update rows in a table without a 'where' element or setting 'all=true'.");
+
+                $affected = $this->table($table)->update($where, ake($update, 'set'));
+
+                if($affected === false)
+                    throw new \Exception('Update failed: ' . $this->errorInfo()[2]);
+
+                $this->log("Updated $affected rows");
+
+            }
+
+        }
+
+        //The 'delete' element is used to remove existing rows in a database table
+        if($deletes = ake($info, 'delete')){
+
+            foreach($deletes as $delete){
+
+                if(ake($delete, 'all', false) === true){
+
+                    $affected = $this->table($table)->deleteAll();
+
+                }else{
+
+                    if(!($where = ake($delete, 'where')))
+                        throw new \Exception("Can not delete rows from a table without a 'where' element or setting 'all=true'.");
+
+                    $affected = $this->table($table)->delete($where);
+
+                }
+
+                if($affected === false)
+                    throw new \Exception('Delete failed: ' . $this->errorInfo()[2]);
+
+                $this->log("Deleted $affected rows");
+
+            }
+
+        }
 
     }
 
