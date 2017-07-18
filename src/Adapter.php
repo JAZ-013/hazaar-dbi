@@ -50,6 +50,8 @@ class Adapter {
 
     private $schema_file;
 
+    private $data_file;
+
     private $migration_log = array();
 
     // Prepared statements
@@ -79,6 +81,8 @@ class Adapter {
         $this->configure($config);
 
         $this->schema_file = realpath(APPLICATION_PATH . '/..') . '/db/schema.json';
+
+        $this->data_file = realpath(APPLICATION_PATH . '/..') . '/db/data.json';
 
     }
 
@@ -1368,17 +1372,6 @@ class Adapter {
 
             file_put_contents($migrate_file, json_encode($changes, JSON_PRETTY_PRINT));
 
-            /**
-             * Merge in static schema elements (like data) and save the current schema file
-             */
-            if($data = ake($schema, 'data')){
-
-                $this->log("Merging schema data records into current schema");
-
-                $current_schema['data'] = $data;
-
-            }
-
             $this->log("Saving current schema ($this->schema_file)");
 
             file_put_contents($this->schema_file, json_encode($current_schema, JSON_PRETTY_PRINT));
@@ -1981,16 +1974,13 @@ class Adapter {
 
         if($data === null){
 
-            $file = new \Hazaar\File($this->schema_file);
+            $file = new \Hazaar\File($this->data_file);
 
             if (!$file->exists())
                 throw new \Exception("This application has no schema file.  Database schema is not being managed.");
 
-            if (!($schema = json_decode($file->get_contents(), true)))
-                throw new \Exception("Unable to parse the migration file.  Bad JSON?");
-
-            if(!($data = ake($schema, 'data')))
-                return false;
+            if (!($data = json_decode($file->get_contents(), true)))
+                throw new \Exception("Unable to parse the DBI data file.  Bad JSON?");
 
         }
 
