@@ -1372,6 +1372,17 @@ class Adapter {
 
             file_put_contents($migrate_file, json_encode($changes, JSON_PRETTY_PRINT));
 
+            /**
+             * Merge in static schema elements (like data) and save the current schema file
+             */
+            if($data = ake($schema, 'data')){
+
+                $this->log("Merging schema data records into current schema");
+
+                $current_schema['data'] = $data;
+
+            }
+
             $this->log("Saving current schema ($this->schema_file)");
 
             file_put_contents($this->schema_file, json_encode($current_schema, JSON_PRETTY_PRINT));
@@ -1970,25 +1981,21 @@ class Adapter {
 
     }
 
-    public function syncSchemaData($data = null){
+    public function syncSchemaData($data_schema = null){
 
-        if($data === null){
+        if($data_schema === null){
 
-            $file = new \Hazaar\File($this->data_file);
+            $data_schema = array();
 
-            if (!$file->exists())
-                throw new \Exception('File not found loading DBI data file: ' . $file);
+            $this->loadDataFromFile($data_schema, $this->schema_file, 'data');
 
-            $this->log('Loading data from file: ' . $file);
-
-            if (!($data = json_decode($file->get_contents(), true)))
-                throw new \Exception("Unable to parse the DBI data file.  Bad JSON?");
+            $this->loadDataFromFile($data_schema, $this->data_file);
 
         }
 
         $this->log("Starting DBI data sync");
 
-        foreach($data as $info)
+        foreach($data_schema as $info)
             $this->processDataObject($info);
 
         if(method_exists($this->driver, 'repair')){
@@ -2005,11 +2012,41 @@ class Adapter {
 
     }
 
+    private function loadDataFromFile(&$data_schema, $file, $child_element = null){
+
+        if(!$file instanceof \Hazaar\File)
+            $file = new \Hazaar\File($file);
+
+        if (!$file->exists())
+            return;
+
+        $this->log('Loading data from file: ' . $file);
+
+        if (!($data = json_decode($file->get_contents(), true)))
+            throw new \Exception("Unable to parse the DBI data file.  Bad JSON?");
+
+        if($child_element)
+            $data = ake($data, $child_element);
+
+        if(!is_array($data))
+            return;
+
+        foreach($data as &$item){
+
+            if(is_string($item))
+                $this->loadDataFromFile($data_schema, $file->dirname() . DIRECTORY_SEPARATOR . ltrim($item, DIRECTORY_SEPARATOR));
+            else
+                $data_schema[] = $item;
+
+        }
+
+    }
+
     private function processDataObject($info){
 
         if(is_string($info)){
 
-            $file = new \Hazaar\File(dirname($this->data_file) . DIRECTORY_SEPARATOR . ltrim($info, DIRECTORY_SEPARATOR));
+
 
             if (!$file->exists())
                 throw new \Exception('File not found loading DBI data file: ' . $file);
