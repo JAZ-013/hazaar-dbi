@@ -695,6 +695,15 @@ abstract class BaseDriver implements Driver_Interface {
 
             }
 
+            //Fixed array types to their actual SQL array data type
+            if($col['data_type'] == 'ARRAY' 
+                && ($udt_name = ake($col, 'udt_name'))){
+
+                if($udt_name[0] == '_')
+                    $col['data_type'] = substr($udt_name, 1) . '[]';
+
+            }
+
             $columns[] = array(
                 'name' => $col['column_name'],
                 'ordinal_position' => $col['ordinal_position'],
