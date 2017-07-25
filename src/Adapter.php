@@ -1663,25 +1663,11 @@ class Adapter {
 
         }
 
-        /* Insert data records.  Will only happen in an up migration non-test mode.*/
-        if($mode == 'up' && $data = ake($schema, 'data')){
+        //Insert data records.  Will only happen in an up migration.
+        if($mode == 'up'){
 
-            $this->beginTransaction();
-
-            $this->log('Inserting data records');
-
-            if(!$this->syncSchemaData($data) || $test){
-
-                $this->rollBack();
-
-                if(!$test)
-                    return false;
-
-            }else{
-
-                $this->commit();
-
-            }
+            if(!$this->syncSchemaData(null, $test))
+                return false;
 
         }
 
@@ -1981,7 +1967,11 @@ class Adapter {
 
     }
 
-    public function syncSchemaData($data_schema = null){
+    public function syncSchemaData($data_schema = null, $test = false){
+
+        $this->log("Initialising DBI data sync");
+
+        $this->beginTransaction();
 
         if($data_schema === null){
 
@@ -1997,6 +1987,13 @@ class Adapter {
 
         foreach($data_schema as $info)
             $this->processDataObject($info);
+
+        if($test)
+            $this->rollBack();
+        else
+            $this->commit();
+
+        $this->log('DBI Data sync Completed');
 
         if(method_exists($this->driver, 'repair')){
 
