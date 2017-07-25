@@ -10,9 +10,9 @@ class Console extends \Hazaar\Console\Module {
 
         $this->addMenuGroup('Databases', 'database');
 
-        $this->addMenuItem('Schema Migration', 'migrate', 'arrow-circle-right');
+        $this->addMenuItem('Migration', 'migrate', 'random');
 
-        $this->addMenuItem('Schema Snapshot', 'snapshot', 'camera');
+        $this->addMenuItem('Snapshot', 'snapshot', 'camera');
 
         $this->addMenuItem('Data Sync', 'sync', 'refresh');
 

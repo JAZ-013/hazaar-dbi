@@ -123,11 +123,23 @@ class Pgsql extends BaseDriver {
 
             while($row = $result->fetch(\PDO::FETCH_ASSOC)){
 
-                $constraint = array(
-                   'table' => $row['table'],
-                   'column' => $row['column'],
-                   'type' => $row['type']
-                );
+                if($constraint = ake($constraints, $row['name'])){
+
+                    if(!is_array($constraint['column']))
+                        $constraint['column'] = array($constraint['column']);
+
+                    if(!in_array($row['column'], $constraint['column']))
+                        $constraint['column'][] = $row['column'];
+
+                }else{
+
+                    $constraint = array(
+                       'table' => $row['table'],
+                       'column' => $row['column'],
+                       'type' => $row['type']
+                    );
+
+                }
 
                 if($row['type'] == 'FOREIGN KEY' && $row['foreign_table']){
 
@@ -143,6 +155,7 @@ class Pgsql extends BaseDriver {
             }
 
             return $constraints;
+
         }
 
         return FALSE;
