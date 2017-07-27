@@ -45,10 +45,10 @@ class DBI implements _Interface {
                 'mime_type'    => 'directory'
             );
 
-            if(!($id = $this->db->file->insert($root, 'id')))
+            if(!($root['id'] = $this->db->file->insert($root, 'id')))
                 throw new \Exception('Unable to create DBI filesystem root object: ' . $this->db->errorInfo()[2]);
 
-            $root['id'] = $id;
+            $this->rootObject = $root;
 
             /*
              * If we are recreating the ROOT document then everything is either
@@ -58,9 +58,7 @@ class DBI implements _Interface {
              * b) Screwed - In which case this should make everything work again.
              *
              */
-            $this->db->file->update(array('parents' => array('$not' => null)), array('parents' => array('$array' => $root['id'])));
-
-            $this->rootObject = $root;
+            $this->fsck();
 
         }
 
@@ -130,7 +128,7 @@ class DBI implements _Interface {
 
     public function fsck() {
 
-        $c = $this->db->file->find(array(), array('filename', 'parents'));
+        $c = $this->db->file->find(array(), array('id', 'filename', 'parents'));
 
         while($file = $c->row()) {
 
@@ -146,9 +144,7 @@ class DBI implements _Interface {
              */
             foreach($file['parents'] as $index => $parentID) {
 
-                $parent = $this->db->file->findOne(array('id' => $parentID));
-
-                if(! $parent)
+                if(!$this->db->file->exists(array('id' => $parentID)))
                     $update[] = $index;
 
             }
@@ -162,7 +158,7 @@ class DBI implements _Interface {
                  * Fix up any parentless objects
                  */
                 if(count($file['parents']) == 0)
-                    $file['parents'] = array($this->rootObject['_id']);
+                    $file['parents'] = array($this->rootObject['id']);
 
                 $this->db->file->update(array('id' => $file['id']), array('parents' => array('$array' => $file['parents'])));
 
