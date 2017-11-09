@@ -4,6 +4,8 @@ namespace Hazaar\File\Backend;
 
 class DBI implements _Interface {
 
+    public  $separator = '/';
+
     private $options;
 
     private $db;
