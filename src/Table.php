@@ -66,23 +66,21 @@ class Table {
     }
 
     /**
+     * Search for records on a table with the provided search criteria
      *
-     * @param array $criteria
-     * @param array $fields
-     *
-     * @return \Hazaar\DBI\Table
+     * @param mixed $criteria The search criteria to find records for.
+     * @param mixed $fields A field definition.
+     * @return Table
      */
     public function find($criteria = array(), $fields = array()) {
 
         if (!is_array($criteria))
-            $criteria = array();
+            $criteria = array($criteria);
 
         $this->criteria = $criteria;
 
         if (!is_array($fields))
-            $fields = array(
-                $fields
-            );
+            $fields = array($fields);
 
         if(is_array($fields) && count($fields) > 0)
             $this->fields = $fields;
@@ -91,6 +89,17 @@ class Table {
 
     }
 
+    /**
+     * Find a single row using the provided criteria, fields and order and return is as an array.
+     *
+     * @param mixed $criteria The search criteria.
+     *
+     * @param mixed $fields A field definition array.
+     *
+     * @param mixed $order A valid order definition
+     *
+     * @return mixed
+     */
     public function findOne($criteria = array(), $fields = array(), $order = NULL) {
 
         if ($result = $this->find($criteria, $fields, $order, 1))
@@ -100,6 +109,13 @@ class Table {
 
     }
 
+    /**
+     * Check if rows exist in the database
+     *
+     * @param mixed $criteria The search criteria to check for existing rows.
+     *
+     * @return bool
+     */
     public function exists($criteria = null) {
 
         if ($criteria) {
@@ -122,6 +138,13 @@ class Table {
 
     }
 
+    /**
+     * Return the current selection as a valid SQL string
+     *
+     * @param mixed $terminate_with_colon
+     *
+     * @return string
+     */
     public function toString($terminate_with_colon = TRUE) {
 
         $sql = 'SELECT';
@@ -146,7 +169,7 @@ class Table {
             }
         }
 
-        if (count($this->criteria) > 0)
+        if(is_array($this->criteria) && count($this->criteria) > 0)
             $sql .= ' WHERE ' . $this->driver->prepareCriteria($this->criteria);
 
         if ($this->order) {
@@ -194,6 +217,12 @@ class Table {
 
     }
 
+    /**
+     * Execute the current selection
+     * 
+     * @throws \Exception 
+     * @return Result
+     */
     public function execute() {
 
         if ($this->result === null) {
@@ -210,6 +239,12 @@ class Table {
 
     }
 
+    /**
+     * Defined the current field selection definition
+     * 
+     * @param mixed $fields A valid field definition
+     * @return Table
+     */
     public function fields($fields) {
 
         $this->fields = array_merge($this->fields, $fields);
@@ -218,14 +253,31 @@ class Table {
 
     }
 
+    /**
+     * Defines a WHERE selection criteria
+     * @param mixed $criteria 
+     * @return Table
+     */
     public function where($criteria) {
 
-        $this->criteria = array_merge($this->criteria, $criteria);
+        if(is_string($criteria))
+            $this->criteria[] = $criteria;
+        else
+            $this->criteria = array_merge($this->criteria, $criteria);
 
         return $this;
 
     }
 
+    /**
+     * Join a table to the current query using the provided join criteria.
+     * 
+     * @param string $references The table to join to the query.
+     * @param array $on The join criteria.  This is mostly just a standard query selection criteria.
+     * @param string $alias An alias to use for the joined table.
+     * @param string $type The join type such as INNER, OUTER, LEFT, RIGHT, etc.
+     * @return Table
+     */
     public function join($references, $on = array(), $alias = NULL, $type = 'INNER') {
 
         if (!$type)

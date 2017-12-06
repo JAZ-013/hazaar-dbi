@@ -250,7 +250,11 @@ abstract class BaseDriver implements Driver_Interface {
 
         foreach($criteria as $key => $value) {
 
-            if(substr($key, 0, 1) == '$') {
+            if(is_int($key)){
+
+                $parts[] = '( ' . $value . ' )';
+
+            }elseif(substr($key, 0, 1) == '$') {
 
                 $action = strtolower(substr($key, 1));
 
