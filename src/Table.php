@@ -39,6 +39,10 @@ class Table {
 
     private $fields = array();
 
+    private $group = array();
+
+    private $having = array();
+
     private $joins = array();
 
     private $order;
@@ -204,6 +208,12 @@ class Table {
             $sql .= implode(', ', $order);
         }
 
+        if(count($this->group) > 0)
+            $sql .= ' GROUP BY ' . $this->driver->prepareFields($this->group);
+
+        if (count($this->having) > 0)
+            $sql .= ' HAVING ' . $this->driver->prepareCriteria($this->having);
+
         if ($this->limit !== NULL)
             $sql .= ' LIMIT ' . (string) (int) $this->limit;
 
@@ -247,9 +257,21 @@ class Table {
      */
     public function fields($fields) {
 
-        $this->fields = array_merge($this->fields, $fields);
+        $this->fields = array_merge($this->fields, (array)$fields);
 
         return $this;
+
+    }
+    
+    /**
+     * Alias for Hazaar\DBI\Table::fields()
+     *
+     * @param mixed $fields One or more column names
+     * @return Table
+     */
+    public function select($fields){
+
+        return $this->fields($fields);
 
     }
 
@@ -263,7 +285,23 @@ class Table {
         if(is_string($criteria))
             $this->criteria[] = $criteria;
         else
-            $this->criteria = array_merge($this->criteria, $criteria);
+            $this->criteria = array_merge($this->criteria, (array)$criteria);
+
+        return $this;
+
+    }
+
+    public function group($columns){
+
+        $this->group = array_merge($this->group, (array)$columns);
+
+        return $this;
+
+    }
+
+    public function having($criteria){
+
+        $this->having = array_merge($this->having, (array)$criteria);
 
         return $this;
 
