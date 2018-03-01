@@ -122,17 +122,18 @@ class Table {
      */
     public function exists($criteria = null) {
 
-        if ($criteria) {
+        if($criteria === null && !$this->criteria)
+            return $this->driver->tableExists($this->name);
 
+        if($criteria !== null)
             $sql = 'SELECT EXISTS (SELECT * FROM ' . $this->from() . ' WHERE ' . $this->driver->prepareCriteria($criteria) . ');';
+        else
+            $sql = 'SELECT EXISTS (' . $this->toString(false) . ');';
 
-            if ($result = $this->driver->query($sql))
-                return boolify($result->fetchColumn(0));
+        if (!($result = $this->driver->query($sql)))
+            throw new \Exception($this->driver->errorInfo()[2]);
 
-            return FALSE;
-        }
-
-        return $this->driver->tableExists($this->name);
+        return boolify($result->fetchColumn(0));
 
     }
 
@@ -229,8 +230,8 @@ class Table {
 
     /**
      * Execute the current selection
-     * 
-     * @throws \Exception 
+     *
+     * @throws \Exception
      * @return Result
      */
     public function execute() {
@@ -251,7 +252,7 @@ class Table {
 
     /**
      * Defined the current field selection definition
-     * 
+     *
      * @param mixed $fields A valid field definition
      * @return Table
      */
@@ -262,7 +263,7 @@ class Table {
         return $this;
 
     }
-    
+
     /**
      * Alias for Hazaar\DBI\Table::fields()
      *
@@ -277,7 +278,7 @@ class Table {
 
     /**
      * Defines a WHERE selection criteria
-     * @param mixed $criteria 
+     * @param mixed $criteria
      * @return Table
      */
     public function where($criteria) {
@@ -309,7 +310,7 @@ class Table {
 
     /**
      * Join a table to the current query using the provided join criteria.
-     * 
+     *
      * @param string $references The table to join to the query.
      * @param array $on The join criteria.  This is mostly just a standard query selection criteria.
      * @param string $alias An alias to use for the joined table.
