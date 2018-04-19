@@ -64,8 +64,6 @@ interface Driver_Interface {
  */
 abstract class BaseDriver implements Driver_Interface {
 
-    protected $config = array();
-
     protected $allow_constraints = true;
 
     protected $reserved_words = array();
@@ -97,9 +95,13 @@ abstract class BaseDriver implements Driver_Interface {
 
     public function __construct($config = array()){
 
-        $this->config = $config;
-
         $this->schema = ake($config, 'dbname', 'public');
+
+    }
+
+    public function setMasterDBD(BaseDriver $DBD){
+
+        $this->master = $DBD;
 
     }
 
@@ -116,6 +118,9 @@ abstract class BaseDriver implements Driver_Interface {
         if(array_key_exists('driver', $options))
             unset($options['driver']);
 
+        if(array_key_exists('master', $options))
+            unset($options['master']);
+
         $dsn = $config->driver . ':' . array_flatten($options, '=', ';');
 
         return $dsn;
@@ -129,35 +134,6 @@ abstract class BaseDriver implements Driver_Interface {
     }
 
     public function connect($dsn, $username = null, $password = null, $driver_options = null) {
-
-        $d_pos = strpos($dsn, ':');
-
-        $driver = strtolower(substr($dsn, 0, $d_pos));
-
-        $dsn_parts = array_unflatten(substr($dsn, $d_pos + 1));
-
-        if (array_key_exists('master', $dsn_parts)){
-
-            $master = $dsn_parts['master'];
-
-            unset($dsn_parts['master']);
-
-            $dsn_parts_master = $dsn_parts;
-
-            $dsn_parts_master['host'] = $master;
-
-            $DBD = \Hazaar\DBI\Adapter::getDriverClass($driver);
-
-            if(!class_exists($DBD))
-                return false;
-
-            $this->master = new $DBD($dsn_parts_master);
-
-            $this->master->connect($driver . ':' . array_flatten($dsn_parts_master), $username, $password, $driver_options);
-
-            $dsn = $driver . ':' . array_flatten($dsn_parts);
-
-        }
 
         $this->pdo = new \PDO($dsn, $username, $password, $driver_options);
 

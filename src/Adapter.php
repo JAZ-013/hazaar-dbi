@@ -102,9 +102,7 @@ class Adapter {
 
             }else{
 
-                $dsn = $this->config->driver . ':';
-
-                $DBD = Adapter::getDriverClass(substr($dsn, 0, strpos($dsn, ':')));
+                $DBD = Adapter::getDriverClass($this->config->driver);
 
                 if(!class_exists($DBD))
                     return false;
@@ -178,12 +176,12 @@ class Adapter {
 
         } else {
 
-            $class = Adapter::getDriverClass($driver);
+            $DBD = Adapter::getDriverClass($driver);
 
-            if (!class_exists($class))
+            if (!class_exists($DBD))
                 throw new Exception\DriverNotFound($driver);
 
-            $this->driver = new $class(array_unflatten(substr($dsn, strpos($dsn, ':') + 1)));
+            $this->driver = new $DBD(array_unflatten(substr($dsn, strpos($dsn, ':') + 1)));
 
             if (!$driver_options)
                 $driver_options = array();
@@ -193,10 +191,30 @@ class Adapter {
                 \PDO::ATTR_EMULATE_PREPARES => FALSE
             ), $driver_options);
 
-            if (!($this->driver->connect($dsn, $username, $password, $driver_options)))
+            if (!$this->driver->connect($dsn, $username, $password, $driver_options))
                 throw new Exception\ConnectionFailed($dsn);
 
             Adapter::$connections[$hash] = $this->driver;
+
+            if ($this->config->has('master')){
+
+                $master_config = clone $this->config;
+
+                $master_config->extend($this->config->master);
+
+                unset($master_config->master);
+
+                $DBD2 = Adapter::getDriverClass($master_config->driver);
+
+                $master = new $DBD2($master_config);
+
+                if(!$master->connect($DBD2::mkdsn($master_config), $username, $password, $driver_options))
+                    throw new Exception\ConnectionFailed($dsn);
+
+                $this->driver->setMasterDBD($master);
+
+            }
+
         }
 
         return TRUE;
