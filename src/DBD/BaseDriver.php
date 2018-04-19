@@ -64,6 +64,8 @@ interface Driver_Interface {
  */
 abstract class BaseDriver implements Driver_Interface {
 
+    protected $config = array();
+
     protected $allow_constraints = true;
 
     protected $reserved_words = array();
@@ -76,10 +78,26 @@ abstract class BaseDriver implements Driver_Interface {
 
     protected static $execs = 0;
 
-    public function __construct($config){
+    /**
+     * Master DBD connection
+     *
+     * A master connection can be created to perform write operations.  Reads will operate as normal
+     * but any write operations such as INSERT, UPDATE, DELETE will be redirected to this connection
+     *
+     * @var BaseDriver
+     */
+    private $master;
 
-        if(!is_array($config))
-            return;
+    /**
+     * SQL Commands to redirect to the master server connection
+     *
+     * @var mixed
+     */
+    static private $master_cmds = array('INSERT', 'UPDATE', 'DELETE');
+
+    public function __construct($config = array()){
+
+        $this->config = $config;
 
         $this->schema = ake($config, 'dbname', 'public');
 
@@ -110,7 +128,36 @@ abstract class BaseDriver implements Driver_Interface {
 
     }
 
-    public function connect($dsn, $username = null, $password = null, $driver_options = array()){
+    public function connect($dsn, $username = null, $password = null, $driver_options = null) {
+
+        $d_pos = strpos($dsn, ':');
+
+        $driver = strtolower(substr($dsn, 0, $d_pos));
+
+        $dsn_parts = array_unflatten(substr($dsn, $d_pos + 1));
+
+        if (array_key_exists('master', $dsn_parts)){
+
+            $master = $dsn_parts['master'];
+
+            unset($dsn_parts['master']);
+
+            $dsn_parts_master = $dsn_parts;
+
+            $dsn_parts_master['host'] = $master;
+
+            $DBD = \Hazaar\DBI\Adapter::getDriverClass($driver);
+
+            if(!class_exists($DBD))
+                return false;
+
+            $this->master = new $DBD($dsn_parts_master);
+
+            $this->master->connect($driver . ':' . array_flatten($dsn_parts_master), $username, $password, $driver_options);
+
+            $dsn = $driver . ':' . array_flatten($dsn_parts);
+
+        }
 
         $this->pdo = new \PDO($dsn, $username, $password, $driver_options);
 
@@ -199,15 +246,27 @@ abstract class BaseDriver implements Driver_Interface {
 
     }
 
-    public function exec($sql) {
+    private function getSQLType($sql){
 
-        return $this->pdo->exec($sql);
+        return strtoupper(substr($sql, 0, strpos($sql, ' ')));
 
     }
 
-    public function query($sql) {
+    public function exec($sql){
 
-        return $this->pdo->query($sql);
+        if(!($this->master && in_array($this->getSQLType($sql), BaseDriver::$master_cmds, true)))
+            return $this->pdo->exec($sql);
+
+        return $this->master->exec($sql);
+
+    }
+
+    public function query($sql){
+
+        if(!($this->master && in_array($this->getSQLType($sql), BaseDriver::$master_cmds, true)))
+            return $this->pdo->query($sql);
+
+        return $this->master->query($sql);
 
     }
 
@@ -700,7 +759,7 @@ abstract class BaseDriver implements Driver_Interface {
             }
 
             //Fixed array types to their actual SQL array data type
-            if($col['data_type'] == 'ARRAY' 
+            if($col['data_type'] == 'ARRAY'
                 && ($udt_name = ake($col, 'udt_name'))){
 
                 if($udt_name[0] == '_')

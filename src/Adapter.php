@@ -104,7 +104,7 @@ class Adapter {
 
                 $dsn = $this->config->driver . ':';
 
-                $DBD = 'Hazaar\DBI\DBD\\' . ucfirst(substr($dsn, 0, strpos($dsn, ':')));
+                $DBD = Adapter::getDriverClass(substr($dsn, 0, strpos($dsn, ':')));
 
                 if(!class_exists($DBD))
                     return false;
@@ -116,6 +116,12 @@ class Adapter {
             $this->connect($dsn, $user, $password);
 
         }
+
+    }
+
+    static public function getDriverClass($driver){
+
+        return 'Hazaar\DBI\DBD\\' . ucfirst($driver);
 
     }
 
@@ -150,16 +156,16 @@ class Adapter {
 
     public function connect($dsn, $username = NULL, $password = NULL, $driver_options = NULL) {
 
-        $DBD = ucfirst(substr($dsn, 0, strpos($dsn, ':')));
+        $driver = ucfirst(substr($dsn, 0, strpos($dsn, ':')));
 
-        if (!$DBD)
+        if (!$driver)
             throw new Exception\DriverNotSpecified();
 
-        if (!array_key_exists($DBD, Adapter::$connections))
-            Adapter::$connections[$DBD] = array();
+        if (!array_key_exists($driver, Adapter::$connections))
+            Adapter::$connections[$driver] = array();
 
         $hash = md5(serialize(array(
-            $DBD,
+            $driver,
             $dsn,
             $username,
             $password,
@@ -172,10 +178,10 @@ class Adapter {
 
         } else {
 
-            $class = 'Hazaar\DBI\DBD\\' . $DBD;
+            $class = Adapter::getDriverClass($driver);
 
             if (!class_exists($class))
-                throw new Exception\DriverNotFound($DBD);
+                throw new Exception\DriverNotFound($driver);
 
             $this->driver = new $class(array_unflatten(substr($dsn, strpos($dsn, ':') + 1)));
 

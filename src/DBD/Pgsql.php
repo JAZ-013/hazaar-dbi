@@ -12,29 +12,6 @@ class Pgsql extends BaseDriver {
 
     }
 
-    public function connects($dsn, $username = null, $password = null, $driver_options = null) {
-
-        $d_pos = strpos($dsn, ':');
-
-        $driver = strtolower(substr($dsn, 0, $d_pos));
-
-        if (!$driver == 'pgsql')
-            return false;
-
-        $dsn_parts = array_unflatten(substr($dsn, $d_pos + 1));
-
-        if (!array_key_exists('user', $dsn_parts))
-            $dsn_parts['user'] = $username;
-
-        if (!array_key_exists('password', $dsn_parts))
-            $dsn_parts['password'] = $password;
-
-        $dsn = $driver . ':' . array_flatten($dsn_parts);
-
-        return parent::connect($dsn, null, null, $driver_options);
-
-    }
-
     public function fixValue($value){
 
         if(!$value)
@@ -231,5 +208,3 @@ class Pgsql extends BaseDriver {
     }
 
 }
-
-
