@@ -2121,11 +2121,13 @@ class Adapter {
 
                         if($do_diff){
 
-                            $diff = array_diff_assoc($row, $current);
+                            $diff = array_diff_assoc_recursive($row, $current);
 
                             if(count($diff) > 0){
 
                                 $this->log("Updating record in table '$table' with $pkey={$row[$pkey]}");
+
+                                foreach($row as &$col) if(is_array($col)) $col = array('$array' => $col);
 
                                 if(!$this->update($table, $row, array($pkey => $row[$pkey])))
                                     throw new \Exception('Update failed: ' . $this->errorInfo()[2]);
@@ -2139,6 +2141,8 @@ class Adapter {
                         //If this is an update only row then move on because this row does not exist
                         if(ake($info, 'updateonly'))
                             continue;
+
+                        foreach($row as &$col) if(is_array($col)) $col = array('$array' => $col);
 
                         if(($pkey_value = $this->insert($table, $row, $pkey)) == false)
                             throw new \Exception('Insert failed: ' . $this->errorInfo()[2]);
