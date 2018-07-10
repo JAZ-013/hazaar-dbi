@@ -257,7 +257,7 @@ class Result implements \ArrayAccess, \Countable, \Iterator {
 
             if($type == 'json'){
 
-                $record[$col] = json_decode($record[$col], true);
+                $record[$col] = json_decode($record[$col]);
 
             }else{
 
