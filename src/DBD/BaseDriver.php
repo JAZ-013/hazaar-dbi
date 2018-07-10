@@ -839,8 +839,16 @@ abstract class BaseDriver implements Driver_Interface {
 
         $prefix = "ALTER TABLE " . $this->field($table) . " ALTER COLUMN " . $this->field($column);
 
-        if (array_key_exists('data_type', $column_spec))
-            $sqls[] = $prefix . " TYPE " . $this->type($column_spec['data_type']) . ((array_key_exists('length', $column_spec) && $column_spec['length'] > 0) ? '(' . $column_spec['length'] . ')' : NULL);
+        if (array_key_exists('data_type', $column_spec)){
+
+            $alter_type = $prefix . " TYPE " . $this->type($column_spec['data_type']) . ((array_key_exists('length', $column_spec) && $column_spec['length'] > 0) ? '(' . $column_spec['length'] . ')' : NULL);
+
+            if (array_key_exists('using', $column_spec))
+                $alter_type .= ' USING ' . $column_spec['using'];
+
+            $sqls[] = $alter_type;
+
+        }
 
         if (array_key_exists('not_null', $column_spec))
             $sqls[] = $prefix . ' ' . ($column_spec['not_null'] ? 'SET' : 'DROP') . ' NOT NULL';
