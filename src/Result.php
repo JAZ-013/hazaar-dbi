@@ -55,7 +55,11 @@ class Result implements \ArrayAccess, \Countable, \Iterator {
 
                     $this->array_columns[] = array(substr($meta['native_type'], 1), $meta['name']);
 
-                }elseif ($meta['pdo_type'] == \PDO::PARAM_STR && (substr(ake($meta, 'native_type'), 0, 4) == 'json' || (!array_key_exists('native_type', $meta) && in_array('blob', ake($meta, 'flags'))))){
+                }elseif ($meta['pdo_type'] == \PDO::PARAM_STR
+                && (substr(ake($meta, 'native_type'), 0, 4) == 'json'
+                || (!array_key_exists('native_type', $meta) && in_array('blob', ake($meta, 'flags')))
+                )
+                ){
 
                     $this->array_columns[] = array('json', $meta['name']);
 
@@ -259,33 +263,33 @@ class Result implements \ArrayAccess, \Countable, \Iterator {
 
                 $record[$col] = json_decode($record[$col]);
 
-            }else{
-
-                if(!($record[$col] && substr($record[$col], 0, 1) == '{' && substr($record[$col], -1, 1) == '}'))
-                    continue;
-
-                $elements = explode(',', trim($record[$col], '{}'));
-
-                foreach($elements as &$element){
-
-                    if(substr($type, 0, 3) == 'int')
-                        $element = intval($element);
-                    elseif(substr($type, 0, 5) == 'float')
-                        $element = floatval($element);
-                    elseif($type == 'text' || $type == 'varchar')
-                        $element = trim($element, "'");
-                    elseif($type == 'bool')
-                        $element = boolify($element);
-                    elseif($type == 'timestamp' || $type == 'date' || $type == 'time')
-                        $element = new \Hazaar\Date(trim($element, '"'));
-                    elseif($type == 'json')
-                        $element = json_decode($element, true);
-
-                }
-
-                $record[$col] = $elements;
+                continue;
 
             }
+
+            if(!($record[$col] && substr($record[$col], 0, 1) == '{' && substr($record[$col], -1, 1) == '}'))
+                continue;
+
+            $elements = explode(',', trim($record[$col], '{}'));
+
+            foreach($elements as &$element){
+
+                if(substr($type, 0, 3) == 'int')
+                    $element = intval($element);
+                elseif(substr($type, 0, 5) == 'float')
+                    $element = floatval($element);
+                elseif($type == 'text' || $type == 'varchar')
+                    $element = trim($element, "'");
+                elseif($type == 'bool')
+                    $element = boolify($element);
+                elseif($type == 'timestamp' || $type == 'date' || $type == 'time')
+                    $element = new \Hazaar\Date(trim($element, '"'));
+                elseif($type == 'json')
+                    $element = json_decode($element);
+
+            }
+
+            $record[$col] = $elements;
 
         }
 
