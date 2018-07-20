@@ -99,11 +99,6 @@ class DBI implements _Interface {
 
         $parts = explode('/', $path);
 
-        /*
-         * Paths have a forward slash on the start so we need to drop the first element.
-         */
-        array_shift($parts);
-
         $false = false;
 
         foreach($parts as $part) {
