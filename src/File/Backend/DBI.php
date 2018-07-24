@@ -90,14 +90,23 @@ class DBI implements _Interface {
 
     }
 
+    private function dirname($path){
+
+        if(($pos = strrpos($path, $this->separator)) !== false)
+            $path = substr($path, 0, (($pos === 0) ? $pos + 1 : $pos));
+
+        return $path;
+
+    }
+
     private function & info($path) {
 
         $parent =& $this->rootObject;
 
-        if($path === '/')
+        if($path === $this->separator)
             return $parent;
 
-        $parts = explode('/', $path);
+        $parts = explode($this->separator, $path);
 
         $false = false;
 
@@ -330,7 +339,8 @@ class DBI implements _Interface {
         if($info = $this->info($path))
             return false;
 
-        $parent =& $this->info(dirname($path));
+        if(!($parent =& $this->info($this->dirname($path))))
+            throw new \Exception('Unable to determine parent of path: ' . $path);
 
         $info = array(
             'kind'         => 'dir',
@@ -359,7 +369,8 @@ class DBI implements _Interface {
 
         if($info = $this->info($path)) {
 
-            $parent =& $this->info(dirname($path));
+            if(!($parent =& $this->info($this->dirname($path))))
+                throw new \Exception('Unable to determine parent of path: ' . $path);
 
             if(count($info['parents']) > 1){
 
@@ -407,7 +418,7 @@ class DBI implements _Interface {
 
                     foreach($dir as $file) {
 
-                        $fullPath = $path . '/' . $file;
+                        $fullPath = $path . $this->separator . $file;
 
                         if($this->is_dir($fullPath))
                             $this->rmdir($fullPath, true);
@@ -425,7 +436,7 @@ class DBI implements _Interface {
 
             }
 
-            if($path == '/')
+            if($path == $this->separator)
                 return true;
 
             return $this->unlink($path);
@@ -450,7 +461,8 @@ class DBI implements _Interface {
 
     public function write($path, $bytes, $content_type, $overwrite = false) {
 
-        $parent =& $this->info(dirname($path));
+        if(!($parent =& $this->info($this->dirname($path))))
+            throw new \Exception('Unable to determine parent of path: ' . $path);
 
         if(! $parent)
             return false;
@@ -533,7 +545,7 @@ class DBI implements _Interface {
 
     public function upload($path, $file, $overwrite = false) {
 
-        return $this->write(rtrim($path, '/') . '/' . $file['name'], file_get_contents($file['tmp_name']), $file['type'], $overwrite);
+        return $this->write(rtrim($path, $this->separator) . $this->separator . $file['name'], file_get_contents($file['tmp_name']), $file['type'], $overwrite);
 
     }
 
@@ -542,7 +554,8 @@ class DBI implements _Interface {
         if(! ($source = $this->info($src)))
             return false;
 
-        $dstParent =& $this->info($dst);
+        if(!($dstParent =& $this->info($this->dirname($dst))))
+            throw new \Exception('Unable to determine parent of path: ' . $dst);
 
         if($dstParent) {
 
@@ -551,7 +564,8 @@ class DBI implements _Interface {
 
         } else {
 
-            $dstParent =& $this->info(dirname($dst));
+            if(!($dstParent =& $this->info($this->dirname($dst))))
+                throw new \Exception('Unable to determine parent of path: ' . $dst);
 
         }
 
@@ -582,7 +596,8 @@ class DBI implements _Interface {
         if(! ($source = $this->info($src)))
             return false;
 
-        $dstParent =& $this->info($dst);
+        if(!($dstParent =& $this->info($this->dirname($dst))))
+            throw new \Exception('Unable to determine parent of path: ' . $dst);
 
         if($dstParent) {
 
@@ -591,7 +606,8 @@ class DBI implements _Interface {
 
         } else {
 
-            $dstParent =& $this->info(dirname($dst));
+            if(!($dstParent =& $this->info($this->dirname($dst))))
+                throw new \Exception('Unable to determine parent of path: ' . $dst);
 
         }
 
@@ -625,13 +641,15 @@ class DBI implements _Interface {
         if(! ($source = $this->info($src)))
             return false;
 
-        $srcParent =& $this->info(dirname($src));
+        if(!($srcParent =& $this->info($this->dirname($src))))
+            throw new \Exception('Unable to determine parent of path: ' . $src);
 
         $data = array(
             'modified_on' => new \Hazaar\Date()
         );
 
-        $dstParent =& $this->info($dst);
+        if(!($dstParent =& $this->info($this->dirname($dst))))
+            throw new \Exception('Unable to determine parent of path: ' . $dst);
 
         if($dstParent) {
 
@@ -657,7 +675,8 @@ class DBI implements _Interface {
             if($source['filename'] != basename($dst))
                 $dstParent['filename'] = $data['filename'] = basename($dst);
 
-            $dstParent =& $this->info(dirname($dst));
+            if(!($dstParent =& $this->info($this->dirname($dst))))
+                throw new \Exception('Unable to determine parent of path: ' . $dst);
 
             //Update the parents items array key with the new name.
             $basename = basename($src);
@@ -725,7 +744,7 @@ class DBI implements _Interface {
         if($target =& $this->info($path))
             return $this->db->file->update(array('id' => $target['id']), array('metadata' => json_encode($values)));
 
-        if($parent =& $this->info(dirname($path))) {
+        if($parent =& $this->info($this->dirname($path))) {
 
             $parent['items'][basename($path)]['meta'] = $values;
 
