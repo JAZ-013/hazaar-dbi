@@ -651,7 +651,18 @@ class DBI implements _Interface {
         if(!($dstParent =& $this->info($this->dirname($dst))))
             throw new \Exception('Unable to determine parent of path: ' . $dst);
 
-        if($dstParent) {
+        if($srcParent['id'] === $dstParent['id']) { //We are renaming the file.
+
+            $dstParent['filename'] = $data['filename'] = basename($dst);
+
+            //Update the parents items array key with the new name.
+            $basename = basename($src);
+
+            $dstParent['items'][basename($dst)] = $dstParent['items'][$basename];
+
+            unset($dstParent['items'][$basename]);
+
+        }else{
 
             //If the destination exists and is NOT a directory, return false so we don't overwrite an existing file.
             if($dstParent['kind'] !== 'dir')
@@ -668,22 +679,6 @@ class DBI implements _Interface {
                 $data['parents'] = array('$array' => $source['parents']);
 
             }
-
-        } else {
-
-            //We are renaming the file.
-            if($source['filename'] != basename($dst))
-                $dstParent['filename'] = $data['filename'] = basename($dst);
-
-            if(!($dstParent =& $this->info($this->dirname($dst))))
-                throw new \Exception('Unable to determine parent of path: ' . $dst);
-
-            //Update the parents items array key with the new name.
-            $basename = basename($src);
-
-            $dstParent['items'][basename($dst)] = $dstParent['items'][$basename];
-
-            unset($dstParent['items'][$basename]);
 
         }
 
