@@ -207,4 +207,34 @@ class Pgsql extends BaseDriver {
 
     }
 
+    public function listViews(){
+
+        $sql = 'SELECT table_schema as "schema", table_name as name FROM INFORMATION_SCHEMA.views WHERE ';
+
+        if($this->schema != 'public')
+            $sql .= "table_schema = '$this->schema'";
+        else
+            $sql .= "table_schema NOT IN ( 'information_schema', 'pg_catalog' )";
+
+        $sql .= " ORDER BY table_name DESC;";
+
+        if ($result = $this->query($sql))
+            return $result->fetchAll(\PDO::FETCH_ASSOC);
+
+        return null;
+
+    }
+
+    public function describeView($name){
+
+        $sql = 'SELECT table_schema as "schema", table_name as name, view_definition as content FROM INFORMATION_SCHEMA.views WHERE table_schema='
+            . $this->prepareValue($this->schema) . ' AND table_name=' . $this->prepareValue($name);
+
+        if ($result = $this->query($sql))
+            return $result->fetch(\PDO::FETCH_ASSOC);
+
+        return null;
+
+    }
+
 }

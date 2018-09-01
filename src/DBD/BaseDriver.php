@@ -1030,6 +1030,34 @@ abstract class BaseDriver implements Driver_Interface {
 
     }
 
+    public function listViews(){
+
+        return false;
+
+    }
+
+    public function describeView($name){
+
+        return false;
+
+    }
+
+    public function createView($name, $content){
+
+        $sql = 'CREATE OR REPLACE VIEW ' . $this->field($name) . ' AS ' . $content . ';';
+
+        return ($this->exec($sql) !== false);
+
+    }
+
+    public function dropView($name){
+
+        $sql = 'DROP VIEW ' . $this->field($name) . ';';
+
+        return ($this->exec($sql) !== false);
+
+    }
+
     public function execCount() {
 
         return BaseDriver::$execs;

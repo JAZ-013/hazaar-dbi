@@ -640,6 +640,64 @@ class Adapter {
 
     }
 
+    /**
+     * List views
+     */
+    public function listViews(){
+
+        if(!$this->driver)
+            throw new Exception\DriverNotSpecified();
+
+        return $this->driver->listViews();
+
+    }
+
+    /**
+     * Describe a view
+     *
+     * @param mixed $name
+     * @throws Exception\DriverNotSpecified
+     * @return mixed
+     */
+    public function describeView($name){
+
+        if(!$this->driver)
+            throw new Exception\DriverNotSpecified();
+
+        return $this->driver->describeView($name);
+
+    }
+
+    /**
+     * Create a new view
+     * @param mixed $name
+     * @throws Exception\DriverNotSpecified
+     * @return mixed
+     */
+    public function createView($name, $sql){
+
+        if(!$this->driver)
+            throw new Exception\DriverNotSpecified();
+
+        return $this->driver->createView($name, $sql);
+
+    }
+
+    /**
+     * Delete/drop a view
+     * @param mixed $name 
+     * @throws Exception\DriverNotSpecified 
+     * @return mixed
+     */
+    public function dropView($name){
+
+        if(!$this->driver)
+            throw new Exception\DriverNotSpecified();
+
+        return $this->driver->dropView($name);
+
+    }
+
     public function execCount() {
 
         if(!$this->driver)
@@ -2246,6 +2304,9 @@ class Adapter {
 
         $statement = $this->driver->prepare($sql);
 
+        if(!$statement instanceof \PDOStatement)
+            throw new \Exception('Driver did not return PDOStatement during prepare!');
+
         if ($name)
             $this->statements[$name] = $statement;
         else
@@ -2261,9 +2322,7 @@ class Adapter {
             return false;
 
         if (!is_array($input_parameters))
-            $input_parameters = array(
-                $input_parameters
-            );
+            $input_parameters = array($input_parameters);
 
         return $statement->execute($input_parameters);
 
