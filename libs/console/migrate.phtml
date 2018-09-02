@@ -4,17 +4,19 @@
         <div class="panel">
             <div class="panel-header">Migrate</div>
             <div class="panel-content">
-                <div class="form-item">
-                    <label>
-                        Version: <?=$this->html->select('version', $this->versions);?>
-                    </label>
-                </div>
-                <div class="form-item">
-                    <label>
-                        <input type="checkbox" name="testmode" value="true" />Test Mode
-                    </label>
-                </div>
-                <button id="btnMigrate" class="primary">Migrate Database</button>
+                <form>
+                    <div class="form-item">
+                        <label>
+                            Version: <?=$this->html->select('version', $this->versions);?>
+                        </label>
+                    </div>
+                    <div class="form-item">
+                        <label>
+                            <input type="checkbox" name="testmode" value="true" />Test Mode
+                        </label>
+                    </div>
+                    <button id="btnMigrate" class="primary">Migrate Database</button>
+                </form>
             </div>
         </div>
         <div class="panel">
