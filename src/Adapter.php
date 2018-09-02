@@ -640,6 +640,64 @@ class Adapter {
 
     }
 
+    /**
+     * List views
+     */
+    public function listViews(){
+
+        if(!$this->driver)
+            throw new Exception\DriverNotSpecified();
+
+        return $this->driver->listViews();
+
+    }
+
+    /**
+     * Describe a view
+     *
+     * @param mixed $name
+     * @throws Exception\DriverNotSpecified
+     * @return mixed
+     */
+    public function describeView($name){
+
+        if(!$this->driver)
+            throw new Exception\DriverNotSpecified();
+
+        return $this->driver->describeView($name);
+
+    }
+
+    /**
+     * Create a new view
+     * @param mixed $name
+     * @throws Exception\DriverNotSpecified
+     * @return mixed
+     */
+    public function createView($name, $sql){
+
+        if(!$this->driver)
+            throw new Exception\DriverNotSpecified();
+
+        return $this->driver->createView($name, $sql);
+
+    }
+
+    /**
+     * Delete/drop a view
+     * @param mixed $name
+     * @throws Exception\DriverNotSpecified
+     * @return mixed
+     */
+    public function dropView($name, $cascade = false){
+
+        if(!$this->driver)
+            throw new Exception\DriverNotSpecified();
+
+        return $this->driver->dropView($name, $cascade);
+
+    }
+
     public function execCount() {
 
         if(!$this->driver)
@@ -972,7 +1030,7 @@ class Adapter {
 
             $current_schema['tables'][$name] = $cols;
 
-            //BEGIN PROCESSING TABLE
+            //BEGIN PROCESSING TABLES
             if (array_key_exists('tables', $schema) && array_key_exists($name, $schema['tables'])) {
 
                 $this->log("Table '$name' already exists.  Checking differences.");
@@ -1009,7 +1067,7 @@ class Adapter {
 
                 } else {
 
-                    $this->log("No changes to '$name'.");
+                    $this->log("No changes to table '$name'.");
 
                 }
 
@@ -1346,6 +1404,51 @@ class Adapter {
             }
 
         }
+
+        //BEGIN PROCESSING VIEWS
+        foreach($this->listViews() as $view){
+
+            $name = $view['name'];
+
+            $this->log("Processing view '$name'.");
+
+            if(!($info = $this->describeView($name)))
+                throw new \Exception("Error getting view definition for view '$name'.  Does the connected user have the correct permissions?");
+
+            $current_schema['views'][$name] = $info;
+
+            if (array_key_exists('views', $schema) && array_key_exists($name, $schema['views'])) {
+
+                $this->log("View '$name' already exists.  Checking differences.");
+
+                $diff = array_diff_assoc($schema['views'][$name], $info);
+
+                if (count($diff) > 0) {
+
+                    $this->log("> View '$name' has changed.");
+
+                    $changes['up']['alter']['view'][$name] = $info;
+
+                    $changes['down']['alter']['view'][$name] = $schema['views'][$name];
+
+                } else {
+
+                    $this->log("No changes to view '$name'.");
+
+                }
+
+            } else { // View doesn't exist, so we add a command to create the whole thing
+
+                $this->log("+ View '$name' has been created.");
+
+                $changes['up']['create']['view'][] = $info;
+
+                if (!$init)
+                    $changes['down']['remove']['view'][] = $name;
+
+            }
+
+        } //END PROCESSING VIEWS
 
         if (count($changes) > 0) {
 
@@ -1786,6 +1889,20 @@ class Adapter {
 
             }
 
+            /* Create views */
+            if($views = ake($schema, 'views')){
+
+                foreach($views as $view => $info){
+
+                    $ret = $this->createView($view, $info['content']);
+
+                    if(!$ret || $this->errorCode() > 0)
+                        throw new \Exception('Error creating view ' . $view . ': ' . $this->errorInfo()[2]);
+
+                }
+
+            }
+
         }
         catch(\Exception $e){
 
@@ -1831,7 +1948,7 @@ class Adapter {
 
                             case 'create' :
 
-                                if ($type == 'table'){
+                                if ($type === 'table'){
 
                                     $this->log("+ Creating table '$item[name]'.");
 
@@ -1840,7 +1957,7 @@ class Adapter {
 
                                     $this->createTable($item['name'], $item['cols']);
 
-                                }elseif($type == 'index'){
+                                }elseif($type === 'index'){
 
                                     $this->log("+ Creating index '$item[name]' on table '$item[table]'.");
 
@@ -1849,7 +1966,7 @@ class Adapter {
 
                                     $this->createIndex($item['name'], $item['table'], array('columns' => $item['columns'], 'unique' => $item['unique']));
 
-                                }elseif($type == 'constraint'){
+                                }elseif($type === 'constraint'){
 
                                     $this->log("+ Creating constraint '$item[name]' on table '$item[table]'.");
 
@@ -1858,6 +1975,15 @@ class Adapter {
 
                                     $this->addConstraint($item['name'], $item);
 
+                                }elseif($type === 'view'){
+
+                                    $this->log("+ Creating view '$item[name]'.");
+
+                                    if ($test)
+                                        continue;
+
+                                    $this->createView($item['name'], $item['content']);
+
                                 }else
                                     $this->log("I don't know how to create a {$type}!");
 
@@ -1865,7 +1991,7 @@ class Adapter {
 
                             case 'remove' :
 
-                                if ($type == 'table'){
+                                if ($type === 'table'){
 
                                     $this->log("- Removing table '$item'.");
 
@@ -1874,7 +2000,7 @@ class Adapter {
 
                                     $this->dropTable($item, true);
 
-                                }elseif($type == 'constraint'){
+                                }elseif($type === 'constraint'){
 
                                     $this->log("- Removing constraint '$item[name]' from table '$item[table]'.");
 
@@ -1883,7 +2009,7 @@ class Adapter {
 
                                     $this->dropConstraint($item['name'], $item['table'], true);
 
-                                }elseif($type == 'index'){
+                                }elseif($type === 'index'){
 
                                     $this->log("- Removing index '$item'.");
 
@@ -1891,6 +2017,15 @@ class Adapter {
                                         continue;
 
                                     $this->dropIndex($item);
+
+                                }elseif($type === 'view'){
+
+                                    $this->log("- Removing view '$item'.");
+
+                                    if ($test)
+                                        continue;
+
+                                    $this->dropView($item, true);
 
                                 }else
                                     $this->log("I don't know how to remove a {$type}!");
@@ -1904,7 +2039,7 @@ class Adapter {
                                 if ($test)
                                     continue;
 
-                                if ($type == 'table') {
+                                if ($type === 'table') {
 
                                     foreach($item as $alter_action => $columns) {
 
@@ -1945,6 +2080,18 @@ class Adapter {
                                         }
 
                                     }
+
+                                } elseif ($type === 'view'){
+
+                                    $this->dropView($item_name);
+
+                                    if($this->errorCode() > 0)
+                                        throw new \Exception($this->errorInfo()[2]);
+
+                                    $this->createView($item_name, $item['content']);
+
+                                    if($this->errorCode() > 0)
+                                        throw new \Exception($this->errorInfo()[2]);
 
                                 } else {
 
@@ -2246,6 +2393,9 @@ class Adapter {
 
         $statement = $this->driver->prepare($sql);
 
+        if(!$statement instanceof \PDOStatement)
+            throw new \Exception('Driver did not return PDOStatement during prepare!');
+
         if ($name)
             $this->statements[$name] = $statement;
         else
@@ -2261,9 +2411,7 @@ class Adapter {
             return false;
 
         if (!is_array($input_parameters))
-            $input_parameters = array(
-                $input_parameters
-            );
+            $input_parameters = array($input_parameters);
 
         return $statement->execute($input_parameters);
 

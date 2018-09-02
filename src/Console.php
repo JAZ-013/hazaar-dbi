@@ -62,9 +62,14 @@ class Console extends \Hazaar\Console\Module {
 
         $this->view('migrate');
 
-        $versions = array('latest' => 'Latest Version') + $this->db->getSchemaVersions();
+        $versions = $this->db->getSchemaVersions();
 
-        $this->view->versions = $versions;
+        foreach($versions as $ver => &$name)
+            $name = $ver . ' - ' . $name;
+
+        krsort($versions);
+
+        $this->view->versions = array('latest' => 'Latest Version') + $versions;
 
     }
 
