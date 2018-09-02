@@ -685,8 +685,8 @@ class Adapter {
 
     /**
      * Delete/drop a view
-     * @param mixed $name 
-     * @throws Exception\DriverNotSpecified 
+     * @param mixed $name
+     * @throws Exception\DriverNotSpecified
      * @return mixed
      */
     public function dropView($name){
@@ -1030,7 +1030,7 @@ class Adapter {
 
             $current_schema['tables'][$name] = $cols;
 
-            //BEGIN PROCESSING TABLE
+            //BEGIN PROCESSING TABLES
             if (array_key_exists('tables', $schema) && array_key_exists($name, $schema['tables'])) {
 
                 $this->log("Table '$name' already exists.  Checking differences.");
@@ -1067,7 +1067,7 @@ class Adapter {
 
                 } else {
 
-                    $this->log("No changes to '$name'.");
+                    $this->log("No changes to table '$name'.");
 
                 }
 
@@ -1404,6 +1404,49 @@ class Adapter {
             }
 
         }
+
+        //BEGIN PROCESSING VIEWS
+        foreach($this->listViews() as $view){
+
+            $name = $view['name'];
+
+            $this->log("Processing view '$name'.");
+
+            if(!($info = $this->describeView($name)))
+                throw new \Exception("Error getting view definition for view '$name'.  Does the connected user have the correct permissions?");
+
+            $current_schema['views'][$name] = $info;
+
+            if (array_key_exists('views', $schema) && array_key_exists($name, $schema['views'])) {
+
+                $this->log("View '$name' already exists.  Checking differences.");
+
+                $diff = array_diff_assoc($schema['views'][$name], $info);
+
+                if (count($diff) > 0) {
+
+                    $this->log("> View '$name' has changed.");
+
+                    $changes['up']['alter']['view'][$name] = $info;
+
+                } else {
+
+                    $this->log("No changes to view '$name'.");
+
+                }
+
+            } else { // View doesn't exist, so we add a command to create the whole thing
+
+                $this->log("+ View '$name' has been created.");
+
+                $changes['up']['create']['view'][] = $info;
+
+                if (!$init)
+                    $changes['down']['remove']['view'][] = $name;
+
+            }
+
+        } //END PROCESSING VIEWS
 
         if (count($changes) > 0) {
 
