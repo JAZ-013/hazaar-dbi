@@ -689,12 +689,12 @@ class Adapter {
      * @throws Exception\DriverNotSpecified
      * @return mixed
      */
-    public function dropView($name){
+    public function dropView($name, $cascade = false){
 
         if(!$this->driver)
             throw new Exception\DriverNotSpecified();
 
-        return $this->driver->dropView($name);
+        return $this->driver->dropView($name, $cascade);
 
     }
 
@@ -1429,6 +1429,8 @@ class Adapter {
 
                     $changes['up']['alter']['view'][$name] = $info;
 
+                    $changes['down']['alter']['view'][$name] = $schema['views'][$name];
+
                 } else {
 
                     $this->log("No changes to view '$name'.");
@@ -1887,6 +1889,20 @@ class Adapter {
 
             }
 
+            /* Create views */
+            if($views = ake($schema, 'views')){
+
+                foreach($views as $view => $info){
+
+                    $ret = $this->createView($view, $info['content']);
+
+                    if(!$ret || $this->errorCode() > 0)
+                        throw new \Exception('Error creating view ' . $view . ': ' . $this->errorInfo()[2]);
+
+                }
+
+            }
+
         }
         catch(\Exception $e){
 
@@ -1932,7 +1948,7 @@ class Adapter {
 
                             case 'create' :
 
-                                if ($type == 'table'){
+                                if ($type === 'table'){
 
                                     $this->log("+ Creating table '$item[name]'.");
 
@@ -1941,7 +1957,7 @@ class Adapter {
 
                                     $this->createTable($item['name'], $item['cols']);
 
-                                }elseif($type == 'index'){
+                                }elseif($type === 'index'){
 
                                     $this->log("+ Creating index '$item[name]' on table '$item[table]'.");
 
@@ -1950,7 +1966,7 @@ class Adapter {
 
                                     $this->createIndex($item['name'], $item['table'], array('columns' => $item['columns'], 'unique' => $item['unique']));
 
-                                }elseif($type == 'constraint'){
+                                }elseif($type === 'constraint'){
 
                                     $this->log("+ Creating constraint '$item[name]' on table '$item[table]'.");
 
@@ -1959,6 +1975,15 @@ class Adapter {
 
                                     $this->addConstraint($item['name'], $item);
 
+                                }elseif($type === 'view'){
+
+                                    $this->log("+ Creating view '$item[name]'.");
+
+                                    if ($test)
+                                        continue;
+
+                                    $this->createView($item['name'], $item['content']);
+
                                 }else
                                     $this->log("I don't know how to create a {$type}!");
 
@@ -1966,7 +1991,7 @@ class Adapter {
 
                             case 'remove' :
 
-                                if ($type == 'table'){
+                                if ($type === 'table'){
 
                                     $this->log("- Removing table '$item'.");
 
@@ -1975,7 +2000,7 @@ class Adapter {
 
                                     $this->dropTable($item, true);
 
-                                }elseif($type == 'constraint'){
+                                }elseif($type === 'constraint'){
 
                                     $this->log("- Removing constraint '$item[name]' from table '$item[table]'.");
 
@@ -1984,7 +2009,7 @@ class Adapter {
 
                                     $this->dropConstraint($item['name'], $item['table'], true);
 
-                                }elseif($type == 'index'){
+                                }elseif($type === 'index'){
 
                                     $this->log("- Removing index '$item'.");
 
@@ -1992,6 +2017,15 @@ class Adapter {
                                         continue;
 
                                     $this->dropIndex($item);
+
+                                }elseif($type === 'view'){
+
+                                    $this->log("- Removing view '$item'.");
+
+                                    if ($test)
+                                        continue;
+
+                                    $this->dropView($item, true);
 
                                 }else
                                     $this->log("I don't know how to remove a {$type}!");
@@ -2005,7 +2039,7 @@ class Adapter {
                                 if ($test)
                                     continue;
 
-                                if ($type == 'table') {
+                                if ($type === 'table') {
 
                                     foreach($item as $alter_action => $columns) {
 
@@ -2046,6 +2080,18 @@ class Adapter {
                                         }
 
                                     }
+
+                                } elseif ($type === 'view'){
+
+                                    $this->dropView($item_name);
+
+                                    if($this->errorCode() > 0)
+                                        throw new \Exception($this->errorInfo()[2]);
+
+                                    $this->createView($item_name, $item['content']);
+
+                                    if($this->errorCode() > 0)
+                                        throw new \Exception($this->errorInfo()[2]);
 
                                 } else {
 
