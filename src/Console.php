@@ -28,13 +28,13 @@ class Console extends \Hazaar\Console\Module {
 
         $this->db = new \Hazaar\DBI\Adapter();
 
-        $current = $this->db->getSchemaVersion();
+        $current = $this->db->getSchemaManager()->getVersion();
 
-        $versions = array('latest' => 'Latest Version') + $this->db->getSchemaVersions();
+        $versions = array('latest' => 'Latest Version') + $this->db->getSchemaManager()->getVersions();
 
         $this->view->version_info = array(
             'current' => ($current ? $current . ' - ' . ake($versions, $current, 'missing') : null),
-            'latest' => $this->db->isSchemaLatest()
+            'latest' => $this->db->getSchemaManager()->isLatest()
         );
 
     }
@@ -54,15 +54,15 @@ class Console extends \Hazaar\Console\Module {
             if($version == 'latest')
                 $version = null;
 
-            $result = $this->db->migrate($version, boolify($request->get('sync')), boolify($request->get('testmode', false)));
+            $result = $this->db->getSchemaManager()->migrate($version, boolify($request->get('sync')), boolify($request->get('testmode', false)));
 
-            return array('ok' => $result, 'log' => $this->db->getMigrationLog());
+            return array('ok' => $result, 'log' => $this->db->getSchemaManager()->getMigrationLog());
 
         }
 
         $this->view('migrate');
 
-        $versions = $this->db->getSchemaVersions();
+        $versions = $this->db->getSchemaManager()->getVersions();
 
         foreach($versions as $ver => &$name)
             $name = $ver . ' - ' . $name;
@@ -77,9 +77,9 @@ class Console extends \Hazaar\Console\Module {
 
         if($request->isPOST()){
 
-            $result = $this->db->snapshot($request->get('comment'), boolify($request->get('testmode', false)));
+            $result = $this->db->getSchemaManager()->snapshot($request->get('comment'), boolify($request->get('testmode', false)));
 
-            return array('ok' => $result, 'log' => $this->db->getMigrationLog());
+            return array('ok' => $result, 'log' => $this->db->getSchemaManager()->getMigrationLog());
 
         }
 
@@ -91,9 +91,9 @@ class Console extends \Hazaar\Console\Module {
 
         if($request->isPOST()){
 
-            $result = $this->db->syncSchemaData();
+            $result = $this->db->getSchemaManager()->syncData();
 
-            return array('ok' => $result, 'log' => $this->db->getMigrationLog());
+            return array('ok' => $result, 'log' => $this->db->getSchemaManager()->getMigrationLog());
 
         }
 

@@ -16,6 +16,7 @@
     <IncludeDebugInformation>false</IncludeDebugInformation>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="src\SchemaManager.php" />
     <Compile Include="src\DBD\Exception\NoUpdate.php" />
     <Compile Include="src\DBD\BaseDriver.php" />
     <Compile Include="src\DBD\Mysql.php" />
