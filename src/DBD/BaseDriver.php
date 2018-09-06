@@ -1130,7 +1130,24 @@ abstract class BaseDriver implements Driver_Interface {
 
     public function createFunction($name, $spec){
 
-        $sql = 'CREATE OR REPLACE FUNCTION ' . $this->field($name) . ' AS ' . rtrim($content, ' ;') . ';';
+        $sql = 'CREATE OR REPLACE FUNCTION ' . $this->field($name) . ' (';
+
+        if($params = ake($spec, 'parameters')){
+
+            $items = array();
+
+            foreach($params as $param)
+                $items[] = ake($param, 'mode', 'IN') . ' ' . ake($param, 'name') . ' ' . ake($param, 'type');
+
+            $sql .= implode(', ', $items);
+
+        }
+
+        $sql .= ') RETURNS ' . ake($spec, 'return_type', 'TEXT') . ' LANGUAGE ' . ake($spec, 'lang', 'SQL') . " AS\n\$BODY$ ";
+
+        $sql .= ake($spec, 'content');
+
+        $sql .= '$BODY$;';
 
         return ($this->exec($sql) !== false);
 
