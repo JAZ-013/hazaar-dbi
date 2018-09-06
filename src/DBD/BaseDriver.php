@@ -111,6 +111,12 @@ abstract class BaseDriver implements Driver_Interface {
 
     }
 
+    public function execCount() {
+
+        return BaseDriver::$execs;
+
+    }
+
     static function mkdsn($config){
 
         $options = $config->toArray();
@@ -1063,9 +1069,45 @@ abstract class BaseDriver implements Driver_Interface {
 
     }
 
-    public function execCount() {
+    public function listFunctions(){
 
-        return BaseDriver::$execs;
+        $sql = "SELECT r.routine_schema, r.routine_name FROM INFORMATION_SCHEMA.routines r WHERE r.specific_schema='public';";
+
+        $q = $this->query($sql);
+
+        $list = array();
+
+        while($row = $q->fetch())
+            $list[] = array('schema' =>$row['routine_schema'], 'name' => $row['routine_name']);
+
+        return $list;
+
+    }
+
+    public function describeFunction($name){
+
+        return false;
+
+    }
+
+    public function createFunction($name, $spec){
+
+        $sql = 'CREATE OR REPLACE FUNCTION ' . $this->field($name) . ' AS ' . rtrim($content, ' ;') . ';';
+
+        return ($this->exec($sql) !== false);
+
+    }
+
+    public function dropFunction($name, $cascade = false){
+
+        $sql = 'DROP FUNCTION IF EXISTS ' . $this->field($name);
+
+        if($cascade === true)
+            $sql .= ' CASCADE';
+
+        $sql .= ';';
+
+        return ($this->exec($sql) !== false);
 
     }
 
