@@ -1084,9 +1084,47 @@ abstract class BaseDriver implements Driver_Interface {
 
     }
 
-    public function describeFunction($name){
+    public function describeFunction($name, $schema = null){
 
-        return false;
+        $sql = "SELECT specific_name, routine_schema, routine_name, data_type, routine_body, routine_definition FROM INFORMATION_SCHEMA.routines ";
+
+        $sql .= "WHERE specific_schema=" . $this->prepareValue($this->schema);
+
+        $sql .= " AND routine_name=" . $this->prepareValue($name) .";";
+
+        $q = $this->query($sql);
+
+        $info = false;
+
+        if($row = $q->fetch()){
+
+            $info = array(
+                'schema' => $row['routine_schema'],
+                'name' => $row['routine_name'],
+                'return_type' => $row['data_type'],
+                'lang' => $row['routine_body'],
+                'content' => $row['routine_definition']
+            );
+
+            $info['parameters'] = array();
+
+            $sql = "SELECT * FROM INFORMATION_SCHEMA.parameters WHERE specific_name="
+                . $this->prepareValue($row['specific_name'])
+                . ' ORDER BY ordinal_position;';
+
+            $q = $this->query($sql);
+
+            while($row = $q->fetch())
+                $info['parameters'][] = array(
+                    'name' => $row['parameter_name'],
+                    'type' => $row['data_type'],
+                    'mode' => $row['parameter_mode'],
+                    'ordinal_position' => $row['ordinal_position']
+                );
+
+        }
+
+        return $info;
 
     }
 
