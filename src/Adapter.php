@@ -739,12 +739,12 @@ class Adapter {
      * @throws Exception\DriverNotSpecified
      * @return mixed
      */
-    public function dropFunction($name, $cascade = false){
+    public function dropFunction($name, $arg_types = array(), $cascade = false){
 
         if(!$this->driver)
             throw new Exception\DriverNotSpecified();
 
-        return $this->driver->dropFunction($name, $cascade);
+        return $this->driver->dropFunction($name, $arg_types, $cascade);
 
     }
 

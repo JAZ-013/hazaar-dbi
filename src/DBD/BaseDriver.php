@@ -1169,9 +1169,12 @@ abstract class BaseDriver implements Driver_Interface {
 
     }
 
-    public function dropFunction($name, $cascade = false){
+    public function dropFunction($name, $arg_types = array(), $cascade = false){
 
         $sql = 'DROP FUNCTION IF EXISTS ' . $this->field($name);
+
+        if($arg_types)
+            $sql .= ' (' . (is_array($arg_types) ? implode(', ', $arg_types) : $arg_types) . ')';
 
         if($cascade === true)
             $sql .= ' CASCADE';
