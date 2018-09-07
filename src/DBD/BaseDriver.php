@@ -1117,7 +1117,7 @@ abstract class BaseDriver implements Driver_Interface {
                     'name' => $row['routine_name'],
                     'return_type' => $row['data_type'],
                     'lang' => $row['routine_body'],
-                    'content' => $row['routine_definition']
+                    'content' => trim($row['routine_definition'])
                 );
 
                 $item['parameters'] = array();
