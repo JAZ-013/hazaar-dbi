@@ -765,85 +765,154 @@ class SchemaManager {
 
         } //END PROCESSING VIEWS
 
-        if (count($changes) > 0) {
+        //BEGIN PROCESSING FUNCTIONS
+        foreach($this->dbi->listFunctions() as $func){
 
-            if(array_key_exists('up', $changes)){
+            $name = $func['name'];
 
-                if(ake($changes['up'], 'create')){
+            $this->log("Processing function '$name'.");
 
-                    foreach($changes['up']['create'] as $type => $items)
-                        $this->log('+ New ' . $type . ' count: ' . count($items));
+            if(!($infos = $this->dbi->describeFunction($name)))
+                throw new \Exception("Error getting function definition for functions '$name'.  Does the connected user have the correct permissions?");
 
-                }
+            foreach($infos as $info){
 
-                if(ake($changes['up'], 'alter')){
+                $current_schema['functions'][$name][] = $info;
 
-                    foreach($changes['up']['alter'] as $type => $items)
-                        $this->log('> Changed ' . $type . ' count: ' . count($items));
+                $params = array();
 
-                }
+                foreach($info['parameters'] as $p) $params[] = $p['type'];
 
-                if(ake($changes['up'], 'remove')){
+                $fullname = $name . '(' . implode(', ', $params) . ')';
 
-                    foreach($changes['up']['remove'] as $type => $items)
-                        $this->log('- Removed ' . $type . ' count: ' . count($items));
+                if (array_key_exists('functions', $schema)
+                    && array_key_exists($name, $schema['functions'])
+                && count($ex_info = array_filter($schema['functions'][$name], function($item) use($info){
+                        if(count($item['parameters']) !== count($info['parameters'])) return false;
+                        foreach($item['parameters'] as $i => $p)
+                            if(!(array_key_exists($i, $info['parameters']) && $info['parameters'][$i]['type'] === $p['type']))
+                                return false;
+                        return true;
+                    })) > 0) {
+
+                    $this->log("Function '$fullname' already exists.  Checking differences.");
+
+                    foreach($ex_info as $e){
+
+                        $diff = array_diff_assoc_recursive($info, $e);
+
+                        if (count($diff) > 0) {
+
+                            $this->log("> Function '$fullname' has changed.");
+
+                            $changes['up']['alter']['function'][] = $info;
+
+                            $changes['down']['alter']['function'][] = $e;
+
+                        } else {
+
+                            $this->log("No changes to function '$fullname'.");
+
+                        }
+
+                    }
+
+                } else { // View doesn't exist, so we add a command to create the whole thing
+
+                    $this->log("+ Function '$fullname' has been created.");
+
+                    $changes['up']['create']['function'][] = $info;
+
+                    if (!$init)
+                        $changes['down']['remove']['function'][] = array('name' => $name, 'parameters' => $params);
 
                 }
 
             }
 
-            if ($test)
-                return ake($changes,'up');
+        } //END PROCESSING FUNCTIONS
 
-            /**
-             * Save the migrate diff file
-             */
-            $migrate_dir = $db_dir . '/migrate';
+        if (count($changes) === 0){
 
-            if (!file_exists($migrate_dir)) {
+            $this->log('No changes detected.');
 
-                $this->log('Migration directory does not exist.  Creating.');
+            $this->dbi->rollback();
 
-                mkdir($migrate_dir);
-
-            }
-
-            $migrate_file = $migrate_dir . '/' . $version . '_' . str_replace(' ', '_', trim($comment)) . '.json';
-
-            $this->log("Writing migration file to '$migrate_file'");
-
-            file_put_contents($migrate_file, json_encode($changes, JSON_PRETTY_PRINT));
-
-            /**
-             * Merge in static schema elements (like data) and save the current schema file
-             */
-            if($data = ake($schema, 'data')){
-
-                $this->log("Merging schema data records into current schema");
-
-                $current_schema['data'] = $data;
-
-            }
-
-            $this->log("Saving current schema ($this->schema_file)");
-
-            file_put_contents($this->schema_file, json_encode($current_schema, JSON_PRETTY_PRINT));
-
-            $this->createInfoTable();
-
-            $this->dbi->insert('schema_info', array(
-                'version' => $version
-            ));
-
-            $this->dbi->commit();
-
-            return true;
+            return false;
 
         }
 
-        $this->log('No changes detected.');
+        if(array_key_exists('up', $changes)){
 
-        return false;
+            if(ake($changes['up'], 'create')){
+
+                foreach($changes['up']['create'] as $type => $items)
+                    $this->log('+ New ' . $type . ' count: ' . count($items));
+
+            }
+
+            if(ake($changes['up'], 'alter')){
+
+                foreach($changes['up']['alter'] as $type => $items)
+                    $this->log('> Changed ' . $type . ' count: ' . count($items));
+
+            }
+
+            if(ake($changes['up'], 'remove')){
+
+                foreach($changes['up']['remove'] as $type => $items)
+                    $this->log('- Removed ' . $type . ' count: ' . count($items));
+
+            }
+
+        }
+
+        if ($test)
+            return ake($changes,'up');
+
+        /**
+         * Save the migrate diff file
+         */
+        $migrate_dir = $db_dir . '/migrate';
+
+        if (!file_exists($migrate_dir)) {
+
+            $this->log('Migration directory does not exist.  Creating.');
+
+            mkdir($migrate_dir);
+
+        }
+
+        $migrate_file = $migrate_dir . '/' . $version . '_' . str_replace(' ', '_', trim($comment)) . '.json';
+
+        $this->log("Writing migration file to '$migrate_file'");
+
+        file_put_contents($migrate_file, json_encode($changes, JSON_PRETTY_PRINT));
+
+        /**
+         * Merge in static schema elements (like data) and save the current schema file
+         */
+        if($data = ake($schema, 'data')){
+
+            $this->log("Merging schema data records into current schema");
+
+            $current_schema['data'] = $data;
+
+        }
+
+        $this->log("Saving current schema ($this->schema_file)");
+
+        file_put_contents($this->schema_file, json_encode($current_schema, JSON_PRETTY_PRINT));
+
+        $this->createInfoTable();
+
+        $this->dbi->insert('schema_info', array(
+            'version' => $version
+        ));
+
+        $this->dbi->commit();
+
+        return true;
 
     }
 
@@ -1218,6 +1287,28 @@ class SchemaManager {
 
             }
 
+            /* Create functions */
+            if($functions = ake($schema, 'functions')){
+
+                foreach($functions as $items){
+
+                    foreach($items as $info){
+
+                        $params = array();
+
+                        foreach($info['parameters'] as $p) $params[] = $p['type'];
+
+                        $ret = $this->dbi->createFunction($info['name'], $info);
+
+                        if(!$ret || $this->dbi->errorCode() > 0)
+                            throw new \Exception('Error creating function ' . $info['name'] . '(' . implode(', ', $params) . '): ' . $this->dbi->errorInfo()[2]);
+
+                    }
+
+                }
+
+            }
+
         }
         catch(\Exception $e){
 
@@ -1296,6 +1387,19 @@ class SchemaManager {
 
                                     $this->dbi->createView($item['name'], $item['content']);
 
+                                }elseif($type === 'function'){
+
+                                    $params = array();
+
+                                    foreach($item['parameters'] as $p) $params[] = $p['type'];
+
+                                    $this->log("+ Creating function '{$item['name']}(" . implode(', ', $params) . ').');
+
+                                    if ($test)
+                                        continue;
+
+                                    $this->dbi->createFunction($item['name'], $item);
+
                                 }else
                                     $this->log("I don't know how to create a {$type}!");
 
@@ -1338,6 +1442,15 @@ class SchemaManager {
                                         continue;
 
                                     $this->dbi->dropView($item, true);
+
+                                }elseif($type === 'function'){
+
+                                    $this->log("- Removing function '{$item['name']}(" . implode(', ', $item['parameters']) . ').');
+
+                                    if ($test)
+                                        continue;
+
+                                    $this->dbi->dropFunction($item['name'], $item['parameters']);
 
                                 }else
                                     $this->log("I don't know how to remove a {$type}!");
@@ -1402,8 +1515,18 @@ class SchemaManager {
 
                                     $this->dbi->createView($item_name, $item['content']);
 
-                                    if($this->dbi->errorCode() > 0)
-                                        throw new \Exception($this->dbi->errorInfo()[2]);
+                                }elseif($type === 'function'){
+
+                                    $params = array();
+
+                                    foreach($item['parameters'] as $p) $params[] = $p['type'];
+
+                                    $this->log("+ Replacing function '{$item['name']}(" . implode(', ', $params) . ').');
+
+                                    if ($test)
+                                        continue;
+
+                                    $this->dbi->createFunction($item['name'], $item);
 
                                 } else {
 

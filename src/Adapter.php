@@ -690,6 +690,64 @@ class Adapter {
 
     }
 
+    /**
+     * List functions
+     */
+    public function listFunctions(){
+
+        if(!$this->driver)
+            throw new Exception\DriverNotSpecified();
+
+        return $this->driver->listFunctions();
+
+    }
+
+    /**
+     * Describe a function
+     *
+     * @param mixed $name
+     * @throws Exception\DriverNotSpecified
+     * @return mixed
+     */
+    public function describeFunction($name){
+
+        if(!$this->driver)
+            throw new Exception\DriverNotSpecified();
+
+        return $this->driver->describeFunction($name);
+
+    }
+
+    /**
+     * Create a new function
+     * @param mixed $name
+     * @throws Exception\DriverNotSpecified
+     * @return mixed
+     */
+    public function createFunction($name, $spec){
+
+        if(!$this->driver)
+            throw new Exception\DriverNotSpecified();
+
+        return $this->driver->createFunction($name, $spec);
+
+    }
+
+    /**
+     * Delete/drop a function
+     * @param mixed $name
+     * @throws Exception\DriverNotSpecified
+     * @return mixed
+     */
+    public function dropFunction($name, $arg_types = array(), $cascade = false){
+
+        if(!$this->driver)
+            throw new Exception\DriverNotSpecified();
+
+        return $this->driver->dropFunction($name, $arg_types, $cascade);
+
+    }
+
     public function execCount() {
 
         if(!$this->driver)

@@ -111,6 +111,12 @@ abstract class BaseDriver implements Driver_Interface {
 
     }
 
+    public function execCount() {
+
+        return BaseDriver::$execs;
+
+    }
+
     static function mkdsn($config){
 
         $options = $config->toArray();
@@ -1063,9 +1069,119 @@ abstract class BaseDriver implements Driver_Interface {
 
     }
 
-    public function execCount() {
+    public function listFunctions(){
 
-        return BaseDriver::$execs;
+        $sql = "SELECT r.routine_schema, r.routine_name FROM INFORMATION_SCHEMA.routines r WHERE r.specific_schema='public';";
+
+        $q = $this->query($sql);
+
+        $list = array();
+
+        while($row = $q->fetch()){
+
+            $id = $row['routine_schema'] . $row['routine_name'];
+
+            if(array_key_exists($id, $list))
+                continue;
+
+            $list[$id] = array('schema' => $row['routine_schema'], 'name' => $row['routine_name']);
+
+        }
+
+        return array_values($list);
+
+    }
+
+    public function describeFunction($name, $schema = null){
+
+        $sql = "SELECT r.specific_name, r.routine_schema, r.routine_name, r.data_type, r.routine_body, r.routine_definition,
+            p.parameter_name, p.data_type, p.parameter_mode, p.ordinal_position
+            FROM INFORMATION_SCHEMA.routines r
+            INNER JOIN INFORMATION_SCHEMA.parameters p ON p.specific_name=r.specific_name";
+
+        $sql .= " WHERE r.specific_schema=" . $this->prepareValue($this->schema);
+
+        $sql .= " AND r.routine_name=" . $this->prepareValue($name) ." ORDER BY r.routine_name, p.ordinal_position;";
+
+        if(!($q = $this->query($sql)))
+            throw new \Exception($this->errorInfo()[2]);
+
+        $info = array();
+
+        while($row = $q->fetch()){
+
+            if(!array_key_exists($row['specific_name'], $info)){
+
+                $item = array(
+                    'schema' => $row['routine_schema'],
+                    'name' => $row['routine_name'],
+                    'return_type' => $row['data_type'],
+                    'lang' => $row['routine_body'],
+                    'content' => trim($row['routine_definition'])
+                );
+
+                $item['parameters'] = array();
+
+                $info[$row['specific_name']] = $item;
+
+            }
+
+            $info[$row['specific_name']]['parameters'][] = array(
+                'name' => $row['parameter_name'],
+                'type' => $row['data_type'],
+                'mode' => $row['parameter_mode'],
+                'ordinal_position' => $row['ordinal_position']
+            );
+
+        }
+
+        usort($info, function($a, $b){
+            if(count($a['parameters']) === count($b['parameters'])) return 0;
+            return count($a['parameters']) < count($b['parameters']) ? -1 : 1;
+        });
+
+        return array_values($info);
+
+    }
+
+    public function createFunction($name, $spec){
+
+        $sql = 'CREATE OR REPLACE FUNCTION ' . $this->field($name) . ' (';
+
+        if($params = ake($spec, 'parameters')){
+
+            $items = array();
+
+            foreach($params as $param)
+                $items[] = ake($param, 'mode', 'IN') . ' ' . ake($param, 'name') . ' ' . ake($param, 'type');
+
+            $sql .= implode(', ', $items);
+
+        }
+
+        $sql .= ') RETURNS ' . ake($spec, 'return_type', 'TEXT') . ' LANGUAGE ' . ake($spec, 'lang', 'SQL') . " AS\n\$BODY$ ";
+
+        $sql .= ake($spec, 'content');
+
+        $sql .= '$BODY$;';
+
+        return ($this->exec($sql) !== false);
+
+    }
+
+    public function dropFunction($name, $arg_types = array(), $cascade = false){
+
+        $sql = 'DROP FUNCTION IF EXISTS ' . $this->field($name);
+
+        if($arg_types)
+            $sql .= ' (' . (is_array($arg_types) ? implode(', ', $arg_types) : $arg_types) . ')';
+
+        if($cascade === true)
+            $sql .= ' CASCADE';
+
+        $sql .= ';';
+
+        return ($this->exec($sql) !== false);
 
     }
 
