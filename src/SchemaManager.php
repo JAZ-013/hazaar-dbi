@@ -777,35 +777,49 @@ class SchemaManager {
 
             foreach($infos as $info){
 
-                $current_schema['function'][$name][] = $info;
+                $current_schema['functions'][$name][] = $info;
 
-                if (false){//array_key_exists('functions', $schema) && array_key_exists($name, $schema['functions'])) {
+                $params = array();
 
-                    $this->log("Function '$name' already exists.  Checking differences.");
+                foreach($info['parameters'] as $p) $params[] = $p['type'];
 
-                    $diff = array_diff_assoc($schema['function'][$name], $info);
+                $fullname = $name . '(' . implode(', ', $params) . ')';
 
-                    if (count($diff) > 0) {
+                if (array_key_exists('functions', $schema)
+                    && array_key_exists($name, $schema['functions'])
+                && count($ex_info = array_filter($schema['functions'][$name], function($item) use($info){
+                        if(count($item['parameters']) !== count($info['parameters'])) return false;
+                        foreach($item['parameters'] as $i => $p)
+                            if(!(array_key_exists($i, $info['parameters']) && $info['parameters'][$i]['type'] === $p['type']))
+                                return false;
+                        return true;
+                    })) > 0) {
 
-                        $this->log("> Function '$name' has changed.");
+                    $this->log("Function '$fullname' already exists.  Checking differences.");
 
-                        $changes['up']['alter']['function'][$name] = $info;
+                    foreach($ex_info as $e){
 
-                        $changes['down']['alter']['function'][$name] = $schema['function'][$name];
+                        $diff = array_diff_assoc_recursive($info, $e);
 
-                    } else {
+                        if (count($diff) > 0) {
 
-                        $this->log("No changes to function '$name'.");
+                            $this->log("> Function '$fullname' has changed.");
+
+                            $changes['up']['alter']['function'][] = $info;
+
+                            $changes['down']['alter']['function'][] = $e;
+
+                        } else {
+
+                            $this->log("No changes to function '$fullname'.");
+
+                        }
 
                     }
 
                 } else { // View doesn't exist, so we add a command to create the whole thing
 
-                    $params = array();
-
-                    foreach($info['parameters'] as $p) $params[] = $p['type'];
-
-                    $this->log("+ Function '$name(" . implode(', ', $params) . ') has been created.');
+                    $this->log("+ Function '$fullname' has been created.");
 
                     $changes['up']['create']['function'][] = $info;
 
