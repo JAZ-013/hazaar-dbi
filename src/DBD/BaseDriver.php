@@ -1077,54 +1077,70 @@ abstract class BaseDriver implements Driver_Interface {
 
         $list = array();
 
-        while($row = $q->fetch())
-            $list[] = array('schema' =>$row['routine_schema'], 'name' => $row['routine_name']);
+        while($row = $q->fetch()){
 
-        return $list;
+            $id = $row['routine_schema'] . $row['routine_name'];
+
+            if(array_key_exists($id, $list))
+                continue;
+
+            $list[$id] = array('schema' => $row['routine_schema'], 'name' => $row['routine_name']);
+
+        }
+
+        return array_values($list);
 
     }
 
     public function describeFunction($name, $schema = null){
 
-        $sql = "SELECT specific_name, routine_schema, routine_name, data_type, routine_body, routine_definition FROM INFORMATION_SCHEMA.routines ";
+        $sql = "SELECT r.specific_name, r.routine_schema, r.routine_name, r.data_type, r.routine_body, r.routine_definition,
+            p.parameter_name, p.data_type, p.parameter_mode, p.ordinal_position
+            FROM INFORMATION_SCHEMA.routines r
+            INNER JOIN INFORMATION_SCHEMA.parameters p ON p.specific_name=r.specific_name";
 
-        $sql .= "WHERE specific_schema=" . $this->prepareValue($this->schema);
+        $sql .= " WHERE r.specific_schema=" . $this->prepareValue($this->schema);
 
-        $sql .= " AND routine_name=" . $this->prepareValue($name) .";";
+        $sql .= " AND r.routine_name=" . $this->prepareValue($name) ." ORDER BY r.routine_name, p.ordinal_position;";
 
-        $q = $this->query($sql);
+        if(!($q = $this->query($sql)))
+            throw new \Exception($this->errorInfo()[2]);
 
-        $info = false;
+        $info = array();
 
-        if($row = $q->fetch()){
+        while($row = $q->fetch()){
 
-            $info = array(
-                'schema' => $row['routine_schema'],
-                'name' => $row['routine_name'],
-                'return_type' => $row['data_type'],
-                'lang' => $row['routine_body'],
-                'content' => $row['routine_definition']
-            );
+            if(!array_key_exists($row['specific_name'], $info)){
 
-            $info['parameters'] = array();
-
-            $sql = "SELECT * FROM INFORMATION_SCHEMA.parameters WHERE specific_name="
-                . $this->prepareValue($row['specific_name'])
-                . ' ORDER BY ordinal_position;';
-
-            $q = $this->query($sql);
-
-            while($row = $q->fetch())
-                $info['parameters'][] = array(
-                    'name' => $row['parameter_name'],
-                    'type' => $row['data_type'],
-                    'mode' => $row['parameter_mode'],
-                    'ordinal_position' => $row['ordinal_position']
+                $item = array(
+                    'schema' => $row['routine_schema'],
+                    'name' => $row['routine_name'],
+                    'return_type' => $row['data_type'],
+                    'lang' => $row['routine_body'],
+                    'content' => $row['routine_definition']
                 );
+
+                $item['parameters'] = array();
+
+                $info[$row['specific_name']] = $item;
+
+            }
+
+            $info[$row['specific_name']]['parameters'][] = array(
+                'name' => $row['parameter_name'],
+                'type' => $row['data_type'],
+                'mode' => $row['parameter_mode'],
+                'ordinal_position' => $row['ordinal_position']
+            );
 
         }
 
-        return $info;
+        usort($info, function($a, $b){
+            if(count($a['parameters']) === count($b['parameters'])) return 0;
+            return count($a['parameters']) < count($b['parameters']) ? -1 : 1;
+        });
+
+        return array_values($info);
 
     }
 
