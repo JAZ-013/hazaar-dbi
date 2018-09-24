@@ -1180,7 +1180,7 @@ class SchemaManager {
         //Insert data records.  Will only happen in an up migration.
         if($mode == 'up'){
 
-            if(!$this->dbi->syncData(null, $test))
+            if(!$this->syncData(null, $test))
                 return false;
 
         }
@@ -1339,7 +1339,7 @@ class SchemaManager {
             if($action == 'data'){
 
                 if(!$test)
-                    $this->dbi->syncData($data);
+                    $this->syncData($data);
 
             }else{
 
@@ -1591,23 +1591,34 @@ class SchemaManager {
 
         $this->log("Starting DBI data sync");
 
-        foreach($data_schema as $info)
-            $this->processDataObject($info);
+        try{
 
-        if($test)
+            foreach($data_schema as $info)
+                $this->processDataObject($info);
+
+            if($test)
+                $this->dbi->rollBack();
+            else
+                $this->dbi->commit();
+
+            $this->log('DBI Data sync completed successfully!');
+
+            if(method_exists($this->dbi->driver, 'repair')){
+
+                $this->log('Running ' . $this->dbi->driver . ' repair process');
+
+                $result = $this->dbi->driver->repair();
+
+                $this->log('Repair ' . ($result?'completed successfully':'failed'));
+
+            }
+
+        }
+        catch(\Exception $e){
+
             $this->dbi->rollBack();
-        else
-            $this->dbi->commit();
 
-        $this->log('DBI Data sync Completed');
-
-        if(method_exists($this->dbi->driver, 'repair')){
-
-            $this->log('Running ' . $this->dbi->driver . ' repair process');
-
-            $result = $this->dbi->driver->repair();
-
-            $this->log('Repair ' . ($result?'completed successfully':'failed'));
+            $this->log('DBI Data sync error: ' . $e->getMessage());
 
         }
 
@@ -1637,7 +1648,7 @@ class SchemaManager {
         foreach($data as &$item){
 
             if(is_string($item))
-                $this->dbi->loadDataFromFile($data_schema, $file->dirname() . DIRECTORY_SEPARATOR . ltrim($item, DIRECTORY_SEPARATOR));
+                $this->loadDataFromFile($data_schema, $file->dirname() . DIRECTORY_SEPARATOR . ltrim($item, DIRECTORY_SEPARATOR));
             else
                 $data_schema[] = $item;
 
