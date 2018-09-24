@@ -509,6 +509,10 @@ abstract class BaseDriver implements Driver_Interface {
 
             $value = ($value ? 'TRUE' : 'FALSE');
 
+        } else if ($value instanceof \stdClass) {
+
+            $value = $this->quote(json_encode($value));
+
         } else if (!is_int($value)) {
 
             $value = $this->quote((string) $value);
@@ -540,6 +544,8 @@ abstract class BaseDriver implements Driver_Interface {
             $fields = $fields->toArray();
         elseif($fields instanceof \Hazaar\Model\Strict)
             $fields = $fields->toArray(false, null, false);
+        elseif($fields instanceof \stdClass)
+            $fields = (array)$fields;
 
         $field_def = array_keys($fields);
 
@@ -587,6 +593,8 @@ abstract class BaseDriver implements Driver_Interface {
             $fields = $fields->toArray();
         elseif($fields instanceof \Hazaar\Model\Strict)
             $fields = $fields->toArray(false, null, false);
+        elseif($fields instanceof \stdClass)
+            $fields = (array)$fields;
 
         $field_def = array();
 
