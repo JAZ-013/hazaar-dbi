@@ -1614,7 +1614,7 @@ class SchemaManager {
             }
 
         }
-        catch(\Exception $e){
+        catch(\Throwable $e){
 
             $this->dbi->rollBack();
 
@@ -1636,7 +1636,7 @@ class SchemaManager {
 
         $this->log('Loading data from file: ' . $file);
 
-        if (!($data = json_decode($file->get_contents(), true)))
+        if (!($data = json_decode($file->get_contents())))
             throw new \Exception("Unable to parse the DBI data file.  Bad JSON?");
 
         if($child_element)
@@ -1658,8 +1658,8 @@ class SchemaManager {
 
     private function processDataObject($info){
 
-        if(!is_array($info))
-            throw new \Exception('Got non-array while processing data object!');
+        if(!$info instanceof \stdClass)
+            throw new \Exception('Got non-object while processing data object!');
 
         if($message = ake($info, 'message'))
             $this->log($message);
@@ -1669,8 +1669,12 @@ class SchemaManager {
             //The 'rows' element is used to synchronise table rows in the database.
             if($rows = ake($info, 'rows')){
 
-                if($this->dbi->describeTable($table) == false)
+                if(($def = $this->dbi->describeTable($table)) === false)
                     throw new \Exception("Can not insert rows into non-existant table '$table'!");
+
+                $tableDef = array();
+
+                foreach($def as $d) $tableDef[$d['name']] = $d;
 
                 $pkey = null;
 
@@ -1686,7 +1690,7 @@ class SchemaManager {
 
                 $this->log("Processing " . count($rows) . " records in table '$table'");
 
-                foreach($rows as $id => $row){
+                foreach($rows as $row){
 
                     $do_diff = false;
 
@@ -1694,15 +1698,15 @@ class SchemaManager {
                      * If the primary key is in the record, find the record using only that field, then
                      * we will check for differences between the records
                      */
-                    if(array_key_exists($pkey, $row)){
+                    if(property_exists($row, $pkey)){
 
-                        $criteria = array($pkey => $row[$pkey]);
+                        $criteria = array($pkey => ake($row, $pkey));
 
                         $do_diff = true;
 
                     }else{ //Otherwise, look for the record in it's entirity and only insert if it doesn't exist.
 
-                        $criteria = $row;
+                        $criteria = (array)$row;
 
                     }
 
@@ -1718,11 +1722,23 @@ class SchemaManager {
 
                             if(count($diff) > 0){
 
-                                $this->log("Updating record in table '$table' with $pkey={$row[$pkey]}");
+                                $pkey_value = ake($row, $pkey);
 
-                                foreach($row as &$col) if(is_array($col)) $col = array('$array' => $col);
+                                $this->log("Updating record in table '$table' with $pkey={$pkey_value}");
 
-                                if(!$this->dbi->update($table, $row, array($pkey => $row[$pkey])))
+                                foreach($row as $name => &$col) {
+
+                                    if(!array_key_exists($name, $tableDef))
+                                        throw new \Exception("Attempting to modify data for non-existent row '$name'!" );
+
+                                    if(substr($tableDef[$name]['data_type'], 0, 4) === 'json')
+                                        $col = json_encode($col);
+                                    elseif(is_array($col))
+                                        $col = array('$array' => $col);
+
+                                }
+
+                                if(!$this->dbi->update($table, $row, array($pkey => $pkey_value)))
                                     throw new \Exception('Update failed: ' . $this->dbi->errorInfo()[2]);
 
                             }
