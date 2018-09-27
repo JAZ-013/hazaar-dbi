@@ -1751,7 +1751,17 @@ class SchemaManager {
                         if(ake($info, 'updateonly'))
                             continue;
 
-                        foreach($row as &$col) if(is_array($col)) $col = array('$array' => $col);
+                        foreach($row as $name => &$col) {
+
+                            if(!array_key_exists($name, $tableDef))
+                                throw new \Exception("Attempting to modify data for non-existent row '$name'!" );
+
+                            if(substr($tableDef[$name]['data_type'], 0, 4) === 'json')
+                                $col = json_encode($col);
+                            elseif(is_array($col))
+                                $col = array('$array' => $col);
+
+                        }
 
                         if(($pkey_value = $this->dbi->insert($table, $row, $pkey)) == false)
                             throw new \Exception('Insert failed: ' . $this->dbi->errorInfo()[2]);
