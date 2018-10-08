@@ -57,6 +57,8 @@ class Table {
 
     private $encrypt = false;
 
+    static private $default_checkstring = '!!';
+
     function __construct(DBD\BaseDriver $driver, $name, $alias = NULL, $options = null) {
 
         $this->driver = $driver;
@@ -648,7 +650,7 @@ class Table {
 
         $key = ake($this->options['encrypt'], 'key', '0000');
 
-        $checkstring = ake($this->options['encrypt'], 'checkstring', '!');
+        $checkstring = ake($this->options['encrypt'], 'checkstring', Table::$default_checkstring);
 
         foreach($encrypt_fields as $field){
 
@@ -676,7 +678,7 @@ class Table {
 
         $key = ake($this->options['encrypt'], 'key', '0000');
 
-        $checkstring = ake($this->options['encrypt'], 'checkstring', '!');
+        $checkstring = ake($this->options['encrypt'], 'checkstring', Table::$default_checkstring);
 
         $strings = null;
 
