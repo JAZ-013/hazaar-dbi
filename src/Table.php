@@ -652,7 +652,8 @@ class Table {
 
         foreach($encrypt_fields as $field){
 
-            if(!is_string($field)) continue;
+            if(!is_string($field))
+                throw new \Exception('Trying to encrypt non-string field: ' . $field);
 
             $iv = openssl_random_pseudo_bytes(openssl_cipher_iv_length($cipher));
 
