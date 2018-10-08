@@ -53,13 +53,21 @@ class Table {
 
     private $result;
 
-    function __construct(DBD\BaseDriver $driver, $name, $alias = NULL) {
+    private $options;
+
+    private $encrypt = false;
+
+    function __construct(DBD\BaseDriver $driver, $name, $alias = NULL, $options = null) {
 
         $this->driver = $driver;
 
         $this->name = $name;
 
         $this->alias = $alias;
+
+        $this->options = $options;
+
+        $this->encrypt =  array_key_exists('encrypt', $this->options);
 
     }
 
@@ -390,13 +398,13 @@ class Table {
 
     public function insert($fields, $returning = NULL) {
 
-        return $this->driver->insert($this->name, $fields, $returning);
+        return $this->driver->insert($this->name, $this->encrypt($fields), $returning);
 
     }
 
     public function update($criteria, $fields) {
 
-        return $this->driver->update($this->name, $fields, $criteria);
+        return $this->driver->update($this->name, $this->encrypt($fields), $criteria);
 
     }
 
@@ -426,8 +434,13 @@ class Table {
 
     public function fetch($offset = 0) {
 
-        if ($result = $this->execute())
-            return $result->fetch(\PDO::FETCH_ASSOC, \PDO::FETCH_ORI_NEXT, $offset);
+        if ($result = $this->execute()){
+
+            $data = $result->fetch(\PDO::FETCH_ASSOC, \PDO::FETCH_ORI_NEXT, $offset);
+
+            return $this->decrypt($data, $result);
+
+        }
 
         return FALSE;
 
@@ -435,8 +448,15 @@ class Table {
 
     public function fetchAll() {
 
-        if ($result = $this->execute())
-            return $result->fetchAll(\PDO::FETCH_ASSOC);
+        if ($result = $this->execute()){
+
+            $data = $result->fetchAll(\PDO::FETCH_ASSOC);
+
+            if(is_array($data)) foreach($data as &$row) $this->decrypt($row, $result);
+
+            return $data;
+
+        }
 
         return FALSE;
 
@@ -599,7 +619,98 @@ class Table {
         if (!$this->result)
             $this->execute();
 
-        return array_collate($this->result, $index_column, $value_column, $group_column);
+        return array_collate($this->fetchAll(), $index_column, $value_column, $group_column);
+
+    }
+
+    private function encrypted(&$fields = array()){
+
+        if($this->encrypt
+            && array_key_exists('table', $this->options['encrypt'])
+            && array_key_exists($this->name, $this->options['encrypt']['table'])){
+
+            return (is_array($this->options['encrypt']['table'][$this->name])
+                    ? array_intersect($this->options['encrypt']['table'][$this->name], array_keys($fields))
+                    : ($this->options['encrypt']['table'][$this->name] === true ? array_keys($fields) : null));
+
+        }
+
+        return false;
+
+    }
+
+    private function encrypt(&$data){
+
+        if(($encrypt_fields = $this->encrypted($data)) === false)
+            return $data;
+
+        $cipher = ake($this->options['encrypt'], 'cipher', 'aes-256-ctr');
+
+        $key = ake($this->options['encrypt'], 'key', '0000');
+
+        $checkstring = ake($this->options['encrypt'], 'checkstring', '!');
+
+        foreach($encrypt_fields as $field){
+
+            if(!is_string($field)) continue;
+
+            $iv = openssl_random_pseudo_bytes(openssl_cipher_iv_length($cipher));
+
+            $content = base64_encode($iv . openssl_encrypt($checkstring . $data[$field], $cipher, $key, OPENSSL_RAW_DATA, $iv));
+
+            $data[$field] = $content;
+
+        }
+
+        return $data;
+
+    }
+
+    private function decrypt(&$data, Result $result = null){
+
+        if($data === null || ($encrypted_fields = $this->encrypted($data)) === false)
+            return $data;
+
+        $cipher = ake($this->options['encrypt'], 'cipher', 'aes-256-ctr');
+
+        $key = ake($this->options['encrypt'], 'key', '0000');
+
+        $checkstring = ake($this->options['encrypt'], 'checkstring', '!');
+
+        $strings = null;
+
+        if($result !== null){
+
+            $strings = array();
+
+            for($i = 0; $i < $result->columnCount(); $i++){
+
+                $meta = $result->getColumnMeta($i);
+
+                if($meta['native_type'] === 'text')
+                    $strings[] = $meta['name'];
+
+            }
+
+        }
+
+        foreach($encrypted_fields as $field){
+
+            if(!($strings !== null && in_array($field, $strings) || ($strings === null && is_string($data[$field]))))
+                continue;
+
+            list($iv, $content) = preg_split('/(?<=.{' . openssl_cipher_iv_length($cipher) . '})/', base64_decode($data[$field]), 2);
+
+            list($checkbit, $content) = preg_split('/(?<=.{' . strlen($checkstring) . '})/', openssl_decrypt($content, $cipher, $key, OPENSSL_RAW_DATA, $iv), 2);
+
+            if($checkbit !== $checkstring)
+                throw new \Exception('Field decryption failed: ' . $field);
+
+            $data[$field] = $content;
+
+        }
+
+        return $data;
 
     }
 
