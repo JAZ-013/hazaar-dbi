@@ -87,13 +87,13 @@ class Adapter {
 
         $config = clone $config;
 
-        $this->options = $config->filter(function($key) use($config){
+        $this->options = array_filter($config->toArray(), function($key) use($config){
             if($key === 'encrypt'){
                 unset($config[$key]);
                 return true;
             }
             return  false;
-        }, ARRAY_FILTER_USE_KEY)->toArray();
+        }, ARRAY_FILTER_USE_KEY);
 
         $this->config = $config;
 
