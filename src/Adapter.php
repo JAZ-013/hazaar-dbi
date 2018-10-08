@@ -44,6 +44,8 @@ class Adapter {
 
     public $config = NULL;
 
+    private $options;
+
     public $driver;
 
     // Prepared statements
@@ -80,32 +82,54 @@ class Adapter {
 
     public function configure($config){
 
-        if (\Hazaar\Map::is_array($config)) {
+        if (!\Hazaar\Map::is_array($config))
+            return false;
 
-            $this->config = clone $config;
+        $config = clone $config;
 
-            $user = ( $this->config->has('user') ? $this->config->user : null );
-
-            $password = ( $this->config->has('password') ? $this->config->password : null );
-
-            if ($this->config->has('dsn')){
-
-                $dsn = $this->config->dsn;
-
-            }else{
-
-                $DBD = Adapter::getDriverClass($this->config->driver);
-
-                if(!class_exists($DBD))
-                    return false;
-
-                $dsn = $DBD::mkdsn($this->config);
-
+        $this->options = $config->filter(function($key) use($config){
+            if($key === 'encrypt'){
+                unset($config[$key]);
+                return true;
             }
+            return  false;
+        }, ARRAY_FILTER_USE_KEY)->toArray();
 
-            $this->connect($dsn, $user, $password);
+        $this->config = $config;
+
+        $user = ( $this->config->has('user') ? $this->config->user : null );
+
+        $password = ( $this->config->has('password') ? $this->config->password : null );
+
+        if ($this->config->has('dsn')){
+
+            $dsn = $this->config->dsn;
+
+        }else{
+
+            $DBD = Adapter::getDriverClass($this->config->driver);
+
+            if(!class_exists($DBD))
+                return false;
+
+            $dsn = $DBD::mkdsn($this->config);
 
         }
+
+        $this->connect($dsn, $user, $password);
+
+        if(array_key_exists('encrypt', $this->options) && !array_key_exists('key', $this->options['encrypt'])){
+
+            $keyfile = \Hazaar\Application::getInstance()->runtimePath(ake($this->options['encrypt'], 'keyfile', '.db_key'));
+
+            if(!file_exists($keyfile))
+                throw new \Exception('DBI keyfile is missing.  Database encryption will not work!');
+
+            $this->options['encrypt']['key'] = trim(file_get_contents($keyfile));
+
+        }
+
+        return true;
 
     }
 
@@ -423,7 +447,7 @@ class Adapter {
         if(!$this->driver)
             throw new Exception\DriverNotSpecified();
 
-        return new Table($this->driver, $name, $alias);
+        return new Table($this->driver, $name, $alias, $this->options);
 
     }
 
