@@ -69,7 +69,7 @@ class Table {
 
         $this->options = $options;
 
-        $this->encrypt =  array_key_exists('encrypt', $this->options);
+        $this->encrypt =  ake($this->options, 'encrypt');
 
     }
 
