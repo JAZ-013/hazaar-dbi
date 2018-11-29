@@ -191,12 +191,15 @@ class Result implements \ArrayAccess, \Countable, \Iterator {
 
             $this->reset = true;
 
-            if ($fetch_argument !== null) {
+            if ($fetch_argument !== null)
+                $results = $this->statement->fetchAll($fetch_style, $fetch_argument, $ctor_args);
+            else
+                $results = $this->statement->fetchAll($fetch_style);
 
-                return $this->statement->fetchAll($fetch_style, $fetch_argument, $ctor_args);
-            }
+            foreach($results as &$record) $this->fix($record);
 
-            return $this->statement->fetchAll($fetch_style);
+            return $results;
+
         }
 
         return false;
