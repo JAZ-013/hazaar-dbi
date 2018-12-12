@@ -1637,7 +1637,7 @@ class SchemaManager {
         $this->log('Loading data from file: ' . $file);
 
         if (!($data = json_decode($file->get_contents())))
-            throw new \Exception("Unable to parse the DBI data file.  Bad JSON?");
+            throw new \Exception("Unable to parse the DBI data file.  Bad JSON in $file");
 
         if($child_element)
             $data = ake($data, $child_element);
