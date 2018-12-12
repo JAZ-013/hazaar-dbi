@@ -35,7 +35,7 @@
   "require": {
     "php": "^5.6 || ^7.0",
     "ext-pdo": "*",
-    "hazaarlabs/hazaar-mvc": ">=2.4.1"
+    "hazaarlabs/hazaar-mvc": ">=2.5.0"
   },
   "extra": {
     "hazaar-console-class": "Hazaar\\DBI\\Console"

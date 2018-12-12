@@ -1716,34 +1716,32 @@ class SchemaManager {
                         if(ake($info, 'insertonly'))
                             continue;
 
-                        if($do_diff){
+                        if(!$do_diff)
+                            continue;
 
-                            $diff = array_diff_assoc_recursive($row, $current);
+                        $diff = array_diff_assoc_recursive($row, $current);
 
-                            if(count($diff) > 0){
+                        if(count($diff) === 0)
+                            continue;
 
-                                $pkey_value = ake($row, $pkey);
+                        $pkey_value = ake($row, $pkey);
 
-                                $this->log("Updating record in table '$table' with $pkey={$pkey_value}");
+                        $this->log("Updating record in table '$table' with $pkey={$pkey_value}");
 
-                                foreach($row as $name => &$col) {
+                        foreach($row as $name => &$col) {
 
-                                    if(!array_key_exists($name, $tableDef))
-                                        throw new \Exception("Attempting to modify data for non-existent row '$name'!" );
+                            if(!array_key_exists($name, $tableDef))
+                                throw new \Exception("Attempting to modify data for non-existent row '$name'!" );
 
-                                    if(substr($tableDef[$name]['data_type'], 0, 4) === 'json')
-                                        $col = json_encode($col);
-                                    elseif(is_array($col))
-                                        $col = array('$array' => $col);
-
-                                }
-
-                                if(!$this->dbi->update($table, $row, array($pkey => $pkey_value)))
-                                    throw new \Exception('Update failed: ' . $this->dbi->errorInfo()[2]);
-
-                            }
+                            if(substr($tableDef[$name]['data_type'], 0, 4) === 'json')
+                                $col = json_encode($col);
+                            elseif(is_array($col))
+                                $col = array('$array' => $col);
 
                         }
+
+                        if(!$this->dbi->update($table, $row, array($pkey => $pkey_value)))
+                            throw new \Exception('Update failed: ' . $this->dbi->errorInfo()[2]);
 
                     }else{
 
