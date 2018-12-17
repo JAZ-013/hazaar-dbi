@@ -1719,10 +1719,24 @@ class SchemaManager {
                         if(!$do_diff)
                             continue;
 
-                        $diff = array_diff_assoc_recursive($row, $current);
+                        //If nothing has been added to the row, look for child arrays/objects to backwards analyse
+                        if(count(array_diff_assoc_recursive($row, $current)) === 0){
 
-                        if(count($diff) === 0)
-                            continue;
+                            $changes = 0;
+
+                            foreach($row as $name => &$col) {
+
+                                if(!(is_array($col) || $col instanceof \stdClass))
+                                    continue;
+
+                                $changes += count(array_diff_assoc_recursive(ake($current, $name), $col));
+
+                            }
+
+                            if($changes === 0)
+                                continue;
+
+                        }
 
                         $pkey_value = ake($row, $pkey);
 
