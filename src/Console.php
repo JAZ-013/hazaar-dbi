@@ -6,7 +6,7 @@ class Console extends \Hazaar\Console\Module {
 
     private $db;
 
-    public function init(){
+    public function load(){
 
         $this->addMenuGroup('Databases', 'database');
 
@@ -16,15 +16,15 @@ class Console extends \Hazaar\Console\Module {
 
         $this->addMenuItem('Data Sync', 'sync', 'refresh');
 
+    }
+
+    public function init(){
+
+        $this->view->link('css/main.css');
+
         $this->view->requires('js/dbi.js');
 
         $this->notice('This module is currently under active development!', 'exclamation-triangle', 'warning');
-
-    }
-
-    public function prepare(){
-
-        $this->view->link('css/main.css');
 
         $this->db = new \Hazaar\DBI\Adapter();
 
