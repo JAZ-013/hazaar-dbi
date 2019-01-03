@@ -1,7 +1,7 @@
 
 <div class="row">
     <div class="col col-8">
-        <div class="panel">
+        <div class="panel flex-grow-1">
             <div class="panel-header">Migrate</div>
             <div class="panel-content">
                 <form>
@@ -15,17 +15,21 @@
                             <input type="checkbox" name="testmode" value="true" />Test Mode
                         </label>
                     </div>
-                    <button id="btnMigrate" class="primary">Migrate Database</button>
+                    <button id="btnMigrate" class="btn btn-primary">Migrate Database</button>
                 </form>
             </div>
         </div>
+    </div>
+    <div class="col col-4">
+        <?=$this->partial('version_info', $this->version_info);?>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col col-12">
         <div class="panel">
             <div class="panel-header">Migration Log</div>
-            <div class="panel-content">
-                <div id="migratelog" class="panel-body logoutput"></div>
-            </div>
+            <div id="migratelog" class="panel-content logoutput"></div>
         </div>
-    </div>
-    <div class="col col-4"><?=$this->partial('version_info', $this->version_info);?>
     </div>
 </div>

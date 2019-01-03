@@ -1,7 +1,7 @@
 
 <div class="row">
     <div class="col col-8">
-        <div class="panel">
+        <div class="panel flex-grow-1">
             <div class="panel-header">Snapshot</div>
             <div class="panel-content">
                 <form>
@@ -16,19 +16,22 @@
                             <input type="checkbox" name="testmode" value="true" />Test Mode
                         </label>
                     </div>
-                    <button id="btnSnapshot" class="primary">Snapshot Database</button>
+                    <button id="btnSnapshot" class="btn btn-primary">Snapshot Database</button>
                 </form>
             </div>
         </div>
-        <div class="panel">
-            <div class="panel-header">Snapshot Log</div>
-            <div class="panel-content">
-                <div id="snapshotlog" class="panel-body logoutput"></div>
-            </div>
-        </div>
+
     </div>
     <div class="col col-4">
         <?=$this->partial('version_info', $this->version_info);?>
     </div>
 </div>
 
+<div class="row">
+    <div class="col col-12">
+        <div class="panel">
+            <div class="panel-header">Snapshot Log</div>
+            <div id="snapshotlog" class="panel-content logoutput"></div>
+        </div>
+    </div>
+</div>

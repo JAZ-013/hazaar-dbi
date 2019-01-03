@@ -1,16 +1,24 @@
 
 <div class="row">
     <div class="col col-8">
-        <div class="panel">
-            <div class="panel-header">
-                DBI Data Synchronisation
-                <button id="btnDataSync" type="submit" class="primary pull-right">Sync Data</button>
+        <div class="panel flex-grow-1">
+            <div class="panel-header">DBI Data Synchronisation</div>
+            <div class="panel-content">
+                <button id="btnDataSync" type="submit" class="btn btn-primary">Sync Data</button>
             </div>
-            <div id="synclog" class="panel-content logoutput"></div>
         </div>
     </div>
     <div class="col col-4">
         <?=$this->partial('version_info', $this->version_info);?>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col col-12">
+        <div class="panel">
+            <div class="panel-header">Synchronisation Log</div>
+            <div id="synclog" class="panel-content logoutput"></div>
+        </div>
     </div>
 </div>
 

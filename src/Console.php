@@ -8,13 +8,13 @@ class Console extends \Hazaar\Console\Module {
 
     public function load(){
 
-        $this->addMenuGroup('Databases', 'database');
+        $group = $this->addMenuItem('Databases', 'database');
 
-        $this->addMenuItem('Migration', 'migrate', 'random');
+        $group->addMenuItem('Migration', 'migrate', 'random');
 
-        $this->addMenuItem('Snapshot', 'snapshot', 'camera');
+        $group->addMenuItem('Snapshot', 'snapshot', 'camera');
 
-        $this->addMenuItem('Data Sync', 'sync', 'refresh');
+        $group->addMenuItem('Data Sync', 'sync', 'refresh');
 
     }
 
