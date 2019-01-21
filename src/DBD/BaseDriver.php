@@ -367,12 +367,24 @@ abstract class BaseDriver implements Driver_Interface {
                         break;
 
                     case 'ilike': //iLike
+
                         $parts[] = 'ILIKE ' . $this->quote($value);
 
                         break;
 
                     case 'like': //Like
+
                         $parts[] = 'LIKE ' . $this->quote($value);
+
+                        break;
+
+                    case 'bt':
+
+                        if(($count = count($value)) !== 2)
+                            throw new \Exception('DBD: $bt operator requires array argument with exactly 2 elements. ' . $count . ' given.');
+
+                        $parts[] = 'BETWEEN ' . $this->prepareValue(array_values($value)[0])
+                            . ' AND ' . $this->prepareValue(array_values($value)[1]);
 
                         break;
 
