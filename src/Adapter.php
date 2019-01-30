@@ -62,21 +62,15 @@ class Adapter {
 
         $config = null;
 
-        if ($config_env == NULL || is_string($config_env)) {
-
+        if ($config_env === NULL || is_string($config_env))
             $config = $this->getDefaultConfig($config_env);
-
-        } elseif (is_array($config_env)) {
-
+        elseif (is_array($config_env))
             $config = new \Hazaar\Map($config_env);
-
-        } elseif ($config_env instanceof \Hazaar\Map) {
-
+        elseif ($config_env instanceof \Hazaar\Map)
             $config = $config_env;
 
-        }
-
-        $this->configure($config);
+        if($config !== NULL)
+            $this->configure($config);
 
     }
 
@@ -133,6 +127,18 @@ class Adapter {
 
     }
 
+    private function checkConfig(){
+
+        if(!$this->config)
+            throw new Exception\NotConfigured();
+
+        if(!$this->driver)
+            throw new Exception\DriverNotSpecified();
+
+        return true;
+
+    }
+
     static public function getDriverClass($driver){
 
         return 'Hazaar\DBI\DBD\\' . ucfirst($driver);
@@ -155,7 +161,7 @@ class Adapter {
 
         if (!array_key_exists($env, Adapter::$default_config)){
 
-            $config = new \Hazaar\Application\Config('database', $env);
+            $config = new \Hazaar\Application\Config('database', $env, array(), FILE_PATH_CONFIG, true);
 
             if(!$config->loaded())
                 return null;
@@ -239,8 +245,7 @@ class Adapter {
 
     public function getDriver() {
 
-        if(!$this->driver)
-            throw new Exception\DriverNotSpecified();
+        $this->checkConfig();
 
         $class = get_class($this->driver);
 
@@ -250,8 +255,7 @@ class Adapter {
 
     public function beginTransaction() {
 
-        if(!$this->driver)
-            throw new Exception\DriverNotSpecified();
+        $this->checkConfig();
 
         return $this->driver->beginTransaction();
 
@@ -259,8 +263,7 @@ class Adapter {
 
     public function commit() {
 
-        if(!$this->driver)
-            throw new Exception\DriverNotSpecified();
+        $this->checkConfig();
 
         return $this->driver->commit();
 
@@ -268,8 +271,7 @@ class Adapter {
 
     public function getAttribute($option) {
 
-        if(!$this->driver)
-            throw new Exception\DriverNotSpecified();
+        $this->checkConfig();
 
         return $this->driver->getAttribute($option);
 
@@ -294,8 +296,7 @@ class Adapter {
 
     public function inTransaction() {
 
-        if(!$this->driver)
-            throw new Exception\DriverNotSpecified();
+        $this->checkConfig();
 
         return $this->driver->inTransaction();
 
@@ -303,8 +304,7 @@ class Adapter {
 
     public function lastInsertId() {
 
-        if(!$this->driver)
-            throw new Exception\DriverNotSpecified();
+        $this->checkConfig();
 
         return $this->driver->lastInsertId();
 
@@ -312,8 +312,7 @@ class Adapter {
 
     public function quote($string) {
 
-        if(!$this->driver)
-            throw new Exception\DriverNotSpecified();
+        $this->checkConfig();
 
         return $this->driver->quote($string);
 
@@ -321,8 +320,7 @@ class Adapter {
 
     public function rollBack() {
 
-        if(!$this->driver)
-            throw new Exception\DriverNotSpecified();
+        $this->checkConfig();
 
         return $this->driver->rollback();
 
@@ -330,8 +328,7 @@ class Adapter {
 
     public function setAttribute() {
 
-        if(!$this->driver)
-            throw new Exception\DriverNotSpecified();
+        $this->checkConfig();
 
         return $this->driver->setAttribute();
 
@@ -339,8 +336,7 @@ class Adapter {
 
     public function errorCode() {
 
-        if(!$this->driver)
-            throw new Exception\DriverNotSpecified();
+        $this->checkConfig();
 
         return $this->driver->errorCode();
 
@@ -348,8 +344,7 @@ class Adapter {
 
     public function errorInfo() {
 
-        if(!$this->driver)
-            throw new Exception\DriverNotSpecified();
+        $this->checkConfig();
 
         return $this->driver->errorInfo();
 
@@ -357,8 +352,7 @@ class Adapter {
 
     public function exec($sql) {
 
-        if(!$this->driver)
-            throw new Exception\DriverNotSpecified();
+        $this->checkConfig();
 
         return $this->driver->exec($sql);
 
@@ -366,8 +360,7 @@ class Adapter {
 
     public function query($sql) {
 
-        if(!$this->driver)
-            throw new Exception\DriverNotSpecified();
+        $this->checkConfig();
 
         $result = $this->driver->query($sql);
 
@@ -380,8 +373,7 @@ class Adapter {
 
     public function exists($table, $criteria = array()) {
 
-        if(!$this->driver)
-            throw new Exception\DriverNotSpecified();
+        $this->checkConfig();
 
         return $this->table($table)->exists($criteria);
 
@@ -389,8 +381,7 @@ class Adapter {
 
     public function insert($table, $fields, $returning = NULL) {
 
-        if(!$this->driver)
-            throw new Exception\DriverNotSpecified();
+        $this->checkConfig();
 
         return $this->driver->insert($table, $fields, $returning);
 
@@ -398,8 +389,7 @@ class Adapter {
 
     public function update($table, $fields, $criteria = array()) {
 
-        if(!$this->driver)
-            throw new Exception\DriverNotSpecified();
+        $this->checkConfig();
 
         return $this->driver->update($table, $fields, $criteria);
 
@@ -407,8 +397,7 @@ class Adapter {
 
     public function delete($table, $criteria) {
 
-        if(!$this->driver)
-            throw new Exception\DriverNotSpecified();
+        $this->checkConfig();
 
         return $this->driver->delete($table, $criteria);
 
@@ -416,8 +405,7 @@ class Adapter {
 
     public function deleteAll($table) {
 
-        if(!$this->driver)
-            throw new Exception\DriverNotSpecified();
+        $this->checkConfig();
 
         return $this->driver->deleteAll($table);
 
@@ -444,8 +432,7 @@ class Adapter {
 
     public function table($name, $alias = NULL) {
 
-        if(!$this->driver)
-            throw new Exception\DriverNotSpecified();
+        $this->checkConfig();
 
         return new Table($this->driver, $name, $alias, $this->options);
 
@@ -471,8 +458,7 @@ class Adapter {
      */
     public function listTables() {
 
-        if(!$this->driver)
-            throw new Exception\DriverNotSpecified();
+        $this->checkConfig();
 
         return $this->driver->listTables();
 
@@ -489,8 +475,7 @@ class Adapter {
      */
     public function tableExists($table) {
 
-        if(!$this->driver)
-            throw new Exception\DriverNotSpecified();
+        $this->checkConfig();
 
         return $this->driver->tableExists($table);
 
@@ -505,8 +490,7 @@ class Adapter {
      */
     public function createTable($name, $columns) {
 
-        if(!$this->driver)
-            throw new Exception\DriverNotSpecified();
+        $this->checkConfig();
 
         return $this->driver->createTable($name, $columns);
 
@@ -514,8 +498,7 @@ class Adapter {
 
     public function describeTable($name, $sort = NULL) {
 
-        if(!$this->driver)
-            throw new Exception\DriverNotSpecified();
+        $this->checkConfig();
 
         return $this->driver->describeTable($name, $sort);
 
@@ -523,8 +506,7 @@ class Adapter {
 
     public function renameTable($from_name, $to_name) {
 
-        if(!$this->driver)
-            throw new Exception\DriverNotSpecified();
+        $this->checkConfig();
 
         return $this->driver->renameTable($from_name, $to_name);
 
@@ -532,8 +514,7 @@ class Adapter {
 
     public function dropTable($name, $cascade = false) {
 
-        if(!$this->driver)
-            throw new Exception\DriverNotSpecified();
+        $this->checkConfig();
 
         return $this->driver->dropTable($name, $cascade);
 
@@ -541,8 +522,7 @@ class Adapter {
 
     public function addColumn($table, $column_spec) {
 
-        if(!$this->driver)
-            throw new Exception\DriverNotSpecified();
+        $this->checkConfig();
 
         return $this->driver->addColumn($table, $column_spec);
 
@@ -550,8 +530,7 @@ class Adapter {
 
     public function alterColumn($table, $column, $column_spec) {
 
-        if(!$this->driver)
-            throw new Exception\DriverNotSpecified();
+        $this->checkConfig();
 
         return $this->driver->alterColumn($table, $column, $column_spec);
 
@@ -559,8 +538,7 @@ class Adapter {
 
     public function dropColumn($table, $column) {
 
-        if(!$this->driver)
-            throw new Exception\DriverNotSpecified();
+        $this->checkConfig();
 
         return $this->driver->dropColumn($table, $column);
 
@@ -568,8 +546,7 @@ class Adapter {
 
     public function listSequences() {
 
-        if(!$this->driver)
-            throw new Exception\DriverNotSpecified();
+        $this->checkConfig();
 
         return $this->driver->listSequences();
 
@@ -577,8 +554,7 @@ class Adapter {
 
     public function describeSequence($name) {
 
-        if(!$this->driver)
-            throw new Exception\DriverNotSpecified();
+        $this->checkConfig();
 
         return $this->driver->describeSequence($name);
 
@@ -586,8 +562,7 @@ class Adapter {
 
     public function listIndexes($table = NULL) {
 
-        if(!$this->driver)
-            throw new Exception\DriverNotSpecified();
+        $this->checkConfig();
 
         return $this->driver->listIndexes($table);
 
@@ -595,8 +570,7 @@ class Adapter {
 
     public function createIndex($index_name, $table_name, $idx_info) {
 
-        if(!$this->driver)
-            throw new Exception\DriverNotSpecified();
+        $this->checkConfig();
 
         return $this->driver->createIndex($index_name, $table_name, $idx_info);
 
@@ -604,8 +578,7 @@ class Adapter {
 
     public function dropIndex($name) {
 
-        if(!$this->driver)
-            throw new Exception\DriverNotSpecified();
+        $this->checkConfig();
 
         return $this->driver->dropIndex($name);
 
@@ -613,8 +586,7 @@ class Adapter {
 
     public function listPrimaryKeys($table = NULL){
 
-        if(!$this->driver)
-            throw new Exception\DriverNotSpecified();
+        $this->checkConfig();
 
         return $this->driver->listConstraints($table, 'PRIMARY KEY');
 
@@ -622,8 +594,7 @@ class Adapter {
 
     public function listForeignKeys($table = NULL){
 
-        if(!$this->driver)
-            throw new Exception\DriverNotSpecified();
+        $this->checkConfig();
 
         return $this->driver->listConstraints($table, 'FOREIGN KEY');
 
@@ -631,8 +602,7 @@ class Adapter {
 
     public function listConstraints($table = NULL, $type = NULL, $invert_type = FALSE) {
 
-        if(!$this->driver)
-            throw new Exception\DriverNotSpecified();
+        $this->checkConfig();
 
         return $this->driver->listConstraints($table, $type, $invert_type);
 
@@ -640,8 +610,7 @@ class Adapter {
 
     public function addConstraint($name, $info) {
 
-        if(!$this->driver)
-            throw new Exception\DriverNotSpecified();
+        $this->checkConfig();
 
         return $this->driver->addConstraint($name, $info);
 
@@ -649,8 +618,7 @@ class Adapter {
 
     public function dropConstraint($name, $table, $cascade = false) {
 
-        if(!$this->driver)
-            throw new Exception\DriverNotSpecified();
+        $this->checkConfig();
 
         return $this->driver->dropConstraint($name, $table, $cascade);
 
@@ -661,8 +629,7 @@ class Adapter {
      */
     public function listViews(){
 
-        if(!$this->driver)
-            throw new Exception\DriverNotSpecified();
+        $this->checkConfig();
 
         return $this->driver->listViews();
 
@@ -677,8 +644,7 @@ class Adapter {
      */
     public function describeView($name){
 
-        if(!$this->driver)
-            throw new Exception\DriverNotSpecified();
+        $this->checkConfig();
 
         return $this->driver->describeView($name);
 
@@ -692,8 +658,7 @@ class Adapter {
      */
     public function createView($name, $sql){
 
-        if(!$this->driver)
-            throw new Exception\DriverNotSpecified();
+        $this->checkConfig();
 
         return $this->driver->createView($name, $sql);
 
@@ -707,8 +672,7 @@ class Adapter {
      */
     public function dropView($name, $cascade = false){
 
-        if(!$this->driver)
-            throw new Exception\DriverNotSpecified();
+        $this->checkConfig();
 
         return $this->driver->dropView($name, $cascade);
 
@@ -719,8 +683,7 @@ class Adapter {
      */
     public function listFunctions(){
 
-        if(!$this->driver)
-            throw new Exception\DriverNotSpecified();
+        $this->checkConfig();
 
         return $this->driver->listFunctions();
 
@@ -735,8 +698,7 @@ class Adapter {
      */
     public function describeFunction($name){
 
-        if(!$this->driver)
-            throw new Exception\DriverNotSpecified();
+        $this->checkConfig();
 
         return $this->driver->describeFunction($name);
 
@@ -750,8 +712,7 @@ class Adapter {
      */
     public function createFunction($name, $spec){
 
-        if(!$this->driver)
-            throw new Exception\DriverNotSpecified();
+        $this->checkConfig();
 
         return $this->driver->createFunction($name, $spec);
 
@@ -765,8 +726,7 @@ class Adapter {
      */
     public function dropFunction($name, $arg_types = array(), $cascade = false){
 
-        if(!$this->driver)
-            throw new Exception\DriverNotSpecified();
+        $this->checkConfig();
 
         return $this->driver->dropFunction($name, $arg_types, $cascade);
 
@@ -774,8 +734,7 @@ class Adapter {
 
     public function execCount() {
 
-        if(!$this->driver)
-            throw new Exception\DriverNotSpecified();
+        $this->checkConfig();
 
         return $this->driver->execCount();
 
@@ -786,8 +745,7 @@ class Adapter {
      */
     public function prepare($sql, $name = null) {
 
-        if(!$this->driver)
-            throw new Exception\DriverNotSpecified();
+        $this->checkConfig();
 
         $statement = $this->driver->prepare($sql);
 
