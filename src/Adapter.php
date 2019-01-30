@@ -501,7 +501,7 @@ class Adapter {
      *
      * @param string $name
      *
-     * @param string $columns
+     * @param array $columns
      */
     public function createTable($name, $columns) {
 
