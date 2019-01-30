@@ -150,8 +150,8 @@ class SchemaManager {
 
         return null;
 
-
     }
+
     private function getTableDiffs($new, $old) {
 
         $diff = array();
@@ -319,9 +319,69 @@ class SchemaManager {
         $current_schema = array('version' => $version);
 
         /**
-         * Stores only changes between $schema and $current_schema
+         * Stores only changes between $schema and $current_schema.  Here we define all possible elements
+         * to ensure the correct ordering.  Later we remove all empty elements before saving the migration file.
          */
-        $changes = array();
+        $changes = array(
+            "version" => 2,
+            'up' => array(
+                'table' => array(
+                    'create' => array(),
+                    'alter' => array(),
+                    'remove' => array(),
+                    'rename' => array()
+                ),
+                'constraint' => array(
+                    'create' => array(),
+                    'alter' => array(),
+                    'remove' => array()
+                ),
+                'index' => array(
+                    'create' => array(),
+                    'alter' => array(),
+                    'remove' => array()
+                ),
+                'view' => array(
+                    'create' => array(),
+                    'alter' => array(),
+                    'remove' => array()
+                ),
+                'function' => array(
+                    'create' => array(),
+                    'alter' => array(),
+                    'remove' => array()
+                )
+            ),
+            'down' => array(
+                'raise' => array(),
+                'function' => array(
+                    'create' => array(),
+                    'alter' => array(),
+                    'remove' => array()
+                ),
+                'view' => array(
+                    'create' => array(),
+                    'alter' => array(),
+                    'remove' => array()
+                ),
+                'index' => array(
+                    'create' => array(),
+                    'alter' => array(),
+                    'remove' => array()
+                ),
+                'constraint' => array(
+                    'create' => array(),
+                    'alter' => array(),
+                    'remove' => array()
+                ),
+                'table' => array(
+                    'create' => array(),
+                    'alter' => array(),
+                    'remove' => array(),
+                    'rename' => array()
+                )
+            )
+        );
 
         if($init)
             $changes['down']['raise'] = 'Can not revert initial snapshot';
@@ -356,7 +416,7 @@ class SchemaManager {
 
                     $this->log("> Table '$name' has changed.");
 
-                    $changes['up']['alter']['table'][$name] = $diff;
+                    $changes['up']['table']['alter'][$name] = $diff;
 
                     foreach($diff as $diff_mode => $col_diff) {
 
@@ -368,11 +428,11 @@ class SchemaManager {
 
                                 $info = $this->getColumn($col_info, $schema['tables'][$name]);
 
-                                $changes['down']['alter']['table'][$name][$diff_mode][$col_name] = $info;
+                                $changes['down']['table']['alter'][$name][$diff_mode][$col_name] = $info;
 
                             } else {
 
-                                $changes['down']['alter']['table'][$name][$diff_mode][] = $col_name;
+                                $changes['down']['table']['alter'][$name][$diff_mode][] = $col_name;
 
                             }
 
@@ -390,13 +450,13 @@ class SchemaManager {
 
                 $this->log("+ Table '$name' has been created.");
 
-                $changes['up']['create']['table'][] = array(
+                $changes['up']['table']['create'][] = array(
                     'name' => $name,
                     'cols' => $cols
                 );
 
                 if (!$init)
-                    $changes['down']['remove']['table'][] = $name;
+                    $changes['down']['table']['remove'][] = $name;
 
             } //END PROCESSING TABLES
 
@@ -423,17 +483,17 @@ class SchemaManager {
 
                         $this->log("+ Added new constraint '$constraint_name' on table '$name'.");
 
-                        $changes['up']['create']['constraint'][] = array_merge($constraint, array(
+                        $changes['up']['constraint']['create'][] = array_merge($constraint, array(
                             'name' => $constraint_name,
                         ));
 
                         //If the constraint was added at the same time as the table, we don't need to add the removes
                         if(! $init && !(array_key_exists('down', $changes)
-                            && array_key_exists('remove', $changes['down'])
-                            && array_key_exists('table', $changes['down']['remove'])
-                            && in_array($name, $changes['down']['remove']['table'])))
+                            && array_key_exists('table', $changes['down'])
+                            && array_key_exists('remove', $changes['down']['table'])
+                            && in_array($name, $changes['down']['table']['remove'])))
 
-                            $changes['down']['remove']['constraint'][] = array('table' => $name, 'name' => $constraint_name);
+                            $changes['down']['constraint']['remove'][] = array('table' => $name, 'name' => $constraint_name);
 
                     }
 
@@ -455,9 +515,9 @@ class SchemaManager {
 
                         $idef = $schema['constraints'][$name][$constraint];
 
-                        $changes['up']['remove']['constraint'][] = array('table' => $name, 'name' => $constraint);
+                        $changes['up']['constraint']['remove'][] = array('table' => $name, 'name' => $constraint);
 
-                        $changes['down']['create']['constraint'][] = array_merge($idef, array(
+                        $changes['down']['constraint']['create'][] = array_merge($idef, array(
                             'name' => $constraint,
                             'table' => $name
                         ));
@@ -472,12 +532,12 @@ class SchemaManager {
 
                     $this->log("+ Added new constraint '$constraint_name' on table '$name'.");
 
-                    $changes['up']['create']['constraint'][] = array_merge($constraint, array(
+                    $changes['up']['constraint']['create'][] = array_merge($constraint, array(
                         'name' => $constraint_name,
                     ));
 
                     if (!$init)
-                        $changes['down']['remove']['constraint'][] = array('table' => $name, 'name' => $constraint_name);
+                        $changes['down']['constraint']['remove'][] = array('table' => $name, 'name' => $constraint_name);
 
                 }
 
@@ -523,10 +583,10 @@ class SchemaManager {
 
                     $this->log("+ Added new index '$index_name' on table '$name'.");
 
-                    $changes['up']['create']['index'][] = $index;
+                    $changes['up']['index']['create'][] = $index;
 
                     if(!$init)
-                        $changes['down']['remove']['index'][] = $index_name;
+                        $changes['down']['index']['remove'][] = $index_name;
 
                 }
 
@@ -546,9 +606,9 @@ class SchemaManager {
 
                         $idef = $schema['indexes'][$name][$index];
 
-                        $changes['up']['remove']['index'][] = $index;
+                        $changes['up']['index']['remove'][] = $index;
 
-                        $changes['down']['create']['index'][] = array_merge($idef, array(
+                        $changes['down']['index']['create'][] = array_merge($idef, array(
                             'name' => $index,
                             'table' => $name,
                         ));
@@ -569,13 +629,13 @@ class SchemaManager {
 
                     $this->log("+ Added new index '$index_name' on table '$name'.");
 
-                    $changes['up']['create']['index'][] = array_merge($index, array(
+                    $changes['up']['index']['create'][] = array_merge($index, array(
                         'name' => $index_name,
                         'table' => $name,
                     ));
 
                     if (!$init)
-                        $changes['down']['remove']['index'][] = $index_name;
+                        $changes['down']['index']['remove'][] = $index_name;
 
                 }
 
@@ -596,9 +656,9 @@ class SchemaManager {
 
                     $this->log("- Table '$table' has been removed.");
 
-                    $changes['up']['remove']['table'][] = $table;
+                    $changes['up']['table']['remove'][] = $table;
 
-                    $changes['down']['create']['table'][] = array(
+                    $changes['down']['table']['create'][] = array(
                         'name' => $table,
                         'cols' => $schema['tables'][$table]
                     );
@@ -607,11 +667,11 @@ class SchemaManager {
                     if(array_key_exists('constraints', $schema)
                         && array_key_exists($table, $schema['constraints'])){
 
-                        $changes['down']['create']['constraint'] = array();
+                        $changes['down']['constraint']['create'] = array();
 
                         foreach($schema['constraints'][$table] as $constraint_name => $constraint){
 
-                            $changes['down']['create']['constraint'][] = array_merge($constraint, array(
+                            $changes['down']['constraint']['create'][] = array_merge($constraint, array(
                                 'name' => $constraint_name,
                                 'table' => $table
                             ));
@@ -624,11 +684,11 @@ class SchemaManager {
                     if(array_key_exists('indexes', $schema)
                         && array_key_exists($table, $schema['indexes'])){
 
-                        $changes['down']['create']['index'] = array();
+                        $changes['down']['index']['create'] = array();
 
                         foreach($schema['indexes'][$table] as $index_name => $index){
 
-                            $changes['down']['create']['index'][] = array_merge($index, array(
+                            $changes['down']['index']['create'][] = array_merge($index, array(
                                 'name' => $index_name,
                                 'table' => $table
                             ));
@@ -646,70 +706,52 @@ class SchemaManager {
         /**
          * Now compare the create and remove changes to see if a table is actually being renamed
          */
-        if (isset($changes['up']['create']) && isset($changes['up']['remove']['table'])) {
+        if (isset($changes['up']['table']['create']) && isset($changes['up']['table']['remove'])) {
 
             $this->log('Looking for renamed tables.');
 
-            if(array_key_exists('table', $changes['up']['create'])){
+            foreach($changes['up']['table']['create'] as $create_key => $create) {
 
-                foreach($changes['up']['create']['table'] as $create) {
+                foreach($changes['up']['table']['remove'] as $remove_key => $remove) {
 
-                    foreach($changes['up']['remove']['table'] as $remove_key => $remove) {
+                    $diff = array_udiff($schema['tables'][$remove], $create['cols'], function($a, $b){
+                        if($a['name'] == $b['name']) return 0;
+                        return (($a['name'] > $b['name']) ? 1: -1);
+                    });
 
-                        if(!array_udiff($schema['tables'][$remove], $create['cols'], function($a, $b){
-                            if($a['name'] == $b['name']) return 0;
-                            return (($a['name'] > $b['name']) ? 1: -1);
-                        })){
+                    if(!$diff){
 
-                            $this->log("> Table '$remove' has been renamed to '{$create['name']}'.", LOG_NOTICE);
+                        $this->log("> Table '$remove' has been renamed to '{$create['name']}'.", LOG_NOTICE);
 
-                            $changes['up']['rename']['table'][] = array(
-                                'from' => $remove,
-                                'to' => $create['name']
-                            );
+                        $changes['up']['table']['rename'][] = array(
+                            'from' => $remove,
+                            'to' => $create['name']
+                        );
 
-                            $changes['down']['rename']['table'][] = array(
-                                'from' => $create['name'],
-                                'to' => $remove
-                            );
+                        $changes['down']['table']['rename'][] = array(
+                            'from' => $create['name'],
+                            'to' => $remove
+                        );
 
-                            /**
-                             * Clean up the changes
-                             */
-                            unset($changes['up']['create'][$create_key]);
+                        /**
+                         * Clean up the changes
+                         */
+                        $changes['up']['table']['create'][$create_key] = null;
 
-                            if (count($changes['up']['create']) == 0)
-                                unset($changes['up']['create']);
+                        $changes['up']['table']['remove'][$remove_key] = null;
 
-                            unset($changes['up']['remove']['table'][$remove_key]);
+                        foreach($changes['down']['table']['remove'] as $down_remove_key => $down_remove) {
 
-                            if (count($changes['up']['remove']['table']) == 0)
-                                unset($changes['up']['remove']['table']);
+                            if ($down_remove === $create['name'])
+                                $changes['down']['table']['remove'][$down_remove_key] = null;
 
-                            if (count($changes['up']['remove']) == 0)
-                                unset($changes['up']['remove']);
+                        }
 
-                            foreach($changes['down']['remove']['table'] as $down_remove_key => $down_remove) {
+                        foreach($changes['down']['table']['create'] as $down_create_key => $down_create) {
 
-                                if ($down_remove == $create['name'])
-                                    unset($changes['down']['remove']['table'][$down_remove_key]);
-                            }
+                            if ($down_create['name'] == $remove)
+                                $changes['down']['table']['create'][$down_create_key] = null;
 
-                            foreach($changes['down']['create'] as $down_create_key => $down_create) {
-
-                                if ($down_create['name'] == $remove)
-                                    unset($changes['down']['create'][$down_create_key]);
-
-                            }
-
-                            if (count($changes['down']['create']) == 0)
-                                unset($changes['down']['create']);
-
-                            if (count($changes['down']['remove']['table']) == 0)
-                                unset($changes['down']['remove']['table']);
-
-                            if (count($changes['down']['remove']) == 0)
-                                unset($changes['down']['remove']);
                         }
 
                     }
@@ -742,9 +784,9 @@ class SchemaManager {
 
                     $this->log("> View '$name' has changed.");
 
-                    $changes['up']['alter']['view'][$name] = $info;
+                    $changes['up']['view']['alter'][$name] = $info;
 
-                    $changes['down']['alter']['view'][$name] = $schema['views'][$name];
+                    $changes['down']['view']['alter'][$name] = $schema['views'][$name];
 
                 } else {
 
@@ -756,10 +798,10 @@ class SchemaManager {
 
                 $this->log("+ View '$name' has been created.");
 
-                $changes['up']['create']['view'][] = $info;
+                $changes['up']['view']['create'][] = $info;
 
                 if (!$init)
-                    $changes['down']['remove']['view'][] = $name;
+                    $changes['down']['view']['remove'][] = $name;
 
             }
 
@@ -805,9 +847,9 @@ class SchemaManager {
 
                             $this->log("> Function '$fullname' has changed.");
 
-                            $changes['up']['alter']['function'][] = $info;
+                            $changes['up']['function']['alter'][] = $info;
 
-                            $changes['down']['alter']['function'][] = $e;
+                            $changes['down']['function']['alter'][] = $e;
 
                         } else {
 
@@ -821,10 +863,10 @@ class SchemaManager {
 
                     $this->log("+ Function '$fullname' has been created.");
 
-                    $changes['up']['create']['function'][] = $info;
+                    $changes['up']['function']['create'][] = $info;
 
                     if (!$init)
-                        $changes['down']['remove']['function'][] = array('name' => $name, 'parameters' => $params);
+                        $changes['down']['function']['remove'][] = array('name' => $name, 'parameters' => $params);
 
                 }
 
@@ -832,7 +874,10 @@ class SchemaManager {
 
         } //END PROCESSING FUNCTIONS
 
-        if (count($changes) === 0){
+        array_remove_empty($changes);
+
+        //If there are no changes, bail out now
+        if(!(count(ake($changes, 'up', array())) + count(ake($changes, 'down', array()))) > 0){
 
             $this->log('No changes detected.');
 
@@ -844,29 +889,15 @@ class SchemaManager {
 
         if(array_key_exists('up', $changes)){
 
-            if(ake($changes['up'], 'create')){
+            $tokens = array('create' => '+', 'alter' => '>', 'remove' => '-');
 
-                foreach($changes['up']['create'] as $type => $items)
-                    $this->log('+ New ' . $type . ' count: ' . count($items));
-
-            }
-
-            if(ake($changes['up'], 'alter')){
-
-                foreach($changes['up']['alter'] as $type => $items)
-                    $this->log('> Changed ' . $type . ' count: ' . count($items));
-
-            }
-
-            if(ake($changes['up'], 'remove')){
-
-                foreach($changes['up']['remove'] as $type => $items)
-                    $this->log('- Removed ' . $type . ' count: ' . count($items));
-
-            }
+            foreach($changes['up'] as $type => $methods)
+                foreach($methods as $method => $actions)
+                    $this->log($tokens[$method] . ' ' . ucfirst($method) . ' ' . $type . ' count: ' . count($actions));
 
         }
 
+        //If we are testing, then return the diff between the previous schema version
         if ($test)
             return ake($changes,'up');
 
@@ -1140,7 +1171,7 @@ class SchemaManager {
 
                     $this->dbi->beginTransaction();
 
-                    $this->replay($current_schema[$mode], $test);
+                    $this->replay($current_schema[$mode], $test, ake($current_schema, 'version', 1));
 
                     if ($mode == 'up') {
 
@@ -1332,244 +1363,257 @@ class SchemaManager {
      * @param array $schema
      *            The JSON decoded schema to replay.
      */
-    private function replay($schema, $test = false) {
+    private function replay($schema, $test = false, $version = 1) {
 
-        foreach($schema as $action => $data) {
+        foreach($schema as $level1 => $data) {
 
-            if($action == 'data'){
+            if($level1 == 'data'){
 
                 if(!$test)
                     $this->syncData($data);
 
-            }else{
+                continue;
 
-                foreach($data as $type => $items) {
+            }
 
-                    foreach($items as $item_name => $item) {
+            foreach($data as $level2 => $items) {
 
-                        switch ($action) {
-
-                            case 'create' :
-
-                                if ($type === 'table'){
-
-                                    $this->log("+ Creating table '$item[name]'.");
-
-                                    if ($test)
-                                        continue;
-
-                                    $this->dbi->createTable($item['name'], $item['cols']);
-
-                                }elseif($type === 'index'){
-
-                                    $this->log("+ Creating index '$item[name]' on table '$item[table]'.");
-
-                                    if ($test)
-                                        continue;
-
-                                    $this->dbi->createIndex($item['name'], $item['table'], array('columns' => $item['columns'], 'unique' => $item['unique']));
-
-                                }elseif($type === 'constraint'){
-
-                                    $this->log("+ Creating constraint '$item[name]' on table '$item[table]'.");
-
-                                    if ($test)
-                                        continue;
-
-                                    $this->dbi->addConstraint($item['name'], $item);
-
-                                }elseif($type === 'view'){
-
-                                    $this->log("+ Creating view '$item[name]'.");
-
-                                    if ($test)
-                                        continue;
-
-                                    $this->dbi->createView($item['name'], $item['content']);
-
-                                }elseif($type === 'function'){
-
-                                    $params = array();
-
-                                    foreach($item['parameters'] as $p) $params[] = $p['type'];
-
-                                    $this->log("+ Creating function '{$item['name']}(" . implode(', ', $params) . ').');
-
-                                    if ($test)
-                                        continue;
-
-                                    $this->dbi->createFunction($item['name'], $item);
-
-                                }else
-                                    $this->log("I don't know how to create a {$type}!");
-
-                                break;
-
-                            case 'remove' :
-
-                                if ($type === 'table'){
-
-                                    $this->log("- Removing table '$item'.");
-
-                                    if ($test)
-                                        continue;
-
-                                    $this->dbi->dropTable($item, true);
-
-                                }elseif($type === 'constraint'){
-
-                                    $this->log("- Removing constraint '$item[name]' from table '$item[table]'.");
-
-                                    if ($test)
-                                        continue;
-
-                                    $this->dbi->dropConstraint($item['name'], $item['table'], true);
-
-                                }elseif($type === 'index'){
-
-                                    $this->log("- Removing index '$item'.");
-
-                                    if ($test)
-                                        continue;
-
-                                    $this->dbi->dropIndex($item);
-
-                                }elseif($type === 'view'){
-
-                                    $this->log("- Removing view '$item'.");
-
-                                    if ($test)
-                                        continue;
-
-                                    $this->dbi->dropView($item, true);
-
-                                }elseif($type === 'function'){
-
-                                    $this->log("- Removing function '{$item['name']}(" . implode(', ', $item['parameters']) . ').');
-
-                                    if ($test)
-                                        continue;
-
-                                    $this->dbi->dropFunction($item['name'], $item['parameters']);
-
-                                }else
-                                    $this->log("I don't know how to remove a {$type}!");
-
-                                break;
-
-                            case 'alter' :
-
-                                $this->log("> Altering $type $item_name");
-
-                                if ($test)
-                                    continue;
-
-                                if ($type === 'table') {
-
-                                    foreach($item as $alter_action => $columns) {
-
-                                        foreach($columns as $col_name => $col) {
-
-                                            if ($alter_action == 'add') {
-
-                                                $this->log("+ Adding column '$col[name]'.");
-
-                                                if ($test)
-                                                    continue;
-
-                                                $this->dbi->addColumn($item_name, $col);
-
-                                            } elseif ($alter_action == 'alter') {
-
-                                                $this->log("> Altering column '$col_name'.");
-
-                                                if($test)
-                                                    continue;
-
-                                                $this->dbi->alterColumn($item_name, $col_name, $col);
-
-                                            } elseif ($alter_action == 'drop') {
-
-                                                $this->log("- Dropping column '$col'.");
-
-                                                if ($test)
-                                                    continue;
-
-                                                $this->dbi->dropColumn($item_name, $col);
-
-                                            }
-
-                                            if($this->dbi->errorCode() > 0)
-                                                throw new \Exception($this->dbi->errorInfo()[2]);
-
-                                        }
-
-                                    }
-
-                                } elseif ($type === 'view'){
-
-                                    $this->dbi->dropView($item_name);
-
-                                    if($this->dbi->errorCode() > 0)
-                                        throw new \Exception($this->dbi->errorInfo()[2]);
-
-                                    $this->dbi->createView($item_name, $item['content']);
-
-                                }elseif($type === 'function'){
-
-                                    $params = array();
-
-                                    foreach($item['parameters'] as $p) $params[] = $p['type'];
-
-                                    $this->log("+ Replacing function '{$item['name']}(" . implode(', ', $params) . ').');
-
-                                    if ($test)
-                                        continue;
-
-                                    $this->dbi->createFunction($item['name'], $item);
-
-                                } else {
-
-                                    $this->log("I don't know how to alter a {$type}!");
-
-                                }
-
-                                break;
-
-                            case 'rename' :
-
-                                $this->log("> Renaming $type item: $item[from] => $item[to]");
-
-                                if ($test)
-                                    continue;
-
-                                if ($type == 'table')
-                                    $this->dbi->renameTable($item['from'], $item['to']);
-
-                                else
-                                    $this->log("I don't know how to rename a {$type}!");
-
-                                break;
-
-                            default :
-                                $this->log("I don't know how to $action a {$type}!");
-
-                                break;
-
-                        }
-
-                        if($this->dbi->errorCode() > 0)
-                            throw new \Exception($this->dbi->errorInfo()[2]);
-
-                    }
-
-                }
+                if($version === 1)
+                    $this->replayItems($level2, $level1, $items, $test);
+                elseif($version === 2)
+                    $this->replayItems($level1, $level2, $items, $test);
+                else
+                    throw new \Exception('Unsupported schema migration version: ' . $version);
 
             }
 
         }
 
         return !$test;
+
+    }
+
+    private function replayItems($type, $action, $items, $test = false){
+
+        foreach($items as $item_name => $item) {
+
+            switch ($action) {
+
+                case 'create' :
+
+                    if ($type === 'table'){
+
+                        $this->log("+ Creating table '$item[name]'.");
+
+                        if ($test)
+                            continue;
+
+                        $this->dbi->createTable($item['name'], $item['cols']);
+
+                    }elseif($type === 'index'){
+
+                        $this->log("+ Creating index '$item[name]' on table '$item[table]'.");
+
+                        if ($test)
+                            continue;
+
+                        $this->dbi->createIndex($item['name'], $item['table'], array('columns' => $item['columns'], 'unique' => $item['unique']));
+
+                    }elseif($type === 'constraint'){
+
+                        $this->log("+ Creating constraint '$item[name]' on table '$item[table]'.");
+
+                        if ($test)
+                            continue;
+
+                        $this->dbi->addConstraint($item['name'], $item);
+
+                    }elseif($type === 'view'){
+
+                        $this->log("+ Creating view '$item[name]'.");
+
+                        if ($test)
+                            continue;
+
+                        $this->dbi->createView($item['name'], $item['content']);
+
+                    }elseif($type === 'function'){
+
+                        $params = array();
+
+                        foreach($item['parameters'] as $p) $params[] = $p['type'];
+
+                        $this->log("+ Creating function '{$item['name']}(" . implode(', ', $params) . ').');
+
+                        if ($test)
+                            continue;
+
+                        $this->dbi->createFunction($item['name'], $item);
+
+                    }else
+                        $this->log("I don't know how to create a {$type}!");
+
+                    break;
+
+                case 'remove' :
+
+                    if ($type === 'table'){
+
+                        $this->log("- Removing table '$item'.");
+
+                        if ($test)
+                            continue;
+
+                        $this->dbi->dropTable($item, true);
+
+                    }elseif($type === 'constraint'){
+
+                        $this->log("- Removing constraint '$item[name]' from table '$item[table]'.");
+
+                        if ($test)
+                            continue;
+
+                        $this->dbi->dropConstraint($item['name'], $item['table'], true);
+
+                    }elseif($type === 'index'){
+
+                        $this->log("- Removing index '$item'.");
+
+                        if ($test)
+                            continue;
+
+                        $this->dbi->dropIndex($item);
+
+                    }elseif($type === 'view'){
+
+                        $this->log("- Removing view '$item'.");
+
+                        if ($test)
+                            continue;
+
+                        $this->dbi->dropView($item, true);
+
+                    }elseif($type === 'function'){
+
+                        $this->log("- Removing function '{$item['name']}(" . implode(', ', $item['parameters']) . ').');
+
+                        if ($test)
+                            continue;
+
+                        $this->dbi->dropFunction($item['name'], $item['parameters']);
+
+                    }else
+                        $this->log("I don't know how to remove a {$type}!");
+
+                    break;
+
+                case 'alter' :
+
+                    $this->log("> Altering $type $item_name");
+
+                    if ($test)
+                        continue;
+
+                    if ($type === 'table') {
+
+                        foreach($item as $alter_action => $columns) {
+
+                            foreach($columns as $col_name => $col) {
+
+                                if ($alter_action == 'add') {
+
+                                    $this->log("+ Adding column '$col[name]'.");
+
+                                    if ($test)
+                                        continue;
+
+                                    $this->dbi->addColumn($item_name, $col);
+
+                                } elseif ($alter_action == 'alter') {
+
+                                    $this->log("> Altering column '$col_name'.");
+
+                                    if($test)
+                                        continue;
+
+                                    $this->dbi->alterColumn($item_name, $col_name, $col);
+
+                                } elseif ($alter_action == 'drop') {
+
+                                    $this->log("- Dropping column '$col'.");
+
+                                    if ($test)
+                                        continue;
+
+                                    $this->dbi->dropColumn($item_name, $col);
+
+                                }
+
+                                if($this->dbi->errorCode() > 0)
+                                    throw new \Exception($this->dbi->errorInfo()[2]);
+
+                            }
+
+                        }
+
+                    } elseif ($type === 'view'){
+
+                        $this->dbi->dropView($item_name);
+
+                        if($this->dbi->errorCode() > 0)
+                            throw new \Exception($this->dbi->errorInfo()[2]);
+
+                        $this->dbi->createView($item_name, $item['content']);
+
+                    }elseif($type === 'function'){
+
+                        $params = array();
+
+                        foreach($item['parameters'] as $p) $params[] = $p['type'];
+
+                        $this->log("+ Replacing function '{$item['name']}(" . implode(', ', $params) . ').');
+
+                        if ($test)
+                            continue;
+
+                        $this->dbi->createFunction($item['name'], $item);
+
+                    } else {
+
+                        $this->log("I don't know how to alter a {$type}!");
+
+                    }
+
+                    break;
+
+                case 'rename' :
+
+                    $this->log("> Renaming $type item: $item[from] => $item[to]");
+
+                    if ($test)
+                        continue;
+
+                    if ($type == 'table')
+                        $this->dbi->renameTable($item['from'], $item['to']);
+
+                    else
+                        $this->log("I don't know how to rename a {$type}!");
+
+                    break;
+
+                default :
+                    $this->log("I don't know how to $action a {$type}!");
+
+                    break;
+
+            }
+
+            if($this->dbi->errorCode() > 0)
+                throw new \Exception($this->dbi->errorInfo()[2]);
+
+        }
+
+        return true;
 
     }
 
