@@ -654,12 +654,11 @@ abstract class BaseDriver implements Driver_Interface {
 
     public function tableExists($table) {
 
-        $info = new \Hazaar\DBI\Table($this, 'information_schema.tables');
+        $stmt = $this->query('SELECT EXISTS(SELECT * FROM information_schema.tables WHERE table_name='
+            . $this->quote($table) . ' AND table_schema='
+            . $this->quote($this->schema) . ');');
 
-        return $info->exists(array(
-            'table_name' => $table,
-            'table_schema' => $this->schema
-        ));
+        return $stmt->fetchColumn(0);
 
     }
 
@@ -735,16 +734,14 @@ abstract class BaseDriver implements Driver_Interface {
         if (!$sort)
             $sort = 'ordinal_position';
 
-        $info = new \Hazaar\DBI\Table($this, 'information_schema.columns');
-
-        $result = $info->find(array(
-            'table_name' => $name,
-            'table_schema' => $this->schema
-        ))->sort($sort);
+        $result = $this->query('SELECT * FROM information_schema.columns WHERE table_name='
+            . $this->quote($name) . ' AND table_schema='
+            . $this->quote($this->schema) . ' ORDER BY '
+            . $sort);
 
         $columns = array();
 
-        while($col = $result->row()) {
+        while($col = $result->fetch(\PDO::FETCH_ASSOC)) {
 
             $col = array_change_key_case($col, CASE_LOWER);
 
@@ -904,11 +901,9 @@ abstract class BaseDriver implements Driver_Interface {
 
     public function listSequences() {
 
-        $sql = "SELECT sequence_schema as schema, sequence_name as name
+        $result = $this->query("SELECT sequence_schema as schema, sequence_name as name
             FROM information_schema.sequences
-            WHERE sequence_schema NOT IN ( 'information_schema', 'pg_catalog');";
-
-        $result = $this->query($sql);
+            WHERE sequence_schema NOT IN ( 'information_schema', 'pg_catalog');");
 
         return $result->fetchAll(\PDO::FETCH_ASSOC);
 
