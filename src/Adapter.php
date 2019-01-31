@@ -785,10 +785,15 @@ class Adapter {
 
     }
 
+    /**
+     * Returns an instance of the Hazaar\DBI\Schema\Manager for managing database schema versions.
+     *
+     * @return Schema\Manager
+     */
     public function getSchemaManager(){
 
-        if(!$this->schema_manager instanceof SchemaManager)
-            $this->schema_manager = new SchemaManager($this);
+        if(!$this->schema_manager instanceof Schema\Manager)
+            $this->schema_manager = new Schema\Manager($this);
 
         return $this->schema_manager;
 
@@ -797,7 +802,7 @@ class Adapter {
     /**
      * Returns the current DBI schema versions
      *
-     * See: \Hazaar\DBI\SchemaManager::getSchemaVersion()
+     * See: \Hazaar\DBI\Schema\Manager::getSchemaVersion()
      *
      * @deprecated
      */
@@ -810,7 +815,7 @@ class Adapter {
     /**
      * Returns a list of all known schema versions
      *
-     * See: \Hazaar\DBI\SchemaManager::getSchemaVersions()
+     * See: \Hazaar\DBI\Schema\Manager::getSchemaVersions()
      *
      * @deprecated
      */
@@ -823,7 +828,7 @@ class Adapter {
     /**
      * Returns the version number of the latest schema version
      *
-     * See: \Hazaar\DBI\SchemaManager::getLatestSchemaVersion()
+     * See: \Hazaar\DBI\Schema\Manager::getLatestSchemaVersion()
      *
      * @deprecated
      */
@@ -836,7 +841,7 @@ class Adapter {
     /**
      * Checks if the current DBI schema is the latest versions
      *
-     * See: \Hazaar\DBI\SchemaManager::isSchemaLatest()
+     * See: \Hazaar\DBI\Schema\Manager::isSchemaLatest()
      *
      * @deprecated
      */
@@ -849,7 +854,7 @@ class Adapter {
     /**
      * Snapshot the database schema and create a new schema version with migration replay files.
      *
-     * See: \Hazaar\DBI\SchemaManager::snapshot()
+     * See: \Hazaar\DBI\Schema\Manager::snapshot()
      *
      * @deprecated
      */
@@ -862,7 +867,7 @@ class Adapter {
     /**
      * Database migration method.
      *
-     * See: \Hazaar\DBI\SchemaManager::migrate()
+     * See: \Hazaar\DBI\Schema\Manager::migrate()
      *
      * @deprecated
      */
@@ -875,7 +880,7 @@ class Adapter {
     /**
      * Takes a schema definition and creates it in the database.
      *
-     * See: \Hazaar\DBI\SchemaManager::createSchema()
+     * See: \Hazaar\DBI\Schema\Manager::createSchema()
      *
      * @deprecated
      */
@@ -888,7 +893,7 @@ class Adapter {
     /**
      * Synchonise schema data with the database
      *
-     * See: \Hazaar\DBI\SchemaManager::syncSchemaData()
+     * See: \Hazaar\DBI\Schema\Manager::syncSchemaData()
      *
      * @deprecated
      */
