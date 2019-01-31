@@ -1,7 +1,7 @@
 <?php
 
 /**
- * @file        Hazaar/Db/Adapter.php
+ * @file        Hazaar/DBI/DBD/BaseDriver.php
  *
  * @author      Jamie Carl <jamie@hazaarlabs.com>
  *
