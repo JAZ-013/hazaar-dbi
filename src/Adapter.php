@@ -253,30 +253,6 @@ class Adapter {
 
     }
 
-    public function beginTransaction() {
-
-        $this->checkConfig();
-
-        return $this->driver->beginTransaction();
-
-    }
-
-    public function commit() {
-
-        $this->checkConfig();
-
-        return $this->driver->commit();
-
-    }
-
-    public function getAttribute($option) {
-
-        $this->checkConfig();
-
-        return $this->driver->getAttribute($option);
-
-    }
-
     public function getAvailableDrivers() {
 
         $drivers = array();
@@ -291,70 +267,6 @@ class Adapter {
         }
 
         return $drivers;
-
-    }
-
-    public function inTransaction() {
-
-        $this->checkConfig();
-
-        return $this->driver->inTransaction();
-
-    }
-
-    public function lastInsertId() {
-
-        $this->checkConfig();
-
-        return $this->driver->lastInsertId();
-
-    }
-
-    public function quote($string) {
-
-        $this->checkConfig();
-
-        return $this->driver->quote($string);
-
-    }
-
-    public function rollBack() {
-
-        $this->checkConfig();
-
-        return $this->driver->rollback();
-
-    }
-
-    public function setAttribute() {
-
-        $this->checkConfig();
-
-        return $this->driver->setAttribute();
-
-    }
-
-    public function errorCode() {
-
-        $this->checkConfig();
-
-        return $this->driver->errorCode();
-
-    }
-
-    public function errorInfo() {
-
-        $this->checkConfig();
-
-        return $this->driver->errorInfo();
-
-    }
-
-    public function exec($sql) {
-
-        $this->checkConfig();
-
-        return $this->driver->exec($sql);
 
     }
 
@@ -379,62 +291,26 @@ class Adapter {
 
     }
 
-    public function insert($table, $fields, $returning = NULL) {
-
-        $this->checkConfig();
-
-        return $this->driver->insert($table, $fields, $returning);
-
-    }
-
-    public function update($table, $fields, $criteria = array()) {
-
-        $this->checkConfig();
-
-        return $this->driver->update($table, $fields, $criteria);
-
-    }
-
-    public function delete($table, $criteria) {
-
-        $this->checkConfig();
-
-        return $this->driver->delete($table, $criteria);
-
-    }
-
-    public function deleteAll($table) {
-
-        $this->checkConfig();
-
-        return $this->driver->deleteAll($table);
-
-    }
-
     public function __get($tablename) {
 
         return $this->table($tablename);
 
     }
 
-    public function __call($tablename, $args) {
+    public function __call($arg, $args) {
 
-        $args = array_merge(array(
-            $tablename
-        ), $args);
+        $this->checkConfig();
 
-        return call_user_func_array(array(
-            $this,
-            'table'
-        ), $args);
+        if(method_exists($this->driver, $arg))
+            return call_user_func_array(array($this->driver, $arg), $args);
+
+        return $this->table($arg, ake($args, 0));
 
     }
 
     public function table($name, $alias = NULL) {
 
-        $this->checkConfig();
-
-        return new Table($this->driver, $name, $alias, $this->options);
+        return new Table($this, $name, $alias, $this->options);
 
     }
 
@@ -448,139 +324,6 @@ class Adapter {
         $sql = 'SELECT ' . $method . '(' . implode(',', $arglist) . ');';
 
         return $this->query($sql);
-
-    }
-
-    /**
-     * List all tables currently in the connected database.
-     *
-     * @since 2.0
-     */
-    public function listTables() {
-
-        $this->checkConfig();
-
-        return $this->driver->listTables();
-
-    }
-
-    /**
-     * Test that a table exists in the connected database.
-     *
-     * @param string $table
-     *            The name of the table to check for.
-     *
-     * @param string $schema
-     *            The database schema to look in. Defaults to public.
-     */
-    public function tableExists($table) {
-
-        $this->checkConfig();
-
-        return $this->driver->tableExists($table);
-
-    }
-
-    /**
-     * Create a new table in the database.
-     *
-     * @param string $name
-     *
-     * @param array $columns
-     */
-    public function createTable($name, $columns) {
-
-        $this->checkConfig();
-
-        return $this->driver->createTable($name, $columns);
-
-    }
-
-    public function describeTable($name, $sort = NULL) {
-
-        $this->checkConfig();
-
-        return $this->driver->describeTable($name, $sort);
-
-    }
-
-    public function renameTable($from_name, $to_name) {
-
-        $this->checkConfig();
-
-        return $this->driver->renameTable($from_name, $to_name);
-
-    }
-
-    public function dropTable($name, $cascade = false) {
-
-        $this->checkConfig();
-
-        return $this->driver->dropTable($name, $cascade);
-
-    }
-
-    public function addColumn($table, $column_spec) {
-
-        $this->checkConfig();
-
-        return $this->driver->addColumn($table, $column_spec);
-
-    }
-
-    public function alterColumn($table, $column, $column_spec) {
-
-        $this->checkConfig();
-
-        return $this->driver->alterColumn($table, $column, $column_spec);
-
-    }
-
-    public function dropColumn($table, $column) {
-
-        $this->checkConfig();
-
-        return $this->driver->dropColumn($table, $column);
-
-    }
-
-    public function listSequences() {
-
-        $this->checkConfig();
-
-        return $this->driver->listSequences();
-
-    }
-
-    public function describeSequence($name) {
-
-        $this->checkConfig();
-
-        return $this->driver->describeSequence($name);
-
-    }
-
-    public function listIndexes($table = NULL) {
-
-        $this->checkConfig();
-
-        return $this->driver->listIndexes($table);
-
-    }
-
-    public function createIndex($index_name, $table_name, $idx_info) {
-
-        $this->checkConfig();
-
-        return $this->driver->createIndex($index_name, $table_name, $idx_info);
-
-    }
-
-    public function dropIndex($name) {
-
-        $this->checkConfig();
-
-        return $this->driver->dropIndex($name);
 
     }
 
@@ -605,138 +348,6 @@ class Adapter {
         $this->checkConfig();
 
         return $this->driver->listConstraints($table, $type, $invert_type);
-
-    }
-
-    public function addConstraint($name, $info) {
-
-        $this->checkConfig();
-
-        return $this->driver->addConstraint($name, $info);
-
-    }
-
-    public function dropConstraint($name, $table, $cascade = false) {
-
-        $this->checkConfig();
-
-        return $this->driver->dropConstraint($name, $table, $cascade);
-
-    }
-
-    /**
-     * List views
-     */
-    public function listViews(){
-
-        $this->checkConfig();
-
-        return $this->driver->listViews();
-
-    }
-
-    /**
-     * Describe a view
-     *
-     * @param mixed $name
-     * @throws Exception\DriverNotSpecified
-     * @return mixed
-     */
-    public function describeView($name){
-
-        $this->checkConfig();
-
-        return $this->driver->describeView($name);
-
-    }
-
-    /**
-     * Create a new view
-     * @param mixed $name
-     * @throws Exception\DriverNotSpecified
-     * @return mixed
-     */
-    public function createView($name, $sql){
-
-        $this->checkConfig();
-
-        return $this->driver->createView($name, $sql);
-
-    }
-
-    /**
-     * Delete/drop a view
-     * @param mixed $name
-     * @throws Exception\DriverNotSpecified
-     * @return mixed
-     */
-    public function dropView($name, $cascade = false){
-
-        $this->checkConfig();
-
-        return $this->driver->dropView($name, $cascade);
-
-    }
-
-    /**
-     * List functions
-     */
-    public function listFunctions(){
-
-        $this->checkConfig();
-
-        return $this->driver->listFunctions();
-
-    }
-
-    /**
-     * Describe a function
-     *
-     * @param mixed $name
-     * @throws Exception\DriverNotSpecified
-     * @return mixed
-     */
-    public function describeFunction($name){
-
-        $this->checkConfig();
-
-        return $this->driver->describeFunction($name);
-
-    }
-
-    /**
-     * Create a new function
-     * @param mixed $name
-     * @throws Exception\DriverNotSpecified
-     * @return mixed
-     */
-    public function createFunction($name, $spec){
-
-        $this->checkConfig();
-
-        return $this->driver->createFunction($name, $spec);
-
-    }
-
-    /**
-     * Delete/drop a function
-     * @param mixed $name
-     * @throws Exception\DriverNotSpecified
-     * @return mixed
-     */
-    public function dropFunction($name, $arg_types = array(), $cascade = false){
-
-        $this->checkConfig();
-
-        return $this->driver->dropFunction($name, $arg_types, $cascade);
-
-    }
-
-    public function execCount() {
-
-        $this->checkConfig();
-
-        return $this->driver->execCount();
 
     }
 
