@@ -277,7 +277,7 @@ class Adapter {
         $result = $this->driver->query($sql);
 
         if($result instanceof \PDOStatement)
-            return new Result($result);
+            return new Result($this, $result);
 
         return $result;
 

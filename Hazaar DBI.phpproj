@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <PropertyGroup>
     <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
@@ -16,7 +16,7 @@
     <IncludeDebugInformation>false</IncludeDebugInformation>
   </PropertyGroup>
   <ItemGroup>
-    <Compile Include="src\SchemaManager.php" />
+    <Compile Include="src\Exception\NotConfigured.php" />
     <Compile Include="src\Schema\Manager.php" />
     <Compile Include="src\DBD\Exception\NoUpdate.php" />
     <Compile Include="src\DBD\BaseDriver.php" />
@@ -31,6 +31,7 @@
     <Compile Include="src\File\Backend\DBI.php" />
     <Compile Include="src\Result.php" />
     <Compile Include="src\Console.php" />
+    <Compile Include="src\Result\Record.php" />
     <Compile Include="src\Table.php" />
   </ItemGroup>
   <ItemGroup>
@@ -45,6 +46,7 @@
     <Folder Include="src\File\" />
     <Folder Include="src\File\Backend\" />
     <Folder Include="src\Schema\" />
+    <Folder Include="src\Result\" />
   </ItemGroup>
   <ItemGroup>
     <Content Include="composer.json" />
