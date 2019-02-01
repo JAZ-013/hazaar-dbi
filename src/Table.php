@@ -356,7 +356,7 @@ class Table {
      * @param string $type The join type such as INNER, OUTER, LEFT, RIGHT, etc.
      * @return Table
      */
-    public function join($references, $on = array(), $alias = NULL, $type = 'INNER') {
+    public function join($references, $on, $alias = NULL, $type = 'INNER') {
 
         if (!$type)
             $type = 'INNER';
