@@ -160,7 +160,8 @@ final class Row extends \Hazaar\Model\Strict {
 
                 }
 
-                $sql .= ' FROM ' . implode(', ', $from);
+                if(count($from) > 0)
+                    $sql .= ' FROM ' . implode(', ', $from);
 
             }
 
