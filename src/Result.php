@@ -43,8 +43,10 @@ class Result implements \ArrayAccess, \Countable, \Iterator {
 
     private $type_map = array(
         'text'      => 'string',
+        'varchar'   => 'string',
         'int2'      => 'integer',
         'int4'      => 'integer',
+        'int8'      => 'integer',
         'timestamp' => '\Hazaar\Date'
     );
 
@@ -76,7 +78,10 @@ class Result implements \ArrayAccess, \Countable, \Iterator {
             if(array_key_exists($meta['name'], $this->meta))
                 continue;
 
-            $def = array('table' => $meta['table']);
+            $def = array();
+
+            if(array_key_exists('table', $meta))
+                $def['table'] = $meta['table'];
 
             if(substr($meta['native_type'], 0, 1) == '_'){
 

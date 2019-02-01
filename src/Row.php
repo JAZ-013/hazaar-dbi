@@ -56,6 +56,9 @@ final class Row extends \Hazaar\Model\Strict {
             if($def['changed'] !== true)
                 continue;
 
+            if(!array_key_exists('table', $def))
+                throw new \Exception('Unable to update ' . $key . ' with unknown table');
+
             $changes[$def['table']][] = $key . '=' . $this->adapter->prepareValue($this->get($key));
 
         }
