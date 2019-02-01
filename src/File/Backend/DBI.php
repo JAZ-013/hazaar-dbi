@@ -35,7 +35,7 @@ class DBI implements _Interface {
 
     public function loadRootObject() {
 
-        if(! ($this->rootObject = $this->db->file->findOne(array('parents' => null)))) {
+        if(! ($row = $this->db->file->findOne(array('parents' => null)))) {
 
             $root = array(
                 'kind'         => 'dir',
@@ -62,6 +62,10 @@ class DBI implements _Interface {
              */
             $this->fsck();
 
+        }else{
+
+            $this->rootObject = $row->toArray();
+
         }
 
         if(!$this->rootObject['created_on'] instanceof \Hazaar\Date)
@@ -76,7 +80,7 @@ class DBI implements _Interface {
 
     private function loadObjects(&$parent = null) {
 
-        if(!$parent instanceof \Hazaar\DBI\Row)
+        if(!is_array($parent))
             return false;
 
         $q = $this->db->query('SELECT * FROM "file" WHERE filename IS NOT NULL AND ' . $parent['id'] . ' = ANY(parents);');
@@ -84,7 +88,7 @@ class DBI implements _Interface {
         $parent['items'] = array();
 
         while($object = $q->row())
-            $parent['items'][$object['filename']] = $object;
+            $parent['items'][$object['filename']] = $object->toArray();
 
         return true;
 
@@ -115,7 +119,7 @@ class DBI implements _Interface {
             if($part === '')
                 continue;
 
-            if(!($parent->has('items') && is_array($parent['items'])))
+            if(!(array_key_exists('items', $parent) && is_array($parent['items'])))
                 $this->loadObjects($parent);
 
             if(!array_key_exists($part, $parent['items']))
@@ -183,7 +187,7 @@ class DBI implements _Interface {
         if(! ($parent = $this->info($path)))
             return false;
 
-        if(! $parent->has('items'))
+        if(! array_key_exists('items', $parent))
             $this->loadObjects($parent);
 
         $list = array();
@@ -356,7 +360,7 @@ class DBI implements _Interface {
 
         $info['id'] = $id;
 
-        if(!$parent->has('items'))
+        if(!array_key_exists('items', $parent))
             $parent['items'] = array();
 
         $parent['items'][$info['filename']] = $info;
@@ -481,7 +485,7 @@ class DBI implements _Interface {
 
             if($this->db->file->update(array('id' => $info['id']), $data)){
 
-                if(!$parent->has('items'))
+                if(!array_key_exists('items', $parent))
                     $parent['items'] = array();
 
                 $parent['items'][$info['filename']] = $info;
@@ -528,7 +532,7 @@ class DBI implements _Interface {
 
                 $fileInfo['id'] = $id;
 
-                if(!$parent->has('items'))
+                if(!array_key_exists('items', $parent))
                     $parent['items'] = array();
 
                 $parent['items'][$fileInfo['filename']] = $fileInfo;
@@ -582,7 +586,7 @@ class DBI implements _Interface {
         if(!$this->db->file->update(array('id' => $source['id']), $data))
             return false;
 
-        if(! $dstParent->has('items'))
+        if(! array_key_exists('items', $dstParent))
             $dstParent['items'] = array();
 
         $dstParent['items'][$source['filename']] = $source;
@@ -624,7 +628,7 @@ class DBI implements _Interface {
         if(!$this->db->file->update(array('id' => $source['id']), $data))
             return false;
 
-        if(!$dstParent->has('items'))
+        if(! array_key_exists('items', $dstParent))
             $dstParent['items'] = array();
 
         $dstParent['items'][$source['filename']] = $source;
