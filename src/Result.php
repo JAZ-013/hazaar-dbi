@@ -47,7 +47,8 @@ class Result implements \ArrayAccess, \Countable, \Iterator {
         'int2'      => 'integer',
         'int4'      => 'integer',
         'int8'      => 'integer',
-        'timestamp' => '\Hazaar\Date'
+        'timestamp' => '\Hazaar\Date',
+        'bool'      => 'boolean'
     );
 
     private $meta;
@@ -85,24 +86,26 @@ class Result implements \ArrayAccess, \Countable, \Iterator {
 
             if(substr($meta['native_type'], 0, 1) == '_'){
 
-                $nt = $type = substr($meta['native_type'], 1);
+                $type = substr($meta['native_type'], 1);
 
-                $type = array_key_exists($nt, $this->type_map) ? $this->type_map[$nt] : $nt;
+                if(!array_key_exists($type, $this->type_map))
+                    throw new \Exception('Unknown native type: ' . $type);
 
                 $def['type'] = 'array';
 
-                $def['arrayOf'] = $type;
+                $def['arrayOf'] =  $this->type_map[$type];
 
             }elseif ($meta['pdo_type'] == \PDO::PARAM_STR && (substr(ake($meta, 'native_type'), 0, 4) == 'json'
                     || (!array_key_exists('native_type', $meta) && in_array('blob', ake($meta, 'flags'))))){
-
-                $def['type'] = 'model';
 
                 $def['prepare'] = function($value){ return json_decode($value); };
 
             }else{
 
-                $def['type'] = array_key_exists($meta['native_type'], $this->type_map) ? $this->type_map[$meta['native_type']] : $meta['native_type'];
+                if(!array_key_exists($meta['native_type'], $this->type_map))
+                    throw new \Exception('Unknown native type: ' . $meta['native_type']);
+
+                $def['type'] = $this->type_map[$meta['native_type']];
 
             }
 
