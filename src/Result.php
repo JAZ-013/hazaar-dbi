@@ -45,30 +45,37 @@ class Result implements \ArrayAccess, \Countable, \Iterator {
 
         $this->statement = $statement;
 
-        if ($statement instanceof \PDOStatement) {
+        $this->processStatement($statement);
 
-            for($i = 0; $i < $this->statement->columnCount(); $i++) {
+    }
 
-                $meta = $this->statement->getColumnMeta($i);
+    private function processStatement($statement){
 
-                if(substr($meta['native_type'], 0, 1) == '_'){ //It's an array!
+        if (!$statement instanceof \PDOStatement || $this->statement->columnCount() === 0)
+            return false;
 
-                    $this->array_columns[] = array(substr($meta['native_type'], 1), $meta['name']);
+        for($i = 0; $i < $this->statement->columnCount(); $i++) {
 
-                }elseif ($meta['pdo_type'] == \PDO::PARAM_STR
-                && (substr(ake($meta, 'native_type'), 0, 4) == 'json'
-                || (!array_key_exists('native_type', $meta) && in_array('blob', ake($meta, 'flags')))
-                )
-                ){
+            $meta = $this->statement->getColumnMeta($i);
 
-                    $this->array_columns[] = array('json', $meta['name']);
+            if(substr($meta['native_type'], 0, 1) == '_'){ //It's an array!
 
-                }
+                $this->array_columns[] = array(substr($meta['native_type'], 1), $meta['name']);
 
+            }elseif ($meta['pdo_type'] == \PDO::PARAM_STR
+            && (substr(ake($meta, 'native_type'), 0, 4) == 'json'
+            || (!array_key_exists('native_type', $meta) && in_array('blob', ake($meta, 'flags')))
+            )
+            ){
+
+                $this->array_columns[] = array('json', $meta['name']);
 
             }
 
+
         }
+
+        return true;
 
     }
 
@@ -165,7 +172,11 @@ class Result implements \ArrayAccess, \Countable, \Iterator {
 
         $this->reset = false;
 
-        return $this->statement->execute($input_parameters);
+        $result = $this->statement->execute($input_parameters);
+
+        $this->processStatement($this->statement);
+
+        return $result;
 
     }
 
