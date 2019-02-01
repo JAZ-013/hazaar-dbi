@@ -252,6 +252,7 @@ class Table {
 
             if (!($this->result = $this->adapter->query($sql)))
                 throw new \Exception($this->adapter->errorinfo()[2]);
+
         }
 
         return $this->result;

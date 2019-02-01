@@ -31,7 +31,7 @@
     <Compile Include="src\File\Backend\DBI.php" />
     <Compile Include="src\Result.php" />
     <Compile Include="src\Console.php" />
-    <Compile Include="src\Result\Record.php" />
+    <Compile Include="src\Row.php" />
     <Compile Include="src\Table.php" />
   </ItemGroup>
   <ItemGroup>
