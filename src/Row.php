@@ -87,7 +87,7 @@ final class Row extends \Hazaar\Model\Strict {
 
         $tables = array();
 
-        if(!preg_match('/FROM\s+(\w+)(\s+(\w+))/', $this->statement->queryString, $matches))
+        if(!preg_match('/FROM\s+"?(\w+)"?(\s+"?(\w+)"?)/', $this->statement->queryString, $matches))
             throw new \Exception('Can\'t figure out which table we\'re updating!');
 
         //Find the primary key for the primary table so we know which row we are updating
@@ -111,7 +111,7 @@ final class Row extends \Hazaar\Model\Strict {
             throw new \Exception('Missing primary key in selection!');
 
         //Check and process joins
-        if(preg_match_all('/JOIN\s+(\w+)(\s(\w+))?\s+ON\s+([\w\.]+)\s?([\!=<>])\s?([\w\.]+)/i', $this->statement->queryString, $matches)){
+        if(preg_match_all('/JOIN\s+"?(\w+)"?(\s"?(\w+)"?)?\s+ON\s+("?[\w\.]+"?)\s?([\!=<>])\s?("?[\w\.]+"?)/i', $this->statement->queryString, $matches)){
 
             foreach($matches[0] as $idx => $match){
 
