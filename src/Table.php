@@ -260,6 +260,36 @@ class Table {
     }
 
     /**
+     * Prepare a statement for execution and returns a new \Hazaar\Result object
+     *
+     * The criteria can contain zero or more names (:name) or question mark (?) parameter markers for which
+     * real values will be substituted when the statement is executed. Both named and question mark parameter
+     * markers cannot be used within the same statement template; only one or the other parameter style. Use
+     * these parameters to bind any user-input, do not include the user-input directly in the query.
+     *
+     * You must include a unique parameter marker for each value you wish to pass in to the statement when you
+     * call \Hazaar\Result::execute(). You cannot use a named parameter marker of the same name more than once
+     * in a prepared statement.
+     *
+     * @param mixed $criteria   The query selection criteria.
+     * @param mixed $fields     The field selection.
+     * @throws \Exception
+     * @return null
+     */
+    public function prepare($criteria = array(), $fields = array()){
+
+        $this->find($criteria, $fields);
+
+        if ($stmt = $this->adapter->prepare($this->toString()))
+            $this->result = new Result($this->adapter, $stmt);
+        else
+            throw new \Exception($this->driver->errorinfo()[2]);
+
+        return $this->result;
+
+    }
+
+    /**
      * Defined the current field selection definition
      *
      * @param mixed $fields A valid field definition

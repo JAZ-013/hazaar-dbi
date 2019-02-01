@@ -58,47 +58,54 @@ class Result implements \ArrayAccess, \Countable, \Iterator {
 
         $this->statement = $statement;
 
-        if ($statement instanceof \PDOStatement) {
+        $this->processStatement($statement);
 
-            $this->meta = array();
+    }
 
-            for($i = 0; $i < $this->statement->columnCount(); $i++){
+    private function processStatement(\PDOStatement $statement){
 
-                $meta = $this->statement->getColumnMeta($i);
+        if (!$statement instanceof \PDOStatement || $statement->rowCount() === 0)
+            return false;
 
-                if(array_key_exists($meta['name'], $this->meta))
-                    continue;
+        $this->meta = array();
 
-                $def = array('table' => $meta['table']);
+        for($i = 0; $i < $this->statement->columnCount(); $i++){
 
-                if(substr($meta['native_type'], 0, 1) == '_'){
+            $meta = $this->statement->getColumnMeta($i);
 
-                    $nt = $type = substr($meta['native_type'], 1);
+            if(array_key_exists($meta['name'], $this->meta))
+                continue;
 
-                    $type = array_key_exists($nt, $this->type_map) ? $this->type_map[$nt] : $nt;
+            $def = array('table' => $meta['table']);
 
-                    $def['type'] = 'array';
+            if(substr($meta['native_type'], 0, 1) == '_'){
 
-                    $def['arrayOf'] = $type;
+                $nt = $type = substr($meta['native_type'], 1);
 
-                }elseif ($meta['pdo_type'] == \PDO::PARAM_STR && (substr(ake($meta, 'native_type'), 0, 4) == 'json'
-                        || (!array_key_exists('native_type', $meta) && in_array('blob', ake($meta, 'flags'))))){
+                $type = array_key_exists($nt, $this->type_map) ? $this->type_map[$nt] : $nt;
 
-                    $def['type'] = 'model';
+                $def['type'] = 'array';
 
-                    $def['prepare'] = function($value){ return json_decode($value); };
+                $def['arrayOf'] = $type;
 
-                }else{
+            }elseif ($meta['pdo_type'] == \PDO::PARAM_STR && (substr(ake($meta, 'native_type'), 0, 4) == 'json'
+                    || (!array_key_exists('native_type', $meta) && in_array('blob', ake($meta, 'flags'))))){
 
-                    $def['type'] = array_key_exists($meta['native_type'], $this->type_map) ? $this->type_map[$meta['native_type']] : $meta['native_type'];
+                $def['type'] = 'model';
 
-                }
+                $def['prepare'] = function($value){ return json_decode($value); };
 
-                $this->meta[$meta['name']] = $def;
+            }else{
+
+                $def['type'] = array_key_exists($meta['native_type'], $this->type_map) ? $this->type_map[$meta['native_type']] : $meta['native_type'];
 
             }
 
+            $this->meta[$meta['name']] = $def;
+
         }
+
+        return true;
 
     }
 
@@ -188,9 +195,6 @@ class Result implements \ArrayAccess, \Countable, \Iterator {
 
     public function execute($input_parameters = array()) {
 
-        if($this->reset !== true)
-            return true;
-
         if (!is_array($input_parameters))
             $input_parameters = array(
                 $input_parameters
@@ -198,7 +202,11 @@ class Result implements \ArrayAccess, \Countable, \Iterator {
 
         $this->reset = false;
 
-        return $this->statement->execute($input_parameters);
+        $result = $this->statement->execute($input_parameters);
+
+        $this->processStatement($this->statement);
+
+        return $result;
 
     }
 
