@@ -29,7 +29,7 @@ namespace Hazaar\DBI;
  */
 class Table {
 
-    private $driver;
+    private $adapter;
 
     private $name;
 
@@ -59,9 +59,9 @@ class Table {
 
     static private $default_checkstring = '!!';
 
-    function __construct(DBD\BaseDriver $driver, $name, $alias = NULL, $options = null) {
+    function __construct(Adapter $adapter, $name, $alias = NULL, $options = null) {
 
-        $this->driver = $driver;
+        $this->adapter = $adapter;
 
         $this->name = $name;
 
@@ -75,7 +75,7 @@ class Table {
 
     private function from() {
 
-        return $this->driver->quoteSpecial($this->name) . ($this->alias ? ' ' . $this->alias : NULL);
+        return $this->adapter->quoteSpecial($this->name) . ($this->alias ? ' ' . $this->alias : NULL);
 
     }
 
@@ -133,15 +133,15 @@ class Table {
     public function exists($criteria = null) {
 
         if($criteria === null && !$this->criteria)
-            return $this->driver->tableExists($this->name);
+            return $this->adapter->tableExists($this->name);
 
         if($criteria !== null)
-            $sql = 'SELECT EXISTS (SELECT * FROM ' . $this->from() . ' WHERE ' . $this->driver->prepareCriteria($criteria) . ');';
+            $sql = 'SELECT EXISTS (SELECT * FROM ' . $this->from() . ' WHERE ' . $this->adapter->prepareCriteria($criteria) . ');';
         else
             $sql = 'SELECT EXISTS (' . $this->toString(false) . ');';
 
-        if (!($result = $this->driver->query($sql)))
-            throw new \Exception($this->driver->errorInfo()[2]);
+        if (!($result = $this->adapter->query($sql)))
+            throw new \Exception($this->adapter->errorInfo()[2]);
 
         return boolify($result->fetchColumn(0));
 
@@ -167,7 +167,7 @@ class Table {
         if (!is_array($this->fields) || count($this->fields) == 0)
             $sql .= ' *';
         else
-            $sql .= ' ' . $this->driver->prepareFields($this->fields);
+            $sql .= ' ' . $this->adapter->prepareFields($this->fields);
 
         $sql .= ' FROM ' . $this->from();
 
@@ -175,17 +175,17 @@ class Table {
 
             foreach($this->joins as $join) {
 
-                $sql .= ' ' . $join['type'] . ' JOIN ' . $this->driver->field($join['ref']);
+                $sql .= ' ' . $join['type'] . ' JOIN ' . $this->adapter->field($join['ref']);
 
                 if ($join['alias'])
                     $sql .= ' ' . $join['alias'];
 
-                $sql .= ' ON ' . $this->driver->prepareCriteria($join['on']);
+                $sql .= ' ON ' . $this->adapter->prepareCriteria($join['on']);
             }
         }
 
         if(is_array($this->criteria) && count($this->criteria) > 0)
-            $sql .= ' WHERE ' . $this->driver->prepareCriteria($this->criteria);
+            $sql .= ' WHERE ' . $this->adapter->prepareCriteria($this->criteria);
 
         if ($this->order) {
 
@@ -220,10 +220,10 @@ class Table {
         }
 
         if(count($this->group) > 0)
-            $sql .= ' GROUP BY ' . $this->driver->prepareFields($this->group);
+            $sql .= ' GROUP BY ' . $this->adapter->prepareFields($this->group);
 
         if (count($this->having) > 0)
-            $sql .= ' HAVING ' . $this->driver->prepareCriteria($this->having);
+            $sql .= ' HAVING ' . $this->adapter->prepareCriteria($this->having);
 
         if ($this->limit !== NULL)
             $sql .= ' LIMIT ' . (string) (int) $this->limit;
@@ -250,11 +250,40 @@ class Table {
 
             $sql = $this->toString();
 
-            if ($stmt = $this->driver->query($sql))
-                $this->result = new Result($stmt);
-            else
-                throw new \Exception($this->driver->errorinfo()[2]);
+            if (!($this->result = $this->adapter->query($sql)))
+                throw new \Exception($this->adapter->errorinfo()[2]);
+
         }
+
+        return $this->result;
+
+    }
+
+    /**
+     * Prepare a statement for execution and returns a new \Hazaar\Result object
+     *
+     * The criteria can contain zero or more names (:name) or question mark (?) parameter markers for which
+     * real values will be substituted when the statement is executed. Both named and question mark parameter
+     * markers cannot be used within the same statement template; only one or the other parameter style. Use
+     * these parameters to bind any user-input, do not include the user-input directly in the query.
+     *
+     * You must include a unique parameter marker for each value you wish to pass in to the statement when you
+     * call \Hazaar\Result::execute(). You cannot use a named parameter marker of the same name more than once
+     * in a prepared statement.
+     *
+     * @param mixed $criteria   The query selection criteria.
+     * @param mixed $fields     The field selection.
+     * @throws \Exception
+     * @return null
+     */
+    public function prepare($criteria = array(), $fields = array()){
+
+        $this->find($criteria, $fields);
+
+        if ($stmt = $this->adapter->prepare($this->toString()))
+            $this->result = new Result($this->adapter, $stmt);
+        else
+            throw new \Exception($this->driver->errorinfo()[2]);
 
         return $this->result;
 
@@ -400,25 +429,25 @@ class Table {
 
     public function insert($fields, $returning = NULL) {
 
-        return $this->driver->insert($this->name, $this->encrypt($fields), $returning);
+        return $this->adapter->insert($this->name, $this->encrypt($fields), $returning);
 
     }
 
     public function update($criteria, $fields) {
 
-        return $this->driver->update($this->name, $this->encrypt($fields), $criteria);
+        return $this->adapter->update($this->name, $this->encrypt($fields), $criteria);
 
     }
 
     public function delete($criteria) {
 
-        return $this->driver->delete($this->name, $criteria);
+        return $this->adapter->delete($this->name, $criteria);
 
     }
 
     public function deleteAll() {
 
-        return $this->driver->deleteAll($this->name);
+        return $this->adapter->deleteAll($this->name);
 
     }
 
@@ -570,25 +599,20 @@ class Table {
 
                 foreach($this->joins as $join) {
 
-                    $sql .= ' ' . $join['type'] . ' JOIN ' . $this->driver->field($join['ref']);
+                    $sql .= ' ' . $join['type'] . ' JOIN ' . $this->adapter->field($join['ref']);
 
                     if ($join['alias'])
                         $sql .= ' ' . $join['alias'];
 
-                    $sql .= ' ON ' . $this->driver->prepareCriteria($join['on']);
+                    $sql .= ' ON ' . $this->adapter->prepareCriteria($join['on']);
                 }
             }
 
             if ($this->criteria)
-                $sql .= ' WHERE ' . $this->driver->prepareCriteria($this->criteria);
+                $sql .= ' WHERE ' . $this->adapter->prepareCriteria($this->criteria);
 
-            if ($stmt = $this->driver->query($sql)) {
-
-                $result = new Result($stmt);
-
+            if ($result = $this->adapter->query($sql))
                 return (int)$result->fetchColumn(0);
-
-            }
 
         }
 

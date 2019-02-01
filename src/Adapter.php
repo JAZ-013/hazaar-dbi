@@ -62,21 +62,15 @@ class Adapter {
 
         $config = null;
 
-        if ($config_env == NULL || is_string($config_env)) {
-
+        if ($config_env === NULL || is_string($config_env))
             $config = $this->getDefaultConfig($config_env);
-
-        } elseif (is_array($config_env)) {
-
+        elseif (is_array($config_env))
             $config = new \Hazaar\Map($config_env);
-
-        } elseif ($config_env instanceof \Hazaar\Map) {
-
+        elseif ($config_env instanceof \Hazaar\Map)
             $config = $config_env;
 
-        }
-
-        $this->configure($config);
+        if($config !== NULL)
+            $this->configure($config);
 
     }
 
@@ -133,6 +127,18 @@ class Adapter {
 
     }
 
+    private function checkConfig(){
+
+        if(!$this->config)
+            throw new Exception\NotConfigured();
+
+        if(!$this->driver)
+            throw new Exception\DriverNotSpecified();
+
+        return true;
+
+    }
+
     static public function getDriverClass($driver){
 
         return 'Hazaar\DBI\DBD\\' . ucfirst($driver);
@@ -155,7 +161,7 @@ class Adapter {
 
         if (!array_key_exists($env, Adapter::$default_config)){
 
-            $config = new \Hazaar\Application\Config('database', $env);
+            $config = new \Hazaar\Application\Config('database', $env, array(), FILE_PATH_CONFIG, true);
 
             if(!$config->loaded())
                 return null;
@@ -239,39 +245,11 @@ class Adapter {
 
     public function getDriver() {
 
-        if(!$this->driver)
-            throw new Exception\DriverNotSpecified();
+        $this->checkConfig();
 
         $class = get_class($this->driver);
 
         return substr($class, strrpos($class, '\\') + 1);
-
-    }
-
-    public function beginTransaction() {
-
-        if(!$this->driver)
-            throw new Exception\DriverNotSpecified();
-
-        return $this->driver->beginTransaction();
-
-    }
-
-    public function commit() {
-
-        if(!$this->driver)
-            throw new Exception\DriverNotSpecified();
-
-        return $this->driver->commit();
-
-    }
-
-    public function getAttribute($option) {
-
-        if(!$this->driver)
-            throw new Exception\DriverNotSpecified();
-
-        return $this->driver->getAttribute($option);
 
     }
 
@@ -292,87 +270,14 @@ class Adapter {
 
     }
 
-    public function inTransaction() {
-
-        if(!$this->driver)
-            throw new Exception\DriverNotSpecified();
-
-        return $this->driver->inTransaction();
-
-    }
-
-    public function lastInsertId() {
-
-        if(!$this->driver)
-            throw new Exception\DriverNotSpecified();
-
-        return $this->driver->lastInsertId();
-
-    }
-
-    public function quote($string) {
-
-        if(!$this->driver)
-            throw new Exception\DriverNotSpecified();
-
-        return $this->driver->quote($string);
-
-    }
-
-    public function rollBack() {
-
-        if(!$this->driver)
-            throw new Exception\DriverNotSpecified();
-
-        return $this->driver->rollback();
-
-    }
-
-    public function setAttribute() {
-
-        if(!$this->driver)
-            throw new Exception\DriverNotSpecified();
-
-        return $this->driver->setAttribute();
-
-    }
-
-    public function errorCode() {
-
-        if(!$this->driver)
-            throw new Exception\DriverNotSpecified();
-
-        return $this->driver->errorCode();
-
-    }
-
-    public function errorInfo() {
-
-        if(!$this->driver)
-            throw new Exception\DriverNotSpecified();
-
-        return $this->driver->errorInfo();
-
-    }
-
-    public function exec($sql) {
-
-        if(!$this->driver)
-            throw new Exception\DriverNotSpecified();
-
-        return $this->driver->exec($sql);
-
-    }
-
     public function query($sql) {
 
-        if(!$this->driver)
-            throw new Exception\DriverNotSpecified();
+        $this->checkConfig();
 
         $result = $this->driver->query($sql);
 
         if($result instanceof \PDOStatement)
-            return new Result($result);
+            return new Result($this, $result);
 
         return $result;
 
@@ -380,46 +285,9 @@ class Adapter {
 
     public function exists($table, $criteria = array()) {
 
-        if(!$this->driver)
-            throw new Exception\DriverNotSpecified();
+        $this->checkConfig();
 
         return $this->table($table)->exists($criteria);
-
-    }
-
-    public function insert($table, $fields, $returning = NULL) {
-
-        if(!$this->driver)
-            throw new Exception\DriverNotSpecified();
-
-        return $this->driver->insert($table, $fields, $returning);
-
-    }
-
-    public function update($table, $fields, $criteria = array()) {
-
-        if(!$this->driver)
-            throw new Exception\DriverNotSpecified();
-
-        return $this->driver->update($table, $fields, $criteria);
-
-    }
-
-    public function delete($table, $criteria) {
-
-        if(!$this->driver)
-            throw new Exception\DriverNotSpecified();
-
-        return $this->driver->delete($table, $criteria);
-
-    }
-
-    public function deleteAll($table) {
-
-        if(!$this->driver)
-            throw new Exception\DriverNotSpecified();
-
-        return $this->driver->deleteAll($table);
 
     }
 
@@ -429,25 +297,20 @@ class Adapter {
 
     }
 
-    public function __call($tablename, $args) {
+    public function __call($arg, $args) {
 
-        $args = array_merge(array(
-            $tablename
-        ), $args);
+        $this->checkConfig();
 
-        return call_user_func_array(array(
-            $this,
-            'table'
-        ), $args);
+        if(method_exists($this->driver, $arg))
+            return call_user_func_array(array($this->driver, $arg), $args);
+
+        return $this->table($arg, ake($args, 0));
 
     }
 
     public function table($name, $alias = NULL) {
 
-        if(!$this->driver)
-            throw new Exception\DriverNotSpecified();
-
-        return new Table($this->driver, $name, $alias, $this->options);
+        return new Table($this, $name, $alias, $this->options);
 
     }
 
@@ -464,157 +327,9 @@ class Adapter {
 
     }
 
-    /**
-     * List all tables currently in the connected database.
-     *
-     * @since 2.0
-     */
-    public function listTables() {
-
-        if(!$this->driver)
-            throw new Exception\DriverNotSpecified();
-
-        return $this->driver->listTables();
-
-    }
-
-    /**
-     * Test that a table exists in the connected database.
-     *
-     * @param string $table
-     *            The name of the table to check for.
-     *
-     * @param string $schema
-     *            The database schema to look in. Defaults to public.
-     */
-    public function tableExists($table) {
-
-        if(!$this->driver)
-            throw new Exception\DriverNotSpecified();
-
-        return $this->driver->tableExists($table);
-
-    }
-
-    /**
-     * Create a new table in the database.
-     *
-     * @param string $name
-     *
-     * @param string $columns
-     */
-    public function createTable($name, $columns) {
-
-        if(!$this->driver)
-            throw new Exception\DriverNotSpecified();
-
-        return $this->driver->createTable($name, $columns);
-
-    }
-
-    public function describeTable($name, $sort = NULL) {
-
-        if(!$this->driver)
-            throw new Exception\DriverNotSpecified();
-
-        return $this->driver->describeTable($name, $sort);
-
-    }
-
-    public function renameTable($from_name, $to_name) {
-
-        if(!$this->driver)
-            throw new Exception\DriverNotSpecified();
-
-        return $this->driver->renameTable($from_name, $to_name);
-
-    }
-
-    public function dropTable($name, $cascade = false) {
-
-        if(!$this->driver)
-            throw new Exception\DriverNotSpecified();
-
-        return $this->driver->dropTable($name, $cascade);
-
-    }
-
-    public function addColumn($table, $column_spec) {
-
-        if(!$this->driver)
-            throw new Exception\DriverNotSpecified();
-
-        return $this->driver->addColumn($table, $column_spec);
-
-    }
-
-    public function alterColumn($table, $column, $column_spec) {
-
-        if(!$this->driver)
-            throw new Exception\DriverNotSpecified();
-
-        return $this->driver->alterColumn($table, $column, $column_spec);
-
-    }
-
-    public function dropColumn($table, $column) {
-
-        if(!$this->driver)
-            throw new Exception\DriverNotSpecified();
-
-        return $this->driver->dropColumn($table, $column);
-
-    }
-
-    public function listSequences() {
-
-        if(!$this->driver)
-            throw new Exception\DriverNotSpecified();
-
-        return $this->driver->listSequences();
-
-    }
-
-    public function describeSequence($name) {
-
-        if(!$this->driver)
-            throw new Exception\DriverNotSpecified();
-
-        return $this->driver->describeSequence($name);
-
-    }
-
-    public function listIndexes($table = NULL) {
-
-        if(!$this->driver)
-            throw new Exception\DriverNotSpecified();
-
-        return $this->driver->listIndexes($table);
-
-    }
-
-    public function createIndex($index_name, $table_name, $idx_info) {
-
-        if(!$this->driver)
-            throw new Exception\DriverNotSpecified();
-
-        return $this->driver->createIndex($index_name, $table_name, $idx_info);
-
-    }
-
-    public function dropIndex($name) {
-
-        if(!$this->driver)
-            throw new Exception\DriverNotSpecified();
-
-        return $this->driver->dropIndex($name);
-
-    }
-
     public function listPrimaryKeys($table = NULL){
 
-        if(!$this->driver)
-            throw new Exception\DriverNotSpecified();
+        $this->checkConfig();
 
         return $this->driver->listConstraints($table, 'PRIMARY KEY');
 
@@ -622,8 +337,7 @@ class Adapter {
 
     public function listForeignKeys($table = NULL){
 
-        if(!$this->driver)
-            throw new Exception\DriverNotSpecified();
+        $this->checkConfig();
 
         return $this->driver->listConstraints($table, 'FOREIGN KEY');
 
@@ -631,153 +345,9 @@ class Adapter {
 
     public function listConstraints($table = NULL, $type = NULL, $invert_type = FALSE) {
 
-        if(!$this->driver)
-            throw new Exception\DriverNotSpecified();
+        $this->checkConfig();
 
         return $this->driver->listConstraints($table, $type, $invert_type);
-
-    }
-
-    public function addConstraint($name, $info) {
-
-        if(!$this->driver)
-            throw new Exception\DriverNotSpecified();
-
-        return $this->driver->addConstraint($name, $info);
-
-    }
-
-    public function dropConstraint($name, $table, $cascade = false) {
-
-        if(!$this->driver)
-            throw new Exception\DriverNotSpecified();
-
-        return $this->driver->dropConstraint($name, $table, $cascade);
-
-    }
-
-    /**
-     * List views
-     */
-    public function listViews(){
-
-        if(!$this->driver)
-            throw new Exception\DriverNotSpecified();
-
-        return $this->driver->listViews();
-
-    }
-
-    /**
-     * Describe a view
-     *
-     * @param mixed $name
-     * @throws Exception\DriverNotSpecified
-     * @return mixed
-     */
-    public function describeView($name){
-
-        if(!$this->driver)
-            throw new Exception\DriverNotSpecified();
-
-        return $this->driver->describeView($name);
-
-    }
-
-    /**
-     * Create a new view
-     * @param mixed $name
-     * @throws Exception\DriverNotSpecified
-     * @return mixed
-     */
-    public function createView($name, $sql){
-
-        if(!$this->driver)
-            throw new Exception\DriverNotSpecified();
-
-        return $this->driver->createView($name, $sql);
-
-    }
-
-    /**
-     * Delete/drop a view
-     * @param mixed $name
-     * @throws Exception\DriverNotSpecified
-     * @return mixed
-     */
-    public function dropView($name, $cascade = false){
-
-        if(!$this->driver)
-            throw new Exception\DriverNotSpecified();
-
-        return $this->driver->dropView($name, $cascade);
-
-    }
-
-    /**
-     * List functions
-     */
-    public function listFunctions(){
-
-        if(!$this->driver)
-            throw new Exception\DriverNotSpecified();
-
-        return $this->driver->listFunctions();
-
-    }
-
-    /**
-     * Describe a function
-     *
-     * @param mixed $name
-     * @throws Exception\DriverNotSpecified
-     * @return mixed
-     */
-    public function describeFunction($name){
-
-        if(!$this->driver)
-            throw new Exception\DriverNotSpecified();
-
-        return $this->driver->describeFunction($name);
-
-    }
-
-    /**
-     * Create a new function
-     * @param mixed $name
-     * @throws Exception\DriverNotSpecified
-     * @return mixed
-     */
-    public function createFunction($name, $spec){
-
-        if(!$this->driver)
-            throw new Exception\DriverNotSpecified();
-
-        return $this->driver->createFunction($name, $spec);
-
-    }
-
-    /**
-     * Delete/drop a function
-     * @param mixed $name
-     * @throws Exception\DriverNotSpecified
-     * @return mixed
-     */
-    public function dropFunction($name, $arg_types = array(), $cascade = false){
-
-        if(!$this->driver)
-            throw new Exception\DriverNotSpecified();
-
-        return $this->driver->dropFunction($name, $arg_types, $cascade);
-
-    }
-
-    public function execCount() {
-
-        if(!$this->driver)
-            throw new Exception\DriverNotSpecified();
-
-        return $this->driver->execCount();
 
     }
 
@@ -786,8 +356,7 @@ class Adapter {
      */
     public function prepare($sql, $name = null) {
 
-        if(!$this->driver)
-            throw new Exception\DriverNotSpecified();
+        $this->checkConfig();
 
         $statement = $this->driver->prepare($sql);
 
@@ -827,10 +396,15 @@ class Adapter {
 
     }
 
+    /**
+     * Returns an instance of the Hazaar\DBI\Schema\Manager for managing database schema versions.
+     *
+     * @return Schema\Manager
+     */
     public function getSchemaManager(){
 
-        if(!$this->schema_manager instanceof SchemaManager)
-            $this->schema_manager = new SchemaManager($this);
+        if(!$this->schema_manager instanceof Schema\Manager)
+            $this->schema_manager = new Schema\Manager($this);
 
         return $this->schema_manager;
 
@@ -839,7 +413,7 @@ class Adapter {
     /**
      * Returns the current DBI schema versions
      *
-     * See: \Hazaar\DBI\SchemaManager::getSchemaVersion()
+     * See: \Hazaar\DBI\Schema\Manager::getSchemaVersion()
      *
      * @deprecated
      */
@@ -852,7 +426,7 @@ class Adapter {
     /**
      * Returns a list of all known schema versions
      *
-     * See: \Hazaar\DBI\SchemaManager::getSchemaVersions()
+     * See: \Hazaar\DBI\Schema\Manager::getSchemaVersions()
      *
      * @deprecated
      */
@@ -865,7 +439,7 @@ class Adapter {
     /**
      * Returns the version number of the latest schema version
      *
-     * See: \Hazaar\DBI\SchemaManager::getLatestSchemaVersion()
+     * See: \Hazaar\DBI\Schema\Manager::getLatestSchemaVersion()
      *
      * @deprecated
      */
@@ -878,7 +452,7 @@ class Adapter {
     /**
      * Checks if the current DBI schema is the latest versions
      *
-     * See: \Hazaar\DBI\SchemaManager::isSchemaLatest()
+     * See: \Hazaar\DBI\Schema\Manager::isSchemaLatest()
      *
      * @deprecated
      */
@@ -891,7 +465,7 @@ class Adapter {
     /**
      * Snapshot the database schema and create a new schema version with migration replay files.
      *
-     * See: \Hazaar\DBI\SchemaManager::snapshot()
+     * See: \Hazaar\DBI\Schema\Manager::snapshot()
      *
      * @deprecated
      */
@@ -904,7 +478,7 @@ class Adapter {
     /**
      * Database migration method.
      *
-     * See: \Hazaar\DBI\SchemaManager::migrate()
+     * See: \Hazaar\DBI\Schema\Manager::migrate()
      *
      * @deprecated
      */
@@ -917,7 +491,7 @@ class Adapter {
     /**
      * Takes a schema definition and creates it in the database.
      *
-     * See: \Hazaar\DBI\SchemaManager::createSchema()
+     * See: \Hazaar\DBI\Schema\Manager::createSchema()
      *
      * @deprecated
      */
@@ -930,7 +504,7 @@ class Adapter {
     /**
      * Synchonise schema data with the database
      *
-     * See: \Hazaar\DBI\SchemaManager::syncSchemaData()
+     * See: \Hazaar\DBI\Schema\Manager::syncSchemaData()
      *
      * @deprecated
      */
