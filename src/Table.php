@@ -611,15 +611,8 @@ class Table {
             if ($this->criteria)
                 $sql .= ' WHERE ' . $this->adapter->prepareCriteria($this->criteria);
 
-            if ($stmt = $this->adapter->query($sql)) {
-
-                dump($this->joins);
-
-                $result = new Result($this->adapter, $stmt);
-
+            if ($result = $this->adapter->query($sql))
                 return (int)$result->fetchColumn(0);
-
-            }
 
         }
 
