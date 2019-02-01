@@ -94,7 +94,7 @@ final class Row extends \Hazaar\Model\Strict {
 
         $tables = array();
 
-        if(!preg_match('/FROM\s+"?(\w+)"?(\s+"?(\w+)"?)/', $this->statement->queryString, $matches))
+        if(!preg_match('/FROM\s+"?(\w+)"?(\s+"?(\w+)"?)?/', $this->statement->queryString, $matches))
             throw new \Exception('Can\'t figure out which table we\'re updating!');
 
         //Find the primary key for the primary table so we know which row we are updating
@@ -105,7 +105,7 @@ final class Row extends \Hazaar\Model\Strict {
 
             $tables[$matches[1]] = array();
 
-            if(!in_array(strtoupper($matches[3]), $keywords))
+            if(isset($matches[3]) && !in_array(strtoupper($matches[3]), $keywords))
                 $tables[$matches[1]]['alias'] = $matches[3];
 
             $tables[$matches[1]]['condition'] = ake($tables[$matches[1]], 'alias', $matches[1]) . '.' . $data['column'] . '=' . $this->get($data['column']);
