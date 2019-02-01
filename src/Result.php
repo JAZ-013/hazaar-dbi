@@ -47,6 +47,7 @@ class Result implements \ArrayAccess, \Countable, \Iterator {
         'int2'      => 'integer',
         'int4'      => 'integer',
         'int8'      => 'integer',
+        'float8'    => 'float',
         'timestamp' => '\Hazaar\Date',
         'bool'      => 'boolean'
     );
@@ -98,7 +99,7 @@ class Result implements \ArrayAccess, \Countable, \Iterator {
             }elseif ($meta['pdo_type'] == \PDO::PARAM_STR && (substr(ake($meta, 'native_type'), 0, 4) == 'json'
                     || (!array_key_exists('native_type', $meta) && in_array('blob', ake($meta, 'flags'))))){
 
-                $def['prepare'] = function($value){ return json_decode($value); };
+                $def['prepare'] = function($value){ if(is_string($value)) return json_decode($value); return $value; };
 
             }else{
 
