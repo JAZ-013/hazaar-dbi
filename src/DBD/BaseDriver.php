@@ -550,7 +550,7 @@ abstract class BaseDriver implements Driver_Interface {
 
     }
 
-    public function insert($table, $fields, $returning = TRUE) {
+    public function insert($table, $fields, $returning = NULL) {
 
         if($fields instanceof \Hazaar\Map)
             $fields = $fields->toArray();
