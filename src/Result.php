@@ -81,7 +81,7 @@ class Result implements \ArrayAccess, \Countable, \Iterator {
             if(array_key_exists($meta['name'], $this->meta))
                 continue;
 
-            $def = array();
+            $def = array('native_type' => $meta['native_type']);
 
             if(array_key_exists('table', $meta))
                 $def['table'] = $meta['table'];
