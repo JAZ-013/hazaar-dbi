@@ -1191,6 +1191,9 @@ class Manager {
 
                     }
 
+                    if($this->dbi->errorCode() > 0)
+                        throw new \Exception($this->dbi->errorInfo()[2]);
+
                     $this->dbi->commit();
 
                 }
