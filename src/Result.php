@@ -49,6 +49,7 @@ class Result implements \ArrayAccess, \Countable, \Iterator {
         'int8'      => 'integer',
         'float8'    => 'float',
         'timestamp' => '\Hazaar\Date',
+        'date'      => '\Hazaar\Date',
         'bool'      => 'boolean'
     );
 
