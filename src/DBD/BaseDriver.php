@@ -503,7 +503,7 @@ abstract class BaseDriver implements Driver_Interface {
 
     }
 
-    public function prepareValue($value, $key = null) {
+    public function prepareValue($value, $type_hint = null, $key = null) {
 
         if (is_array($value)) {
 
@@ -567,7 +567,7 @@ abstract class BaseDriver implements Driver_Interface {
         $value_def = array_values($fields);
 
         foreach($value_def as $key => &$value)
-            $value = $this->prepareValue($value, $field_def[$key]);
+            $value = $this->prepareValue($value, null, $field_def[$key]);
 
         $sql = 'INSERT INTO ' . $this->field($table) . ' ( ' . implode(', ', $field_def) . ' ) VALUES ( ' . implode(', ', $value_def) . ' )';
 
@@ -599,7 +599,7 @@ abstract class BaseDriver implements Driver_Interface {
 
     }
 
-    public function update($table, $fields, $criteria = array()) {
+    public function update($table, $fields, $criteria = array(), $from = array()) {
 
         if($fields instanceof \Hazaar\Map)
             $fields = $fields->toArray();
@@ -616,9 +616,14 @@ abstract class BaseDriver implements Driver_Interface {
         if (count($field_def) == 0)
             throw new Exception\NoUpdate();
 
-        $sql = 'UPDATE ' . $this->field($table) . ' SET ' . implode(', ', $field_def);
+        $table = (is_array($table) && isset($table[0])) ? $this->field($table[0]) . ' AS ' . $table[1] : $this->field($table);
 
-        if (count($criteria) > 0)
+        $sql = 'UPDATE ' . $table . ' SET ' . implode(', ', $field_def);
+
+        if(is_array($from) && count($from) > 0)
+            $sql .= ' FROM ' . implode(', ', $from);
+
+        if(is_array($criteria) && count($criteria) > 0)
             $sql .= ' WHERE ' . $this->prepareCriteria($criteria);
 
         $sql .= ';';

@@ -55,6 +55,8 @@ class Adapter {
 
     private $schema_manager;
 
+    static public $default_checkstring = '!!';
+
     function __construct($config_env = NULL) {
 
         if(!$config_env)
@@ -277,7 +279,7 @@ class Adapter {
         $result = $this->driver->query($sql);
 
         if($result instanceof \PDOStatement)
-            return new Result($this, $result);
+            return new Result($this, $result, $this->options);
 
         return $result;
 
@@ -511,6 +513,53 @@ class Adapter {
     public function syncSchemaData($data_schema = null, $test = false){
 
         return $this->getSchemaManager()->syncSchemaData();
+
+    }
+
+    public function insert($table, $fields, $returning){
+
+        return $this->driver->insert($table, $this->encrypt($table, $fields), $returning);
+
+    }
+
+    public function update($table, $fields, $criteria, $from = array()){
+
+        return $this->driver->update($table, $this->encrypt($table, $fields), $criteria, $from);
+
+    }
+
+    public function encrypt($table, &$data){
+
+        if(is_array($table) && isset($table[0]))
+            $table = $table[0];
+
+        if($data === null
+            || !(is_array($data) && count($data) > 0)
+            || ($encrypt = ake($this->options, 'encrypt', false)) === false
+            || ($encrypted_fields = ake(ake($encrypt, 'table'), $table)) === null)
+            return $data;
+
+        $cipher = ake($encrypt, 'cipher', 'aes-256-ctr');
+
+        $key = ake($encrypt, 'key', '0000');
+
+        $checkstring = ake($encrypt, 'checkstring', Adapter::$default_checkstring);
+
+        foreach($data as $key => &$value){
+
+            if(!in_array($key, $encrypted_fields))
+                continue;
+
+            if(!is_string($value))
+                throw new \Exception('Trying to encrypt non-string field: ' . $key);
+
+            $iv = openssl_random_pseudo_bytes(openssl_cipher_iv_length($cipher));
+
+            $value = base64_encode($iv . openssl_encrypt($checkstring . $value, $cipher, $key, OPENSSL_RAW_DATA, $iv));
+
+        }
+
+        return $data;
 
     }
 

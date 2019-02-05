@@ -53,23 +53,13 @@ class Table {
 
     private $result;
 
-    private $options;
-
-    private $encrypt = false;
-
-    static private $default_checkstring = '!!';
-
-    function __construct(Adapter $adapter, $name, $alias = NULL, $options = null) {
+    function __construct(Adapter $adapter, $name, $alias = NULL) {
 
         $this->adapter = $adapter;
 
         $this->name = $name;
 
         $this->alias = $alias;
-
-        $this->options = $options;
-
-        $this->encrypt =  ake($this->options, 'encrypt');
 
     }
 
@@ -115,6 +105,26 @@ class Table {
      * @return mixed
      */
     public function findOne($criteria = array(), $fields = array(), $order = NULL) {
+
+        if ($result = $this->find($criteria, $fields, $order, 1))
+            return $result->fetch();
+
+        return FALSE;
+
+    }
+
+    /**
+     * Find a single row using the provided criteria, fields and order and return is as an array.
+     *
+     * @param mixed $criteria The search criteria.
+     *
+     * @param mixed $fields A field definition array.
+     *
+     * @param mixed $order A valid order definition
+     *
+     * @return mixed
+     */
+    public function findOneRow($criteria = array(), $fields = array(), $order = NULL) {
 
         if ($result = $this->find($criteria, $fields, $order, 1))
             return $result->row();
@@ -276,16 +286,14 @@ class Table {
      * @throws \Exception
      * @return null
      */
-    public function prepare($criteria = array(), $fields = array()){
+    public function prepare($criteria = array(), $fields = array(), $name = null){
 
         $this->find($criteria, $fields);
 
-        if ($stmt = $this->adapter->prepare($this->toString()))
-            $this->result = new Result($this->adapter, $stmt);
-        else
-            throw new \Exception($this->driver->errorinfo()[2]);
+        if ($this->result = $this->adapter->prepare($this->toString(), $name))
+            return $this->result;
 
-        return $this->result;
+        return false;
 
     }
 
@@ -429,13 +437,13 @@ class Table {
 
     public function insert($fields, $returning = NULL) {
 
-        return $this->adapter->insert($this->name, $this->encrypt($fields), $returning);
+        return $this->adapter->insert($this->name, $fields, $returning);
 
     }
 
     public function update($criteria, $fields) {
 
-        return $this->adapter->update($this->name, $this->encrypt($fields), $criteria);
+        return $this->adapter->update($this->name, $fields, $criteria);
 
     }
 
@@ -451,43 +459,37 @@ class Table {
 
     }
 
-    public function row() {
+    public function row($offset = 0) {
 
-        return $this->fetch();
-
-    }
-
-    public function all() {
-
-        return $this->fetchAll();
-
-    }
-
-    public function fetch($offset = 0) {
-
-        if ($result = $this->execute()){
-
-            $data = $result->fetch(\PDO::FETCH_ASSOC, \PDO::FETCH_ORI_NEXT, $offset);
-
-            return $this->decrypt($data, $result);
-
-        }
+        if ($result = $this->execute())
+            return $result->row($offset);
 
         return FALSE;
 
     }
 
-    public function fetchAll() {
+    public function rows() {
 
-        if ($result = $this->execute()){
+        if ($result = $this->execute())
+            return $result->rows();
 
-            $data = $result->fetchAll(\PDO::FETCH_ASSOC);
+        return FALSE;
 
-            if(is_array($data)) foreach($data as &$row) $this->decrypt($row, $result);
+    }
 
-            return $data;
+    public function fetch($cursor_orientation = \PDO::FETCH_ORI_NEXT, $offset = 0) {
 
-        }
+        if ($result = $this->execute())
+            return $result->fetch(\PDO::FETCH_ASSOC, $cursor_orientation, $offset);
+
+        return FALSE;
+
+    }
+
+    public function fetchAll($fetch_argument = null, $ctor_args = array()) {
+
+        if ($result = $this->execute())
+            return $result->fetchAll(\PDO::FETCH_ASSOC, $fetch_argument, $ctor_args);
 
         return FALSE;
 
@@ -646,98 +648,6 @@ class Table {
             $this->execute();
 
         return array_collate($this->fetchAll(), $index_column, $value_column, $group_column);
-
-    }
-
-    private function encrypted(&$fields = array()){
-
-        if($this->encrypt
-            && array_key_exists('table', $this->options['encrypt'])
-            && array_key_exists($this->name, $this->options['encrypt']['table'])){
-
-            return (is_array($this->options['encrypt']['table'][$this->name])
-                    ? array_intersect($this->options['encrypt']['table'][$this->name], array_keys($fields))
-                    : ($this->options['encrypt']['table'][$this->name] === true ? array_keys($fields) : null));
-
-        }
-
-        return false;
-
-    }
-
-    private function encrypt(&$data){
-
-        if(($encrypt_fields = $this->encrypted($data)) === false)
-            return $data;
-
-        $cipher = ake($this->options['encrypt'], 'cipher', 'aes-256-ctr');
-
-        $key = ake($this->options['encrypt'], 'key', '0000');
-
-        $checkstring = ake($this->options['encrypt'], 'checkstring', Table::$default_checkstring);
-
-        foreach($encrypt_fields as $field){
-
-            if(!is_string($field))
-                throw new \Exception('Trying to encrypt non-string field: ' . $field);
-
-            $iv = openssl_random_pseudo_bytes(openssl_cipher_iv_length($cipher));
-
-            $content = base64_encode($iv . openssl_encrypt($checkstring . $data[$field], $cipher, $key, OPENSSL_RAW_DATA, $iv));
-
-            $data[$field] = $content;
-
-        }
-
-        return $data;
-
-    }
-
-    private function decrypt(&$data, Result $result = null){
-
-        if($data === null || ($encrypted_fields = $this->encrypted($data)) === false)
-            return $data;
-
-        $cipher = ake($this->options['encrypt'], 'cipher', 'aes-256-ctr');
-
-        $key = ake($this->options['encrypt'], 'key', '0000');
-
-        $checkstring = ake($this->options['encrypt'], 'checkstring', Table::$default_checkstring);
-
-        $strings = null;
-
-        if($result !== null){
-
-            $strings = array();
-
-            for($i = 0; $i < $result->columnCount(); $i++){
-
-                $meta = $result->getColumnMeta($i);
-
-                if($meta['native_type'] === 'text')
-                    $strings[] = $meta['name'];
-
-            }
-
-        }
-
-        foreach($encrypted_fields as $field){
-
-            if(!($strings !== null && in_array($field, $strings) || ($strings === null && is_string($data[$field]))))
-                continue;
-
-            list($iv, $content) = preg_split('/(?<=.{' . openssl_cipher_iv_length($cipher) . '})/', base64_decode($data[$field]), 2);
-
-            list($checkbit, $content) = preg_split('/(?<=.{' . strlen($checkstring) . '})/', openssl_decrypt($content, $cipher, $key, OPENSSL_RAW_DATA, $iv), 2);
-
-            if($checkbit !== $checkstring)
-                throw new \Exception('Field decryption failed: ' . $field);
-
-            $data[$field] = $content;
-
-        }
-
-        return $data;
 
     }
 

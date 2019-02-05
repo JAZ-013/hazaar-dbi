@@ -16,7 +16,7 @@ final class Row extends \Hazaar\Model\Strict {
 
     private $statement;
 
-    function __construct(\Hazaar\DBI\Adapter $adapter, $meta = array(), $data = array(), \PDOStatement $statement = null){
+    function __construct(\Hazaar\DBI\Adapter $adapter, $meta = array(), $data = array(), \PDOStatement $statement = null, $options = array()){
 
         $this->adapter = $adapter;
 
@@ -29,6 +29,31 @@ final class Row extends \Hazaar\Model\Strict {
         $this->allow_undefined = true;
 
         parent::__construct($data);
+
+    }
+
+    /**
+     * Prepare the row values by checking for fields that are an array that should not be
+     *
+     * This will happen when a join selects multiple fields from different tables with the same name.  For example, when
+     * doing a SELECT * with multiple tables that all have an 'id' column.  The 'id' columns from each table will clobber
+     * the earlier value as each table is processed, meaning the Row::update() may not work.  To get around this, the
+     * Row class is given data using the \PDO::FETCH_NAMED flag which will cause multiple columns with the same name to be
+     * returned as an array.  However, the column will not have an array data type so we detect that and just grab the
+     * first value in the array.
+     *
+     * @param mixed $data
+     */
+    public function prepare(&$data){
+
+        foreach($this->fields as $key => $def){
+
+            if(!(array_key_exists($key, $data) && is_array($data[$key])) || ake($def, 'type', 'none') === 'array')
+                continue;
+
+            $data[$key] = array_shift($data[$key]);
+
+        }
 
     }
 
@@ -57,13 +82,15 @@ final class Row extends \Hazaar\Model\Strict {
 
         foreach($this->fields as $key => $def){
 
-            if($def['changed'] !== true)
+            if(!(array_key_exists('changed', $def) && $def['changed'] === true))
                 continue;
 
             if(!array_key_exists('table', $def))
                 throw new \Exception('Unable to update ' . $key . ' with unknown table');
 
-            $changes[$def['table']][] = $key . '=' . $this->adapter->prepareValue($this->get($key));
+            //$changes[$def['table']][] = $key . '=' . $this->adapter->prepareValue($this->get($key), $key, $this->fields[$key]['native_type']);
+
+            $changes[$def['table']][$key] = $this->get($key);
 
         }
 
@@ -133,22 +160,17 @@ final class Row extends \Hazaar\Model\Strict {
 
         }
 
+        $change_count = 0;
+
         $this->adapter->beginTransaction();
 
         foreach($changes as $table => $updates){
 
-            $sql = 'UPDATE ' . $table;
-
-            if(array_key_exists('alias', $tables[$table]))
-                $sql .= ' AS ' . $tables[$table]['alias'];
-
-            $sql .= ' SET ' . implode(', ', $updates);
-
             $conditions = array();
 
-            if($tables[$table]['condition']){
+            $from = array();
 
-                $from = array();
+            if($tables[$table]['condition']){
 
                 foreach($tables as $from_table => $data){
 
@@ -160,14 +182,12 @@ final class Row extends \Hazaar\Model\Strict {
 
                 }
 
-                if(count($from) > 0)
-                    $sql .= ' FROM ' . implode(', ', $from);
-
             }
 
-            $sql .= ' WHERE ' . implode(' AND ', $conditions);
+            if(array_key_exists('alias', $tables[$table]))
+                $table = array($table, $tables[$table]['alias']);
 
-            if(!$this->adapter->query($sql)){
+            if(!$changed_rows = $this->adapter->update($table, $updates, $conditions, $from)){
 
                 $this->adapter->rollback();
 
@@ -175,11 +195,21 @@ final class Row extends \Hazaar\Model\Strict {
 
             }
 
+            $change_count += $changed_rows;
+
         }
 
-        $this->adapter->commit();
+        if($change_count === count($changes)){
 
-        return true;
+            $this->adapter->commit();
+
+            return true;
+
+        }
+
+        $this->adapter->rollback();
+
+        return false;
 
     }
 
