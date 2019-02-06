@@ -47,7 +47,7 @@ class Table {
 
     private $joins = array();
 
-    private $order;
+    private $order = array();
 
     private $limit;
 
@@ -460,6 +460,7 @@ class Table {
             $field_def = array(
                 $field_def => ($desc ? -1 : 1)
             );
+
         }
 
         $this->order = $field_def;
