@@ -384,17 +384,17 @@ class Table {
 
     }
 
-    public function group($columns){
+    public function group(){
 
-        $this->group = array_merge($this->group, (array)$columns);
+        $this->group = array_merge($this->group, func_get_args());
 
         return $this;
 
     }
 
-    public function having($criteria){
+    public function having(){
 
-        $this->having = array_merge($this->having, (array)$criteria);
+        $this->having = array_merge($this->having, func_get_args());
 
         return $this;
 
