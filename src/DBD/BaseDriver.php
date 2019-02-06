@@ -486,13 +486,15 @@ abstract class BaseDriver implements Driver_Interface {
 
     }
 
-    public function prepareFields($fields) {
+    public function prepareFields($fields, $exclude = array()) {
 
         $field_def = array();
 
         foreach($fields as $key => $value) {
 
-            if (is_numeric($key))
+            if(is_string($value) && in_array($value, $exclude))
+                $field_def[] = $value;
+            elseif (is_numeric($key))
                 $field_def[] = $this->field($value);
             else
                 $field_def[] = $this->field($value) . ' AS ' . $this->field($key);

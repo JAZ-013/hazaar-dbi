@@ -43,6 +43,8 @@ class Table {
 
     private $having = array();
 
+    private $window = array();
+
     private $joins = array();
 
     private $order;
@@ -179,6 +181,7 @@ class Table {
         else
             $sql .= ' ' . $this->adapter->prepareFields($this->fields);
 
+        /* FROM */
         $sql .= ' FROM ' . $this->from();
 
         if (count($this->joins) > 0) {
@@ -194,16 +197,73 @@ class Table {
             }
         }
 
+        /* WHERE */
         if(is_array($this->criteria) && count($this->criteria) > 0)
             $sql .= ' WHERE ' . $this->adapter->prepareCriteria($this->criteria);
 
-        if ($this->order) {
+        /* GROUP BY */
+        if(count($this->group) > 0)
+            $sql .= ' GROUP BY ' . $this->adapter->prepareFields($this->group);
 
-            $sql .= ' ORDER BY ';
+        /* HAVING */
+        if (count($this->having) > 0)
+            $sql .= ' HAVING ' . $this->adapter->prepareCriteria($this->having);
 
-            $order = array();
+        /* WINDOW */
+        if(count($this->window) > 0){
 
-            foreach($this->order as $field => $mode) {
+            $items = array();
+
+            foreach($this->window as $name => $info){
+
+                $item = 'PARTITION BY ' . $this->adapter->prepareFields((array)$info['as']);
+
+                if($info['order'])
+                    $item .= ' ORDER BY ' . $this->prepareOrder($info['order']);
+
+                $items[] = $name . ' AS ( ' . $item . ' )';
+
+            }
+
+            $sql .= ' WINDOW ' . implode(', ', $items);
+
+        }
+
+        /* ORDER BY */
+        if (count($this->order) > 0)
+            $sql .= ' ORDER BY ' . $this->prepareOrder($this->order);
+
+        /* LIMIT */
+        if ($this->limit !== NULL)
+            $sql .= ' LIMIT ' . (string) (int) $this->limit;
+
+        /* OFFSET */
+        if ($this->offset !== NULL)
+            $sql .= ' OFFSET ' . (string) (int) $this->offset;
+
+        /* FETCH */
+
+        /* FOR */
+
+
+        if ($terminate_with_colon)
+            $sql .= ';';
+
+        return $sql;
+
+    }
+
+    private function prepareOrder($order_definition){
+
+        $order = array();
+
+        if(is_string($order_definition)){
+
+            $order[] = $order_definition;
+
+        }elseif(is_array($order_definition)){
+
+            foreach($order_definition as $field => $mode) {
 
                 if (is_array($mode)) {
 
@@ -224,27 +284,12 @@ class Table {
                     $dir .= ' NULLS LAST';
 
                 $order[] = $field . ($dir ? ' ' . $dir : NULL);
+
             }
 
-            $sql .= implode(', ', $order);
         }
 
-        if(count($this->group) > 0)
-            $sql .= ' GROUP BY ' . $this->adapter->prepareFields($this->group);
-
-        if (count($this->having) > 0)
-            $sql .= ' HAVING ' . $this->adapter->prepareCriteria($this->having);
-
-        if ($this->limit !== NULL)
-            $sql .= ' LIMIT ' . (string) (int) $this->limit;
-
-        if ($this->offset !== NULL)
-            $sql .= ' OFFSET ' . (string) (int) $this->offset;
-
-        if ($terminate_with_colon)
-            $sql .= ';';
-
-        return $sql;
+        return implode(', ', $order);
 
     }
 
@@ -350,6 +395,17 @@ class Table {
     public function having($criteria){
 
         $this->having = array_merge($this->having, (array)$criteria);
+
+        return $this;
+
+    }
+
+    public function window($name, $partition_by, $order_by = null){
+
+        $this->window[$name] = array(
+            'as' => $partition_by,
+            'order' => $order_by
+        );
 
         return $this;
 
