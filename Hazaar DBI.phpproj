@@ -33,6 +33,7 @@
     <Compile Include="src\Table.php" />
   </ItemGroup>
   <ItemGroup>
+    <Folder Include="docs\" />
     <Folder Include="libs\" />
     <Folder Include="libs\console\" />
     <Folder Include="libs\console\css\" />
@@ -46,6 +47,7 @@
   </ItemGroup>
   <ItemGroup>
     <Content Include="composer.json" />
+    <Content Include="docs\index.md" />
     <Content Include="libs\console\css\main.css" />
     <Content Include="libs\console\js\dbi.js" />
     <Content Include="libs\console\migrate.phtml" />
@@ -53,5 +55,6 @@
     <Content Include="libs\console\snapshot.phtml" />
     <Content Include="libs\console\sync.phtml" />
     <Content Include="libs\console\version_info.phtml" />
+    <Content Include="mkdocs.yml" />
   </ItemGroup>
 </Project>

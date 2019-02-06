@@ -1,0 +1,6 @@
+site_name: Hazaar DBI
+docs_dir: docs
+pages:
+  - Welcome: index.md
+markdown_extensions:
+    - admonition
