@@ -494,6 +494,8 @@ abstract class BaseDriver implements Driver_Interface {
 
             if(is_string($value) && in_array($value, $exclude))
                 $field_def[] = $value;
+            elseif(is_array($value))
+                $field_def[] = $this->prepareFields($value);
             elseif (is_numeric($key))
                 $field_def[] = $this->field($value);
             else
