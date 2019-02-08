@@ -905,7 +905,7 @@ class Adapter {
      * each table, but since it does not actually scan the tables it is faster. Furthermore, it reclaims disk space
      * immediately, rather than requiring a subsequent VACUUM operation. This is most useful on large tables.
      *
-     * @param mixed $table_name         The name of the table to truncate
+     * @param mixed $table_name         The name of the table(s) to truncate.  Multiple tables are supported.
      * @param mixed $only               Only the named table is truncated. If FALSE, the table and all its descendant tables (if any) are truncated.
      * @param mixed $restart_identity   Automatically restart sequences owned by columns of the truncated table(s).  The default is to no restart.
      * @param mixed $cascade            If TRUE, automatically truncate all tables that have foreign-key references to any of the named tables, or
