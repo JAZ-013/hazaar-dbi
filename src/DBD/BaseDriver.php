@@ -488,6 +488,9 @@ abstract class BaseDriver implements Driver_Interface {
 
     public function prepareFields($fields, $exclude = array()) {
 
+        if(!is_array($fields))
+            return $this->field($fields);
+
         $field_def = array();
 
         foreach($fields as $key => $value) {
@@ -1202,6 +1205,35 @@ abstract class BaseDriver implements Driver_Interface {
 
         if($cascade === true)
             $sql .= ' CASCADE';
+
+        $sql .= ';';
+
+        return ($this->exec($sql) !== false);
+
+    }
+
+    /**
+     * TRUNCATE — empty a table or set of tables
+     *
+     * TRUNCATE quickly removes all rows from a set of tables. It has the same effect as an unqualified DELETE on
+     * each table, but since it does not actually scan the tables it is faster. Furthermore, it reclaims disk space
+     * immediately, rather than requiring a subsequent VACUUM operation. This is most useful on large tables.
+     *
+     * @param mixed $table_name         The name of the table(s) to truncate.  Multiple tables are supported.
+     * @param mixed $only               Only the named table is truncated. If FALSE, the table and all its descendant tables (if any) are truncated.
+     * @param mixed $restart_identity   Automatically restart sequences owned by columns of the truncated table(s).  The default is to no restart.
+     * @param mixed $cascade            If TRUE, automatically truncate all tables that have foreign-key references to any of the named tables, or
+     *                                  to any tables added to the group due to CASCADE.  If FALSE, Refuse to truncate if any of the tables have
+     *                                  foreign-key references from tables that are not listed in the command. FALSE is the default.
+     * @return boolean
+     */
+    public function truncate($table_name, $only = false, $restart_identity = false, $cascade = false){
+
+        $sql = 'TRUNCATE TABLE ' . ($only ? 'ONLY ' : '') . $this->prepareFields($table_name);
+
+        $sql .= ' ' . ($restart_identity ? 'RESTART IDENTITY' : 'CONTINUE IDENTITY');
+
+        $sql .=  ' ' . ($cascade ? 'CASCADE' : 'RESTRICT');
 
         $sql .= ';';
 
