@@ -804,4 +804,24 @@ class Table {
 
     }
 
+    /**
+     * Truncate the table
+     *
+     * Truncating a table quickly removes all rows from a set of tables. It has the same effect as Hazaar\DBI\Table::deleteAll() on
+     * each table, but since it does not actually scan the tables it is faster. Furthermore, it reclaims disk space
+     * immediately, rather than requiring a subsequent VACUUM operation. This is most useful on large tables.
+     *
+     * @param mixed $only               Only the named table is truncated. If FALSE, the table and all its descendant tables (if any) are truncated.
+     * @param mixed $restart_identity   Automatically restart sequences owned by columns of the truncated table(s).  The default is to no restart.
+     * @param mixed $cascade            If TRUE, automatically truncate all tables that have foreign-key references to any of the named tables, or
+     *                                  to any tables added to the group due to CASCADE.  If FALSE, Refuse to truncate if any of the tables have
+     *                                  foreign-key references from tables that are not listed in the command. FALSE is the default.
+     * @return boolean
+     */
+    public function truncate($only = false, $restart_identity = false, $cascade = false){
+
+        return $this->driver->truncate($this->name, $only, $restart_identity, $cascade);
+
+    }
+
 }
