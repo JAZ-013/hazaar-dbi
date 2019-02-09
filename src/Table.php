@@ -29,7 +29,7 @@ namespace Hazaar\DBI;
  */
 class Table {
 
-    private $driver;
+    private $adapter;
 
     private $name;
 
@@ -57,13 +57,9 @@ class Table {
 
     private $options;
 
-    private $encrypt = false;
+    function __construct(Adapter $adapter, $name, $alias = NULL, $options = null) {
 
-    static private $default_checkstring = '!!';
-
-    function __construct(DBD\BaseDriver $driver, $name, $alias = NULL, $options = null) {
-
-        $this->driver = $driver;
+        $this->adapter = $adapter;
 
         $this->name = $name;
 
@@ -71,13 +67,11 @@ class Table {
 
         $this->options = $options;
 
-        $this->encrypt =  ake($this->options, 'encrypt');
-
     }
 
     private function from() {
 
-        return $this->driver->quoteSpecial($this->name) . ($this->alias ? ' ' . $this->alias : NULL);
+        return $this->adapter->quoteSpecial($this->name) . ($this->alias ? ' ' . $this->alias : NULL);
 
     }
 
@@ -119,6 +113,26 @@ class Table {
     public function findOne($criteria = array(), $fields = array(), $order = NULL) {
 
         if ($result = $this->find($criteria, $fields, $order, 1))
+            return $result->fetch();
+
+        return FALSE;
+
+    }
+
+    /**
+     * Find a single row using the provided criteria, fields and order and return is as an array.
+     *
+     * @param mixed $criteria The search criteria.
+     *
+     * @param mixed $fields A field definition array.
+     *
+     * @param mixed $order A valid order definition
+     *
+     * @return mixed
+     */
+    public function findOneRow($criteria = array(), $fields = array(), $order = NULL) {
+
+        if ($result = $this->find($criteria, $fields, $order, 1))
             return $result->row();
 
         return FALSE;
@@ -135,15 +149,15 @@ class Table {
     public function exists($criteria = null) {
 
         if($criteria === null && !$this->criteria)
-            return $this->driver->tableExists($this->name);
+            return $this->adapter->tableExists($this->name);
 
         if($criteria !== null)
-            $sql = 'SELECT EXISTS (SELECT * FROM ' . $this->from() . ' WHERE ' . $this->driver->prepareCriteria($criteria) . ');';
+            $sql = 'SELECT EXISTS (SELECT * FROM ' . $this->from() . ' WHERE ' . $this->adapter->prepareCriteria($criteria) . ');';
         else
             $sql = 'SELECT EXISTS (' . $this->toString(false) . ');';
 
-        if (!($result = $this->driver->query($sql)))
-            throw new \Exception($this->driver->errorInfo()[2]);
+        if (!($result = $this->adapter->query($sql)))
+            throw new \Exception($this->adapter->errorInfo()[2]);
 
         return boolify($result->fetchColumn(0));
 
@@ -169,7 +183,7 @@ class Table {
         if (!is_array($this->fields) || count($this->fields) == 0)
             $sql .= ' *';
         else
-            $sql .= ' ' . $this->driver->prepareFields($this->fields);
+            $sql .= ' ' . $this->adapter->prepareFields($this->fields);
 
         /* FROM */
         $sql .= ' FROM ' . $this->from();
@@ -178,26 +192,26 @@ class Table {
 
             foreach($this->joins as $join) {
 
-                $sql .= ' ' . $join['type'] . ' JOIN ' . $this->driver->field($join['ref']);
+                $sql .= ' ' . $join['type'] . ' JOIN ' . $this->adapter->field($join['ref']);
 
                 if ($join['alias'])
                     $sql .= ' ' . $join['alias'];
 
-                $sql .= ' ON ' . $this->driver->prepareCriteria($join['on']);
+                $sql .= ' ON ' . $this->adapter->prepareCriteria($join['on']);
             }
         }
 
         /* WHERE */
         if(is_array($this->criteria) && count($this->criteria) > 0)
-            $sql .= ' WHERE ' . $this->driver->prepareCriteria($this->criteria);
+            $sql .= ' WHERE ' . $this->adapter->prepareCriteria($this->criteria);
 
         /* GROUP BY */
         if(count($this->group) > 0)
-            $sql .= ' GROUP BY ' . $this->driver->prepareFields($this->group);
+            $sql .= ' GROUP BY ' . $this->adapter->prepareFields($this->group);
 
         /* HAVING */
         if (count($this->having) > 0)
-            $sql .= ' HAVING ' . $this->driver->prepareCriteria($this->having);
+            $sql .= ' HAVING ' . $this->adapter->prepareCriteria($this->having);
 
         /* WINDOW */
         if(count($this->window) > 0){
@@ -206,7 +220,7 @@ class Table {
 
             foreach($this->window as $name => $info){
 
-                $item = 'PARTITION BY ' . $this->driver->prepareFields((array)$info['as']);
+                $item = 'PARTITION BY ' . $this->adapter->prepareFields((array)$info['as']);
 
                 if($info['order'])
                     $item .= ' ORDER BY ' . $this->prepareOrder($info['order']);
@@ -295,10 +309,9 @@ class Table {
 
             $sql = $this->toString();
 
-            if ($stmt = $this->driver->query($sql))
-                $this->result = new Result($stmt);
-            else
-                throw new \Exception($this->driver->errorinfo()[2]);
+            if (!($this->result = $this->adapter->query($sql)))
+                throw new \Exception($this->adapter->errorinfo()[2]);
+
         }
 
         return $this->result;
@@ -320,18 +333,16 @@ class Table {
      * @param mixed $criteria   The query selection criteria.
      * @param mixed $fields     The field selection.
      * @throws \Exception
-     * @return null
+     * @return Result|boolean
      */
-    public function prepare($criteria = array(), $fields = array()){
+    public function prepare($criteria = array(), $fields = array(), $name = null){
 
         $this->find($criteria, $fields);
 
-        if ($stmt = $this->driver->prepare($this->toString()))
-            $this->result = new Result($stmt);
-        else
-            throw new \Exception($this->driver->errorinfo()[2]);
+        if ($statement = $this->adapter->prepare($this->toString(), $name))
+            return new Result($this->adapter, $statement, $this->options);
 
-        return $this->result;
+        return false;
 
     }
 
@@ -377,17 +388,17 @@ class Table {
 
     }
 
-    public function group($columns){
+    public function group(){
 
-        $this->group = array_merge($this->group, (array)$columns);
+        $this->group = array_merge($this->group, func_get_args());
 
         return $this;
 
     }
 
-    public function having($criteria){
+    public function having(){
 
-        $this->having = array_merge($this->having, (array)$criteria);
+        $this->having = array_merge($this->having, func_get_args());
 
         return $this;
 
@@ -413,7 +424,7 @@ class Table {
      * @param string $type The join type such as INNER, OUTER, LEFT, RIGHT, etc.
      * @return Table
      */
-    public function join($references, $on = array(), $alias = NULL, $type = 'INNER') {
+    public function join($references, $on, $alias = NULL, $type = 'INNER') {
 
         if (!$type)
             $type = 'INNER';
@@ -487,65 +498,59 @@ class Table {
 
     public function insert($fields, $returning = NULL) {
 
-        return $this->driver->insert($this->name, $this->encrypt($fields), $returning);
+        return $this->adapter->insert($this->name, $fields, $returning);
 
     }
 
     public function update($criteria, $fields) {
 
-        return $this->driver->update($this->name, $this->encrypt($fields), $criteria);
+        return $this->adapter->update($this->name, $fields, $criteria);
 
     }
 
     public function delete($criteria) {
 
-        return $this->driver->delete($this->name, $criteria);
+        return $this->adapter->delete($this->name, $criteria);
 
     }
 
     public function deleteAll() {
 
-        return $this->driver->deleteAll($this->name);
+        return $this->adapter->deleteAll($this->name);
 
     }
 
-    public function row() {
+    public function row($offset = 0) {
 
-        return $this->fetch();
-
-    }
-
-    public function all() {
-
-        return $this->fetchAll();
-
-    }
-
-    public function fetch($offset = 0) {
-
-        if ($result = $this->execute()){
-
-            $data = $result->fetch(\PDO::FETCH_ASSOC, \PDO::FETCH_ORI_NEXT, $offset);
-
-            return $this->decrypt($data, $result);
-
-        }
+        if ($result = $this->execute())
+            return $result->row($offset);
 
         return FALSE;
 
     }
 
-    public function fetchAll() {
+    public function rows() {
 
-        if ($result = $this->execute()){
+        if ($result = $this->execute())
+            return $result->rows();
 
-            $data = $result->fetchAll(\PDO::FETCH_ASSOC);
+        return FALSE;
 
-            if(is_array($data)) foreach($data as &$row) $this->decrypt($row, $result);
+    }
 
-            return $data;
+    public function fetch($cursor_orientation = \PDO::FETCH_ORI_NEXT, $offset = 0) {
 
-        }
+        if ($result = $this->execute())
+            return $result->fetch(\PDO::FETCH_ASSOC, $cursor_orientation, $offset);
+
+        return FALSE;
+
+    }
+
+    public function fetchAll($fetch_argument = null, $ctor_args = array()) {
+
+        if ($result = $this->execute())
+            return $result->fetchAll(\PDO::FETCH_ASSOC, $fetch_argument, $ctor_args);
 
         return FALSE;
 
@@ -657,25 +662,20 @@ class Table {
 
                 foreach($this->joins as $join) {
 
-                    $sql .= ' ' . $join['type'] . ' JOIN ' . $this->driver->field($join['ref']);
+                    $sql .= ' ' . $join['type'] . ' JOIN ' . $this->adapter->field($join['ref']);
 
                     if ($join['alias'])
                         $sql .= ' ' . $join['alias'];
 
-                    $sql .= ' ON ' . $this->driver->prepareCriteria($join['on']);
+                    $sql .= ' ON ' . $this->adapter->prepareCriteria($join['on']);
                 }
             }
 
             if ($this->criteria)
-                $sql .= ' WHERE ' . $this->driver->prepareCriteria($this->criteria);
+                $sql .= ' WHERE ' . $this->adapter->prepareCriteria($this->criteria);
 
-            if ($stmt = $this->driver->query($sql)) {
-
-                $result = new Result($stmt);
-
+            if ($result = $this->adapter->query($sql))
                 return (int)$result->fetchColumn(0);
-
-            }
 
         }
 
@@ -712,98 +712,6 @@ class Table {
 
     }
 
-    private function encrypted(&$fields = array()){
-
-        if($this->encrypt
-            && array_key_exists('table', $this->options['encrypt'])
-            && array_key_exists($this->name, $this->options['encrypt']['table'])){
-
-            return (is_array($this->options['encrypt']['table'][$this->name])
-                    ? array_intersect($this->options['encrypt']['table'][$this->name], array_keys($fields))
-                    : ($this->options['encrypt']['table'][$this->name] === true ? array_keys($fields) : null));
-
-        }
-
-        return false;
-
-    }
-
-    private function encrypt(&$data){
-
-        if(($encrypt_fields = $this->encrypted($data)) === false)
-            return $data;
-
-        $cipher = ake($this->options['encrypt'], 'cipher', 'aes-256-ctr');
-
-        $key = ake($this->options['encrypt'], 'key', '0000');
-
-        $checkstring = ake($this->options['encrypt'], 'checkstring', Table::$default_checkstring);
-
-        foreach($encrypt_fields as $field){
-
-            if(!is_string($field))
-                throw new \Exception('Trying to encrypt non-string field: ' . $field);
-
-            $iv = openssl_random_pseudo_bytes(openssl_cipher_iv_length($cipher));
-
-            $content = base64_encode($iv . openssl_encrypt($checkstring . $data[$field], $cipher, $key, OPENSSL_RAW_DATA, $iv));
-
-            $data[$field] = $content;
-
-        }
-
-        return $data;
-
-    }
-
-    private function decrypt(&$data, Result $result = null){
-
-        if($data === null || ($encrypted_fields = $this->encrypted($data)) === false)
-            return $data;
-
-        $cipher = ake($this->options['encrypt'], 'cipher', 'aes-256-ctr');
-
-        $key = ake($this->options['encrypt'], 'key', '0000');
-
-        $checkstring = ake($this->options['encrypt'], 'checkstring', Table::$default_checkstring);
-
-        $strings = null;
-
-        if($result !== null){
-
-            $strings = array();
-
-            for($i = 0; $i < $result->columnCount(); $i++){
-
-                $meta = $result->getColumnMeta($i);
-
-                if($meta['native_type'] === 'text')
-                    $strings[] = $meta['name'];
-
-            }
-
-        }
-
-        foreach($encrypted_fields as $field){
-
-            if(!($strings !== null && in_array($field, $strings) || ($strings === null && is_string($data[$field]))))
-                continue;
-
-            list($iv, $content) = preg_split('/(?<=.{' . openssl_cipher_iv_length($cipher) . '})/', base64_decode($data[$field]), 2);
-
-            list($checkbit, $content) = preg_split('/(?<=.{' . strlen($checkstring) . '})/', openssl_decrypt($content, $cipher, $key, OPENSSL_RAW_DATA, $iv), 2);
-
-            if($checkbit !== $checkstring)
-                throw new \Exception('Field decryption failed: ' . $field);
-
-            $data[$field] = $content;
-
-        }
-
-        return $data;
-
-    }
-
     /**
      * Truncate the table
      *
@@ -820,7 +728,7 @@ class Table {
      */
     public function truncate($only = false, $restart_identity = false, $cascade = false){
 
-        return $this->driver->truncate($this->name, $only, $restart_identity, $cascade);
+        return $this->adapter->truncate($this->name, $only, $restart_identity, $cascade);
 
     }
 

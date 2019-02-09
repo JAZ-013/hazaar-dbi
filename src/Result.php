@@ -33,45 +33,91 @@ class Result implements \ArrayAccess, \Countable, \Iterator {
 
     /**
      * Flag to remember if we need to reset the statement when using array access methods.
-     * A reset is required once an
-     * 'execute' is made and then rows are accessed. If no rows are accessed then a reset is not required. This
-     * prevents a query from being executed multiple times when it's not necessary.
+     * A reset is required once an 'execute' is made and then rows are accessed. If no rows
+     * are accessed then a reset is not required. This prevents a query from being executed
+     * multiple times when it's not necessary.
      */
     private $reset = true;
 
     private $array_columns = array();
 
-    function __construct(\PDOStatement $statement) {
+    private $type_map = array(
+        'numeric'       => 'integer',
+        'int2'          => 'integer',
+        'int4'          => 'integer',
+        'int8'          => 'integer',
+        'float8'        => 'float',
+        'timestamp'     => '\Hazaar\Date',
+        'timestamptz'   => '\Hazaar\Date',
+        'date'          => '\Hazaar\Date',
+        'bool'          => 'boolean',
+        'money'         => '\Hazaar\Money'
+    );
+
+    private $meta;
+
+    private $adapter;
+
+    private $encrypt = false;
+
+    function __construct(\Hazaar\DBI\Adapter $adapter, \PDOStatement $statement, $options = array()) {
+
+        $this->adapter = $adapter;
 
         $this->statement = $statement;
+
+        if(is_array($options))
+            $this->encrypt =  ake($options, 'encrypt', false);
 
         $this->processStatement($statement);
 
     }
 
-    private function processStatement($statement){
+    private function processStatement(\PDOStatement $statement){
 
-        if (!$statement instanceof \PDOStatement || $this->statement->columnCount() === 0)
+        if (!$statement instanceof \PDOStatement || $statement->rowCount() === 0)
             return false;
 
-        for($i = 0; $i < $this->statement->columnCount(); $i++) {
+        $this->meta = array();
+
+        for($i = 0; $i < $this->statement->columnCount(); $i++){
 
             $meta = $this->statement->getColumnMeta($i);
 
-            if(substr($meta['native_type'], 0, 1) == '_'){ //It's an array!
+            if(array_key_exists($meta['name'], $this->meta))
+                continue;
+
+            $def = array('native_type' => $meta['native_type']);
+
+            if(array_key_exists('table', $meta))
+                $def['table'] = $meta['table'];
+
+            if(substr($meta['native_type'], 0, 1) == '_'){
 
                 $this->array_columns[] = array(substr($meta['native_type'], 1), $meta['name']);
 
-            }elseif ($meta['pdo_type'] == \PDO::PARAM_STR
-            && (substr(ake($meta, 'native_type'), 0, 4) == 'json'
-            || (!array_key_exists('native_type', $meta) && in_array('blob', ake($meta, 'flags')))
-            )
-            ){
+                $type = substr($meta['native_type'], 1);
+
+                $def['type'] = 'array';
+
+                $def['arrayOf'] =  ake($this->type_map, $type, 'string');
+
+            }elseif ($meta['pdo_type'] == \PDO::PARAM_STR && (substr(ake($meta, 'native_type'), 0, 4) == 'json'
+                    || (!array_key_exists('native_type', $meta) && in_array('blob', ake($meta, 'flags'))))){
 
                 $this->array_columns[] = array('json', $meta['name']);
 
+                $def['prepare'] = function($value){ if(is_string($value)) return json_decode($value); return $value; };
+
+            }else{
+
+                $def['type'] = ake($this->type_map, $meta['native_type'], 'string');
+
             }
 
+            $meta = $this->statement->getColumnMeta($i);
+
+            $this->meta[$meta['name']] = $def;
 
         }
 
@@ -163,7 +209,7 @@ class Result implements \ArrayAccess, \Countable, \Iterator {
 
     }
 
-    public function execute($input_parameters) {
+    public function execute($input_parameters = array()) {
 
         if (!is_array($input_parameters))
             $input_parameters = array(
@@ -186,9 +232,13 @@ class Result implements \ArrayAccess, \Countable, \Iterator {
 
             $this->reset = true;
 
-            $record = $this->statement->fetch($fetch_style, $cursor_orientation, $cursor_offset);
+            if($record = $this->statement->fetch(\PDO::FETCH_ASSOC)){
 
-            return $this->fix($record);
+                $this->fix($record);
+
+                return $record;
+
+            }
 
         }
 
@@ -224,6 +274,7 @@ class Result implements \ArrayAccess, \Countable, \Iterator {
             $this->reset = true;
 
             return $this->statement->fetchColumn($column_number);
+
         }
 
         return false;
@@ -237,6 +288,7 @@ class Result implements \ArrayAccess, \Countable, \Iterator {
             $this->reset = true;
 
             return $this->statement->fetchObject($class_name, $ctor_args);
+
         }
 
         return false;
@@ -307,6 +359,9 @@ class Result implements \ArrayAccess, \Countable, \Iterator {
 
         }
 
+        if($this->encrypt !== false)
+            $this->decrypt($record);
+
         return $record;
 
     }
@@ -375,26 +430,40 @@ class Result implements \ArrayAccess, \Countable, \Iterator {
 
     public function all() {
 
+        return $this->fetchAll();
+
+    }
+
+    public function row($cursor_orientation = \PDO::FETCH_ORI_NEXT, $offset = 0) {
+
         if ($this->statement instanceof \PDOStatement) {
 
             $this->reset = true;
 
-            return $this->statement->fetchAll(\PDO::FETCH_ASSOC);
+            if($record = $this->statement->fetch(\PDO::FETCH_NAMED, $cursor_orientation, $offset))
+                return new Row($this->adapter, $this->meta, $this->decrypt($record), $this->statement);
+
         }
 
         return false;
 
     }
 
-    public function row() {
+    public function rows() {
 
         if ($this->statement instanceof \PDOStatement) {
 
             $this->reset = true;
 
-            $record = $this->statement->fetch(\PDO::FETCH_ASSOC);
+            if($records = $this->statement->fetchAll(\PDO::FETCH_NAMED)){
 
-            return $this->fix($record);
+                foreach($records as &$record)
+                    $record = new Row($this->adapter, $this->meta, $this->decrypt($record), $this->statement);
+
+                return $records;
+
+            }
+
         }
 
         return false;
@@ -405,14 +474,14 @@ class Result implements \ArrayAccess, \Countable, \Iterator {
 
         if ($this->statement instanceof \PDOStatement && !$this->wakeup) {
 
-            $this->records = $this->statement->fetchAll(\PDO::FETCH_ASSOC);
+            $this->records = $this->statement->fetchAll(\PDO::FETCH_NAMED);
 
-            foreach($this->records as &$record)
-                $this->fix($record);
+            foreach($this->records as &$record) new Row($this->adapter, $this->meta, $this->decrypt($record), $this->statement);
 
             $this->wakeup = true;
 
             $this->reset = true;
+
         }
 
     }
@@ -421,9 +490,7 @@ class Result implements \ArrayAccess, \Countable, \Iterator {
 
         $this->store();
 
-        return array(
-            'records'
-        );
+        return array('records');
 
     }
 
@@ -497,13 +564,15 @@ class Result implements \ArrayAccess, \Countable, \Iterator {
         if ($this->wakeup)
             return next($this->records);
 
+        $this->record = null;
+
         if ($this->statement instanceof \PDOStatement) {
 
             $this->reset = true;
 
-            $this->record = $this->statement->fetch(\PDO::FETCH_ASSOC);
+            if($record = $this->statement->fetch(\PDO::FETCH_NAMED, \PDO::FETCH_ORI_NEXT))
+                return $this->record = new Row($this->adapter, $this->meta, $this->decrypt($record), $this->statement);
 
-            return $this->fix($this->record);
         }
 
         return false;
@@ -515,14 +584,18 @@ class Result implements \ArrayAccess, \Countable, \Iterator {
         if ($this->wakeup)
             return reset($this->records);
 
+        $this->record = null;
+
         if ($this->statement instanceof \PDOStatement) {
 
-            if ($this->reset == true)
+            if($this->reset === true)
                 $this->statement->execute();
 
-            $this->record = $this->statement->fetch(\PDO::FETCH_ASSOC);
+            $this->reset = false;
 
-            return $this->fix($this->record);
+            if($record = $this->statement->fetch(\PDO::FETCH_NAMED, \PDO::FETCH_ORI_NEXT))
+                return $this->record = new Row($this->adapter, $this->meta, $this->decrypt($record), $this->statement);
+
         }
 
         return false;
@@ -534,9 +607,42 @@ class Result implements \ArrayAccess, \Countable, \Iterator {
         if ($this->wakeup)
             return (current($this->records));
 
-        return is_array($this->record);
+        return $this->record instanceof Row;
+
+    }
+
+    private function decrypt(&$data){
+
+        if($data === null
+            || !(is_array($data) && count($data) > 0)
+            || $this->encrypt === false)
+            return $data;
+
+        $cipher = ake($this->encrypt, 'cipher', 'aes-256-ctr');
+
+        $key = ake($this->encrypt, 'key', '0000');
+
+        $checkstring = ake($this->encrypt, 'checkstring', Adapter::$default_checkstring);
+
+        foreach($data as $key => &$value){
+
+            if(!(in_array($key, ake($this->encrypt['table'], $this->meta[$key]['table'], array())) && $this->meta[$key]['type'] === 'string'))
+                continue;
+
+            $parts = preg_split('/(?<=.{' . openssl_cipher_iv_length($cipher) . '})/', base64_decode($value), 2);
+
+            if(count($parts) !== 2)
+                continue;
+
+            list($checkbit, $value) = preg_split('/(?<=.{' . strlen($checkstring) . '})/', openssl_decrypt($parts[1], $cipher, $key, OPENSSL_RAW_DATA, $parts[0]), 2);
+
+            if($checkbit !== $checkstring)
+                throw new \Exception('Field decryption failed: ' . $key);
+
+        }
+
+        return $data;
 
     }
 
 }
-

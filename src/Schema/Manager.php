@@ -7,13 +7,15 @@
  *
  * @copyright   Copyright (c) 2018 Jamie Carl (http://www.hazaarlabs.com)
  */
-namespace Hazaar\DBI;
+namespace Hazaar\DBI\Schema;
+
+use \Hazaar\DBI\Adapter;
 
 /**
  * Relational Database Schema Manager
  *
  */
-class SchemaManager {
+class Manager {
 
     private $dbi;
 
@@ -108,9 +110,9 @@ class SchemaManager {
      */
     private function createInfoTable() {
 
-        if (!$this->dbi->tableExists(SchemaManager::$schema_info_table)) {
+        if (!$this->dbi->tableExists(Manager::$schema_info_table)) {
 
-            $this->dbi->createTable(SchemaManager::$schema_info_table, array(
+            $this->dbi->createTable(Manager::$schema_info_table, array(
                 'version' => array(
                     'data_type' => 'int8',
                     'not_null' => true,
@@ -1188,6 +1190,9 @@ class SchemaManager {
                             $this->dbi->delete('schema_info', array('version' => $ver));
 
                     }
+
+                    if($this->dbi->errorCode() > 0)
+                        throw new \Exception($this->dbi->errorInfo()[2]);
 
                     $this->dbi->commit();
 

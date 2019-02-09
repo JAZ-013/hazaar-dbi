@@ -1,7 +1,7 @@
 <?php
 
 /**
- * @file        Hazaar/Db/Adapter.php
+ * @file        Hazaar/DBI/DBD/BaseDriver.php
  *
  * @author      Jamie Carl <jamie@hazaarlabs.com>
  *
@@ -497,6 +497,8 @@ abstract class BaseDriver implements Driver_Interface {
 
             if(is_string($value) && in_array($value, $exclude))
                 $field_def[] = $value;
+            elseif(is_array($value))
+                $field_def[] = $this->prepareFields($value);
             elseif (is_numeric($key))
                 $field_def[] = $this->field($value);
             else
@@ -508,7 +510,7 @@ abstract class BaseDriver implements Driver_Interface {
 
     }
 
-    public function prepareValue($value, $key = null) {
+    public function prepareValue($value, $type_hint = null, $key = null) {
 
         if (is_array($value)) {
 
@@ -555,7 +557,7 @@ abstract class BaseDriver implements Driver_Interface {
 
     }
 
-    public function insert($table, $fields, $returning = TRUE) {
+    public function insert($table, $fields, $returning = NULL) {
 
         if($fields instanceof \Hazaar\Map)
             $fields = $fields->toArray();
@@ -572,7 +574,7 @@ abstract class BaseDriver implements Driver_Interface {
         $value_def = array_values($fields);
 
         foreach($value_def as $key => &$value)
-            $value = $this->prepareValue($value, $field_def[$key]);
+            $value = $this->prepareValue($value, null, $field_def[$key]);
 
         $sql = 'INSERT INTO ' . $this->field($table) . ' ( ' . implode(', ', $field_def) . ' ) VALUES ( ' . implode(', ', $value_def) . ' )';
 
@@ -604,7 +606,7 @@ abstract class BaseDriver implements Driver_Interface {
 
     }
 
-    public function update($table, $fields, $criteria = array()) {
+    public function update($table, $fields, $criteria = array(), $from = array()) {
 
         if($fields instanceof \Hazaar\Map)
             $fields = $fields->toArray();
@@ -621,9 +623,14 @@ abstract class BaseDriver implements Driver_Interface {
         if (count($field_def) == 0)
             throw new Exception\NoUpdate();
 
-        $sql = 'UPDATE ' . $this->field($table) . ' SET ' . implode(', ', $field_def);
+        $table = (is_array($table) && isset($table[0])) ? $this->field($table[0]) . ' AS ' . $table[1] : $this->field($table);
 
-        if (count($criteria) > 0)
+        $sql = 'UPDATE ' . $table . ' SET ' . implode(', ', $field_def);
+
+        if(is_array($from) && count($from) > 0)
+            $sql .= ' FROM ' . implode(', ', $from);
+
+        if(is_array($criteria) && count($criteria) > 0)
             $sql .= ' WHERE ' . $this->prepareCriteria($criteria);
 
         $sql .= ';';
@@ -659,12 +666,11 @@ abstract class BaseDriver implements Driver_Interface {
 
     public function tableExists($table) {
 
-        $info = new \Hazaar\DBI\Table($this, 'information_schema.tables');
+        $stmt = $this->query('SELECT EXISTS(SELECT * FROM information_schema.tables WHERE table_name='
+            . $this->quote($table) . ' AND table_schema='
+            . $this->quote($this->schema) . ');');
 
-        return $info->exists(array(
-            'table_name' => $table,
-            'table_schema' => $this->schema
-        ));
+        return $stmt->fetchColumn(0);
 
     }
 
@@ -740,16 +746,14 @@ abstract class BaseDriver implements Driver_Interface {
         if (!$sort)
             $sort = 'ordinal_position';
 
-        $info = new \Hazaar\DBI\Table($this, 'information_schema.columns');
-
-        $result = $info->find(array(
-            'table_name' => $name,
-            'table_schema' => $this->schema
-        ))->sort($sort);
+        $result = $this->query('SELECT * FROM information_schema.columns WHERE table_name='
+            . $this->quote($name) . ' AND table_schema='
+            . $this->quote($this->schema) . ' ORDER BY '
+            . $sort);
 
         $columns = array();
 
-        while($col = $result->row()) {
+        while($col = $result->fetch(\PDO::FETCH_ASSOC)) {
 
             $col = array_change_key_case($col, CASE_LOWER);
 
@@ -909,11 +913,9 @@ abstract class BaseDriver implements Driver_Interface {
 
     public function listSequences() {
 
-        $sql = "SELECT sequence_schema as schema, sequence_name as name
+        $result = $this->query("SELECT sequence_schema as schema, sequence_name as name
             FROM information_schema.sequences
-            WHERE sequence_schema NOT IN ( 'information_schema', 'pg_catalog');";
-
-        $result = $this->query($sql);
+            WHERE sequence_schema NOT IN ( 'information_schema', 'pg_catalog');");
 
         return $result->fetchAll(\PDO::FETCH_ASSOC);
 

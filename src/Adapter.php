@@ -57,6 +57,8 @@ class Adapter {
 
     private $schema_manager;
 
+    static public $default_checkstring = '!!';
+
     function __construct($config_env = NULL) {
 
         if(!$config_env)
@@ -255,30 +257,6 @@ class Adapter {
 
     }
 
-    public function beginTransaction() {
-
-        $this->checkConfig();
-
-        return $this->driver->beginTransaction();
-
-    }
-
-    public function commit() {
-
-        $this->checkConfig();
-
-        return $this->driver->commit();
-
-    }
-
-    public function getAttribute($option) {
-
-        $this->checkConfig();
-
-        return $this->driver->getAttribute($option);
-
-    }
-
     public function getAvailableDrivers() {
 
         $drivers = array();
@@ -296,70 +274,6 @@ class Adapter {
 
     }
 
-    public function inTransaction() {
-
-        $this->checkConfig();
-
-        return $this->driver->inTransaction();
-
-    }
-
-    public function lastInsertId() {
-
-        $this->checkConfig();
-
-        return $this->driver->lastInsertId();
-
-    }
-
-    public function quote($string) {
-
-        $this->checkConfig();
-
-        return $this->driver->quote($string);
-
-    }
-
-    public function rollBack() {
-
-        $this->checkConfig();
-
-        return $this->driver->rollback();
-
-    }
-
-    public function setAttribute() {
-
-        $this->checkConfig();
-
-        return $this->driver->setAttribute();
-
-    }
-
-    public function errorCode() {
-
-        $this->checkConfig();
-
-        return $this->driver->errorCode();
-
-    }
-
-    public function errorInfo() {
-
-        $this->checkConfig();
-
-        return $this->driver->errorInfo();
-
-    }
-
-    public function exec($sql) {
-
-        $this->checkConfig();
-
-        return $this->driver->exec($sql);
-
-    }
-
     public function query($sql) {
 
         $this->checkConfig();
@@ -367,7 +281,7 @@ class Adapter {
         $result = $this->driver->query($sql);
 
         if($result instanceof \PDOStatement)
-            return new Result($result);
+            return new Result($this, $result, $this->options);
 
         return $result;
 
@@ -381,54 +295,20 @@ class Adapter {
 
     }
 
-    public function insert($table, $fields, $returning = NULL) {
-
-        $this->checkConfig();
-
-        return $this->driver->insert($table, $fields, $returning);
-
-    }
-
-    public function update($table, $fields, $criteria = array()) {
-
-        $this->checkConfig();
-
-        return $this->driver->update($table, $fields, $criteria);
-
-    }
-
-    public function delete($table, $criteria) {
-
-        $this->checkConfig();
-
-        return $this->driver->delete($table, $criteria);
-
-    }
-
-    public function deleteAll($table) {
-
-        $this->checkConfig();
-
-        return $this->driver->deleteAll($table);
-
-    }
-
     public function __get($tablename) {
 
         return $this->table($tablename);
 
     }
 
-    public function __call($tablename, $args) {
+    public function __call($arg, $args) {
 
-        $args = array_merge(array(
-            $tablename
-        ), $args);
+        $this->checkConfig();
 
-        return call_user_func_array(array(
-            $this,
-            'table'
-        ), $args);
+        if(method_exists($this->driver, $arg))
+            return call_user_func_array(array($this->driver, $arg), $args);
+
+        return $this->table($arg, ake($args, 0));
 
     }
 
@@ -439,7 +319,7 @@ class Adapter {
 
         $this->checkConfig();
 
-        return $this->tables[$name] = new Table($this->driver, $name, $alias, $this->options);
+        return $this->tables[$name] = new Table($this, $name, $alias, $this->options);
 
     }
 
@@ -453,139 +333,6 @@ class Adapter {
         $sql = 'SELECT ' . $method . '(' . implode(',', $arglist) . ');';
 
         return $this->query($sql);
-
-    }
-
-    /**
-     * List all tables currently in the connected database.
-     *
-     * @since 2.0
-     */
-    public function listTables() {
-
-        $this->checkConfig();
-
-        return $this->driver->listTables();
-
-    }
-
-    /**
-     * Test that a table exists in the connected database.
-     *
-     * @param string $table
-     *            The name of the table to check for.
-     *
-     * @param string $schema
-     *            The database schema to look in. Defaults to public.
-     */
-    public function tableExists($table) {
-
-        $this->checkConfig();
-
-        return $this->driver->tableExists($table);
-
-    }
-
-    /**
-     * Create a new table in the database.
-     *
-     * @param string $name
-     *
-     * @param array $columns
-     */
-    public function createTable($name, $columns) {
-
-        $this->checkConfig();
-
-        return $this->driver->createTable($name, $columns);
-
-    }
-
-    public function describeTable($name, $sort = NULL) {
-
-        $this->checkConfig();
-
-        return $this->driver->describeTable($name, $sort);
-
-    }
-
-    public function renameTable($from_name, $to_name) {
-
-        $this->checkConfig();
-
-        return $this->driver->renameTable($from_name, $to_name);
-
-    }
-
-    public function dropTable($name, $cascade = false) {
-
-        $this->checkConfig();
-
-        return $this->driver->dropTable($name, $cascade);
-
-    }
-
-    public function addColumn($table, $column_spec) {
-
-        $this->checkConfig();
-
-        return $this->driver->addColumn($table, $column_spec);
-
-    }
-
-    public function alterColumn($table, $column, $column_spec) {
-
-        $this->checkConfig();
-
-        return $this->driver->alterColumn($table, $column, $column_spec);
-
-    }
-
-    public function dropColumn($table, $column) {
-
-        $this->checkConfig();
-
-        return $this->driver->dropColumn($table, $column);
-
-    }
-
-    public function listSequences() {
-
-        $this->checkConfig();
-
-        return $this->driver->listSequences();
-
-    }
-
-    public function describeSequence($name) {
-
-        $this->checkConfig();
-
-        return $this->driver->describeSequence($name);
-
-    }
-
-    public function listIndexes($table = NULL) {
-
-        $this->checkConfig();
-
-        return $this->driver->listIndexes($table);
-
-    }
-
-    public function createIndex($index_name, $table_name, $idx_info) {
-
-        $this->checkConfig();
-
-        return $this->driver->createIndex($index_name, $table_name, $idx_info);
-
-    }
-
-    public function dropIndex($name) {
-
-        $this->checkConfig();
-
-        return $this->driver->dropIndex($name);
 
     }
 
@@ -613,138 +360,6 @@ class Adapter {
 
     }
 
-    public function addConstraint($name, $info) {
-
-        $this->checkConfig();
-
-        return $this->driver->addConstraint($name, $info);
-
-    }
-
-    public function dropConstraint($name, $table, $cascade = false) {
-
-        $this->checkConfig();
-
-        return $this->driver->dropConstraint($name, $table, $cascade);
-
-    }
-
-    /**
-     * List views
-     */
-    public function listViews(){
-
-        $this->checkConfig();
-
-        return $this->driver->listViews();
-
-    }
-
-    /**
-     * Describe a view
-     *
-     * @param mixed $name
-     * @throws Exception\DriverNotSpecified
-     * @return mixed
-     */
-    public function describeView($name){
-
-        $this->checkConfig();
-
-        return $this->driver->describeView($name);
-
-    }
-
-    /**
-     * Create a new view
-     * @param mixed $name
-     * @throws Exception\DriverNotSpecified
-     * @return mixed
-     */
-    public function createView($name, $sql){
-
-        $this->checkConfig();
-
-        return $this->driver->createView($name, $sql);
-
-    }
-
-    /**
-     * Delete/drop a view
-     * @param mixed $name
-     * @throws Exception\DriverNotSpecified
-     * @return mixed
-     */
-    public function dropView($name, $cascade = false){
-
-        $this->checkConfig();
-
-        return $this->driver->dropView($name, $cascade);
-
-    }
-
-    /**
-     * List functions
-     */
-    public function listFunctions(){
-
-        $this->checkConfig();
-
-        return $this->driver->listFunctions();
-
-    }
-
-    /**
-     * Describe a function
-     *
-     * @param mixed $name
-     * @throws Exception\DriverNotSpecified
-     * @return mixed
-     */
-    public function describeFunction($name){
-
-        $this->checkConfig();
-
-        return $this->driver->describeFunction($name);
-
-    }
-
-    /**
-     * Create a new function
-     * @param mixed $name
-     * @throws Exception\DriverNotSpecified
-     * @return mixed
-     */
-    public function createFunction($name, $spec){
-
-        $this->checkConfig();
-
-        return $this->driver->createFunction($name, $spec);
-
-    }
-
-    /**
-     * Delete/drop a function
-     * @param mixed $name
-     * @throws Exception\DriverNotSpecified
-     * @return mixed
-     */
-    public function dropFunction($name, $arg_types = array(), $cascade = false){
-
-        $this->checkConfig();
-
-        return $this->driver->dropFunction($name, $arg_types, $cascade);
-
-    }
-
-    public function execCount() {
-
-        $this->checkConfig();
-
-        return $this->driver->execCount();
-
-    }
-
     /**
      * Prepared statements
      */
@@ -762,7 +377,7 @@ class Adapter {
         else
             $this->statements[] = $statement;
 
-        return $statement;
+        return new Result($this, $statement, $this->options);
 
     }
 
@@ -790,10 +405,15 @@ class Adapter {
 
     }
 
+    /**
+     * Returns an instance of the Hazaar\DBI\Schema\Manager for managing database schema versions.
+     *
+     * @return Schema\Manager
+     */
     public function getSchemaManager(){
 
-        if(!$this->schema_manager instanceof SchemaManager)
-            $this->schema_manager = new SchemaManager($this);
+        if(!$this->schema_manager instanceof Schema\Manager)
+            $this->schema_manager = new Schema\Manager($this);
 
         return $this->schema_manager;
 
@@ -802,7 +422,7 @@ class Adapter {
     /**
      * Returns the current DBI schema versions
      *
-     * See: \Hazaar\DBI\SchemaManager::getSchemaVersion()
+     * See: \Hazaar\DBI\Schema\Manager::getSchemaVersion()
      *
      * @deprecated
      */
@@ -815,7 +435,7 @@ class Adapter {
     /**
      * Returns a list of all known schema versions
      *
-     * See: \Hazaar\DBI\SchemaManager::getSchemaVersions()
+     * See: \Hazaar\DBI\Schema\Manager::getSchemaVersions()
      *
      * @deprecated
      */
@@ -828,7 +448,7 @@ class Adapter {
     /**
      * Returns the version number of the latest schema version
      *
-     * See: \Hazaar\DBI\SchemaManager::getLatestSchemaVersion()
+     * See: \Hazaar\DBI\Schema\Manager::getLatestSchemaVersion()
      *
      * @deprecated
      */
@@ -841,7 +461,7 @@ class Adapter {
     /**
      * Checks if the current DBI schema is the latest versions
      *
-     * See: \Hazaar\DBI\SchemaManager::isSchemaLatest()
+     * See: \Hazaar\DBI\Schema\Manager::isSchemaLatest()
      *
      * @deprecated
      */
@@ -854,7 +474,7 @@ class Adapter {
     /**
      * Snapshot the database schema and create a new schema version with migration replay files.
      *
-     * See: \Hazaar\DBI\SchemaManager::snapshot()
+     * See: \Hazaar\DBI\Schema\Manager::snapshot()
      *
      * @deprecated
      */
@@ -867,7 +487,7 @@ class Adapter {
     /**
      * Database migration method.
      *
-     * See: \Hazaar\DBI\SchemaManager::migrate()
+     * See: \Hazaar\DBI\Schema\Manager::migrate()
      *
      * @deprecated
      */
@@ -880,7 +500,7 @@ class Adapter {
     /**
      * Takes a schema definition and creates it in the database.
      *
-     * See: \Hazaar\DBI\SchemaManager::createSchema()
+     * See: \Hazaar\DBI\Schema\Manager::createSchema()
      *
      * @deprecated
      */
@@ -893,7 +513,7 @@ class Adapter {
     /**
      * Synchonise schema data with the database
      *
-     * See: \Hazaar\DBI\SchemaManager::syncSchemaData()
+     * See: \Hazaar\DBI\Schema\Manager::syncSchemaData()
      *
      * @deprecated
      */
@@ -903,8 +523,55 @@ class Adapter {
 
     }
 
+    public function insert($table, $fields, $returning){
+
+        return $this->driver->insert($table, $this->encrypt($table, $fields), $returning);
+
+    }
+
+    public function update($table, $fields, $criteria, $from = array()){
+
+        return $this->driver->update($table, $this->encrypt($table, $fields), $criteria, $from);
+
+    }
+
+    public function encrypt($table, &$data){
+
+        if(is_array($table) && isset($table[0]))
+            $table = $table[0];
+
+        if($data === null
+            || !(is_array($data) && count($data) > 0)
+            || ($encrypt = ake($this->options, 'encrypt', false)) === false
+            || ($encrypted_fields = ake(ake($encrypt, 'table'), $table)) === null)
+            return $data;
+
+        $cipher = ake($encrypt, 'cipher', 'aes-256-ctr');
+
+        $key = ake($encrypt, 'key', '0000');
+
+        $checkstring = ake($encrypt, 'checkstring', Adapter::$default_checkstring);
+
+        foreach($data as $key => &$value){
+
+            if(!in_array($key, $encrypted_fields))
+                continue;
+
+            if(!is_string($value))
+                throw new \Exception('Trying to encrypt non-string field: ' . $key);
+
+            $iv = openssl_random_pseudo_bytes(openssl_cipher_iv_length($cipher));
+
+            $value = base64_encode($iv . openssl_encrypt($checkstring . $value, $cipher, $key, OPENSSL_RAW_DATA, $iv));
+
+        }
+
+        return $data;
+
+    }
+
     /**
-     * TRUNCATE — empty a table or set of tables
+     * TRUNCATE ï¿½ empty a table or set of tables
      *
      * TRUNCATE quickly removes all rows from a set of tables. It has the same effect as an unqualified DELETE on
      * each table, but since it does not actually scan the tables it is faster. Furthermore, it reclaims disk space

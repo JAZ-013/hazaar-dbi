@@ -16,7 +16,8 @@
     <IncludeDebugInformation>false</IncludeDebugInformation>
   </PropertyGroup>
   <ItemGroup>
-    <Compile Include="src\SchemaManager.php" />
+    <Compile Include="src\Exception\NotConfigured.php" />
+    <Compile Include="src\Schema\Manager.php" />
     <Compile Include="src\DBD\Exception\NoUpdate.php" />
     <Compile Include="src\DBD\BaseDriver.php" />
     <Compile Include="src\DBD\Mysql.php" />
@@ -30,6 +31,7 @@
     <Compile Include="src\File\Backend\DBI.php" />
     <Compile Include="src\Result.php" />
     <Compile Include="src\Console.php" />
+    <Compile Include="src\Row.php" />
     <Compile Include="src\Table.php" />
   </ItemGroup>
   <ItemGroup>
@@ -44,6 +46,8 @@
     <Folder Include="src" />
     <Folder Include="src\File\" />
     <Folder Include="src\File\Backend\" />
+    <Folder Include="src\Schema\" />
+    <Folder Include="src\Result\" />
   </ItemGroup>
   <ItemGroup>
     <Content Include="composer.json" />
