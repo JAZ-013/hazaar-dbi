@@ -377,7 +377,7 @@ class Adapter {
         else
             $this->statements[] = $statement;
 
-        return $statement;
+        return new Result($this, $statement, $this->options);
 
     }
 

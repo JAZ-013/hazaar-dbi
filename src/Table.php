@@ -55,13 +55,17 @@ class Table {
 
     private $result;
 
-    function __construct(Adapter $adapter, $name, $alias = NULL) {
+    private $options;
+
+    function __construct(Adapter $adapter, $name, $alias = NULL, $options = null) {
 
         $this->adapter = $adapter;
 
         $this->name = $name;
 
         $this->alias = $alias;
+
+        $this->options = $options;
 
     }
 
@@ -329,14 +333,14 @@ class Table {
      * @param mixed $criteria   The query selection criteria.
      * @param mixed $fields     The field selection.
      * @throws \Exception
-     * @return null
+     * @return Result|boolean
      */
     public function prepare($criteria = array(), $fields = array(), $name = null){
 
         $this->find($criteria, $fields);
 
-        if ($this->result = $this->adapter->prepare($this->toString(), $name))
-            return $this->result;
+        if ($statement = $this->adapter->prepare($this->toString(), $name))
+            return new Result($this->adapter, $statement, $this->options);
 
         return false;
 
