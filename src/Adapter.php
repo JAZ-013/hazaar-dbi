@@ -48,6 +48,8 @@ class Adapter {
 
     public $driver;
 
+    private $tables = array();
+
     // Prepared statements
     private $statements = array();
 
@@ -312,7 +314,12 @@ class Adapter {
 
     public function table($name, $alias = NULL) {
 
-        return new Table($this, $name, $alias, $this->options);
+        if(array_key_exists($name, $this->tables))
+            return $this->tables[$name];
+
+        $this->checkConfig();
+
+        return $this->tables[$name] = new Table($this, $name, $alias, $this->options);
 
     }
 
