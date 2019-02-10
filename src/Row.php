@@ -24,10 +24,6 @@ final class Row extends \Hazaar\Model\Strict {
 
         $this->statement = $statement;
 
-        $this->ignore_undefined = false;
-
-        $this->allow_undefined = true;
-
         parent::__construct($data);
 
     }

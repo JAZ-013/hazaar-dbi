@@ -35,9 +35,9 @@ class DBI implements _Interface {
 
     public function loadRootObject() {
 
-        if(! ($row = $this->db->file->findOne(array('parents' => null)))) {
+        if(!($this->rootObject = $this->db->file->findOne(array('parents' => null)))) {
 
-            $root = array(
+            $this->rootObject = array(
                 'kind'         => 'dir',
                 'parents'      => null,
                 'filename'     => 'ROOT',
@@ -47,10 +47,8 @@ class DBI implements _Interface {
                 'mime_type'    => 'directory'
             );
 
-            if(!($root['id'] = $this->db->file->insert($root, 'id')))
+            if(!($this->rootObject['id'] = $this->db->file->insert($this->rootObject, 'id')))
                 throw new \Exception('Unable to create DBI filesystem root object: ' . $this->db->errorInfo()[2]);
-
-            $this->rootObject = $root;
 
             /*
              * If we are recreating the ROOT document then everything is either
@@ -60,11 +58,7 @@ class DBI implements _Interface {
              * b) Screwed - In which case this should make everything work again.
              *
              */
-            $this->fsck();
-
-        }else{
-
-            $this->rootObject = $row->toArray();
+            $this->fsck(true);
 
         }
 
@@ -87,8 +81,8 @@ class DBI implements _Interface {
 
         $parent['items'] = array();
 
-        while($object = $q->row())
-            $parent['items'][$object['filename']] = $object->toArray();
+        while($object = $q->fetch())
+            $parent['items'][$object['filename']] = $object;
 
         return true;
 
@@ -136,15 +130,15 @@ class DBI implements _Interface {
 
     }
 
-    public function fsck() {
+    public function fsck($skip_root_reload = false) {
 
         $c = $this->db->file->find(array(), array('id', 'filename', 'parents'));
 
-        while($file = $c->row()) {
+        while($file = $c->fetch()) {
 
             $update = array();
 
-            if(! is_array($file['parents']))
+            if(!is_array($file['parents']))
                 continue;
 
             /*
@@ -176,7 +170,8 @@ class DBI implements _Interface {
 
         }
 
-        $this->loadRootObject();
+        if($skip_root_reload !== true)
+            $this->loadRootObject();
 
         return true;
 
@@ -184,10 +179,10 @@ class DBI implements _Interface {
 
     public function scandir($path, $regex_filter = null, $show_hidden = false) {
 
-        if(! ($parent = $this->info($path)))
+        if(!($parent = $this->info($path)))
             return false;
 
-        if(! array_key_exists('items', $parent))
+        if(!array_key_exists('items', $parent))
             $this->loadObjects($parent);
 
         $list = array();
@@ -196,7 +191,7 @@ class DBI implements _Interface {
 
             $fullpath = $path . $file['filename'];
 
-            if($regex_filter && ! preg_match($regex_filter, $fullpath))
+            if($regex_filter && !preg_match($regex_filter, $fullpath))
                 continue;
 
             $list[] = $file['filename'];
@@ -298,7 +293,7 @@ class DBI implements _Interface {
 
     public function filesize($path) {
 
-        if(! ($info = $this->info($path)))
+        if(!($info = $this->info($path)))
             return false;
 
         return ake($info, 'length', 0);
@@ -307,7 +302,7 @@ class DBI implements _Interface {
 
     public function fileperms($path) {
 
-        if(! ($info = $this->info($path)))
+        if(!($info = $this->info($path)))
             return false;
 
         return ake($info, 'mode');
@@ -453,10 +448,10 @@ class DBI implements _Interface {
 
     public function read($path) {
 
-        if(! ($item = $this->info($path)))
+        if(!($item = $this->info($path)))
             return false;
 
-        if(! ($file = $this->db->file_chunk->findOne(array('file_id' => $item['id']))))
+        if(!($file = $this->db->file_chunk->findOne(array('file_id' => $item['id']))))
             return false;
 
         return stream_get_contents($file['data']);
@@ -468,7 +463,7 @@ class DBI implements _Interface {
         if(!($parent =& $this->info($this->dirname($path))))
             throw new \Exception('Unable to determine parent of path: ' . $path);
 
-        if(! $parent)
+        if(!$parent)
             return false;
 
         $md5 = md5($bytes);
@@ -555,7 +550,7 @@ class DBI implements _Interface {
 
     public function copy($src, $dst, $recursive = false) {
 
-        if(! ($source = $this->info($src)))
+        if(!($source = $this->info($src)))
             return false;
 
         if(!($dstParent =& $this->info($this->dirname($dst))))
@@ -573,7 +568,7 @@ class DBI implements _Interface {
 
         }
 
-        if(! $dstParent)
+        if(!$dstParent)
             return false;
 
         $data = array(
@@ -586,7 +581,7 @@ class DBI implements _Interface {
         if(!$this->db->file->update(array('id' => $source['id']), $data))
             return false;
 
-        if(! array_key_exists('items', $dstParent))
+        if(!array_key_exists('items', $dstParent))
             $dstParent['items'] = array();
 
         $dstParent['items'][$source['filename']] = $source;
@@ -597,7 +592,7 @@ class DBI implements _Interface {
 
     public function link($src, $dst) {
 
-        if(! ($source = $this->info($src)))
+        if(!($source = $this->info($src)))
             return false;
 
         if(!($dstParent =& $this->info($this->dirname($dst))))
@@ -615,20 +610,20 @@ class DBI implements _Interface {
 
         }
 
-        if(! $dstParent)
+        if(!$dstParent)
             return false;
 
         $data = array(
             'modified_on' => new \MongoDate
         );
 
-        if(! in_array($dstParent['id'], $source['parents']))
+        if(!in_array($dstParent['id'], $source['parents']))
             $data['parents'] = array('$push' => $dstParent['id']);
 
         if(!$this->db->file->update(array('id' => $source['id']), $data))
             return false;
 
-        if(! array_key_exists('items', $dstParent))
+        if(!array_key_exists('items', $dstParent))
             $dstParent['items'] = array();
 
         $dstParent['items'][$source['filename']] = $source;
@@ -642,7 +637,7 @@ class DBI implements _Interface {
         if(substr($dst, 0, strlen($src)) == $src)
             return false;
 
-        if(! ($source = $this->info($src)))
+        if(!($source = $this->info($src)))
             return false;
 
         if(!($srcParent =& $this->info($this->dirname($src))))
@@ -695,7 +690,7 @@ class DBI implements _Interface {
 
     public function chmod($path, $mode) {
 
-        if(! is_int($mode))
+        if(!is_int($mode))
             return false;
 
         if($target =& $this->info($path)) {
@@ -757,7 +752,7 @@ class DBI implements _Interface {
 
     public function get_meta($path, $key = null) {
 
-        if(! ($info = $this->info($path)))
+        if(!($info = $this->info($path)))
             return false;
 
         if(array_key_exists('metadata', $info)) {
