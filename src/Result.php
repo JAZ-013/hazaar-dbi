@@ -137,19 +137,37 @@ class Result implements \ArrayAccess, \Countable, \Iterator {
 
     }
 
-    public function bindColumn($column, &$param, $type, $maxlen, $driverdata) {
+    public function bindColumn($column, &$param, $type = null, $maxlen = null, $driverdata = null) {
 
-        if ($this->statement instanceof \PDOStatement)
-            return $this->statement->bindColumn($column, $param, $type, $maxlen, $driverdata);
+        if ($this->statement instanceof \PDOStatement){
+
+            if($driverdata !== null)
+                return $this->statement->bindColumn($column, $param, $type, $maxlen, $driverdata);
+            if($maxlen !== null)
+                return $this->statement->bindColumn($column, $param, $type, $maxlen);
+            if($type !== null)
+                return $this->statement->bindColumn($column, $param, $type);
+
+            return $this->statement->bindColumn($column, $param);
+
+        }
 
         return false;
 
     }
 
-    public function bindParam($parameter, &$variable, $data_type = \PDO::PARAM_STR, $length, $driver_options) {
+    public function bindParam($parameter, &$variable, $data_type = \PDO::PARAM_STR, $length = null, $driver_options = null) {
 
-        if ($this->statement instanceof \PDOStatement)
-            return $this->statement->bindParam($parameter, $variable, $data_type, $length, $driver_options);
+        if ($this->statement instanceof \PDOStatement){
+
+            if($driver_options !== null)
+                return $this->statement->bindParam($parameter, $variable, $data_type, $length, $driver_options);
+            if($length !== null)
+                return $this->statement->bindParam($parameter, $variable, $data_type, $length);
+
+            return $this->statement->bindParam($parameter, $variable, $data_type);
+
+        }
 
         return false;
 
@@ -211,16 +229,15 @@ class Result implements \ArrayAccess, \Countable, \Iterator {
 
     public function execute($input_parameters = array()) {
 
-        if (!is_array($input_parameters))
-            $input_parameters = array(
-                $input_parameters
-            );
-
         $this->reset = false;
 
-        $result = $this->statement->execute($input_parameters);
+        if(is_array($input_parameters) && count($input_parameters) > 0)
+            $result = $this->statement->execute($input_parameters);
+        else
+            $result = $this->statement->execute();
 
-        $this->processStatement($this->statement);
+        if($result)
+            $this->processStatement($this->statement);
 
         return $result;
 
