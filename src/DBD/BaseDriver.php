@@ -510,7 +510,7 @@ abstract class BaseDriver implements Driver_Interface {
 
     }
 
-    public function prepareValue($value, $type_hint = null, $key = null) {
+    public function prepareValue($value, $key = null) {
 
         if (is_array($value)) {
 
