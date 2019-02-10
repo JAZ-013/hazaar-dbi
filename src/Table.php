@@ -705,9 +705,6 @@ class Table {
      */
     public function collate($index_column, $value_column, $group_column = null){
 
-        if (!$this->result)
-            $this->execute();
-
         return array_collate($this->fetchAll(), $index_column, $value_column, $group_column);
 
     }
