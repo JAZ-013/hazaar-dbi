@@ -239,6 +239,9 @@ class Result implements \ArrayAccess, \Countable, \Iterator {
         if($result)
             $this->processStatement($this->statement);
 
+        if(preg_match('/^INSERT/i', $this->statement->queryString))
+            return $this->adapter->lastInsertId();
+
         return $result;
 
     }
