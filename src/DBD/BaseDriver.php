@@ -465,7 +465,7 @@ abstract class BaseDriver implements Driver_Interface {
                         $key = $parent_ref . '.' . $key;
 
                     if(is_null($value))
-                        $joiner = 'IS ' . (($tissue == '!=') ? 'NOT ' : NULL);
+                        $joiner = 'IS' . (($tissue == '!=') ? 'NOT' : NULL);
                     else
                         $joiner = $tissue;
 
@@ -639,9 +639,14 @@ abstract class BaseDriver implements Driver_Interface {
 
     }
 
-    public function delete($table, $criteria) {
+    public function delete($table, $criteria, $from = array()) {
 
-        $sql = 'DELETE FROM ' . $this->field($table) . ' WHERE ' . $this->prepareCriteria($criteria) . ';';
+        $sql = 'DELETE FROM ' . $this->field($table);
+
+        if(is_array($from) && count($from) > 0)
+            $sql .= ' USING ' . implode(', ', $from);
+
+        $sql .= ' WHERE ' . $this->prepareCriteria($criteria) . ';';
 
         return $this->exec($sql);
 

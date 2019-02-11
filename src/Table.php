@@ -504,13 +504,45 @@ class Table {
 
     public function update($criteria, $fields) {
 
-        return $this->adapter->update($this->name, $fields, $criteria);
+        $from = array();
+
+        if(count($this->joins) > 0){
+
+            foreach($this->joins as $join){
+
+                $from[] = $join['ref'] . (array_key_exists('alias', $join) ? ' ' . $join['alias'] : null);
+
+                $criteria[] = $join['on'];
+
+            }
+
+        }
+
+        $name = $this->adapter->field($this->name) . ($this->alias ? ' ' . $this->alias : null);
+
+        return $this->adapter->update($name, $fields, $criteria, $from);
 
     }
 
     public function delete($criteria) {
 
-        return $this->adapter->delete($this->name, $criteria);
+        $from = array();
+
+        if(count($this->joins) > 0){
+
+            foreach($this->joins as $join){
+
+                $from[] = $join['ref'] . (array_key_exists('alias', $join) ? ' ' . $join['alias'] : null);
+
+                $criteria[] = $join['on'];
+
+            }
+
+        }
+
+        $name = $this->adapter->field($this->name) . ($this->alias ? ' ' . $this->alias : null);
+
+        return $this->adapter->delete($name , $criteria, $from);
 
     }
 
