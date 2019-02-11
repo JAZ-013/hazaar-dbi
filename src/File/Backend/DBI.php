@@ -12,6 +12,8 @@ class DBI implements _Interface {
 
     private $rootObject;
 
+    private $chunk_size = 2147483648;
+
     public function __construct($options = array()) {
 
         if($options instanceof \Hazaar\Map)
@@ -35,11 +37,11 @@ class DBI implements _Interface {
 
     public function loadRootObject() {
 
-        if(!($this->rootObject = $this->db->file->findOne(array('parents' => null)))) {
+        if(!($this->rootObject = $this->db->file->findOne(array('parent' => null)))) {
 
             $this->rootObject = array(
                 'kind'         => 'dir',
-                'parents'      => null,
+                'parent'       => null,
                 'filename'     => 'ROOT',
                 'created_on'   => new \Hazaar\Date(),
                 'modified_on'  => null,
@@ -77,7 +79,7 @@ class DBI implements _Interface {
         if(!is_array($parent))
             return false;
 
-        $q = $this->db->query('SELECT * FROM "file" WHERE filename IS NOT NULL AND ' . $parent['id'] . ' = ANY(parents);');
+        $q = $this->db->file->find(array('parent' => $parent['id']));
 
         $parent['items'] = array();
 
@@ -132,43 +134,27 @@ class DBI implements _Interface {
 
     public function fsck($skip_root_reload = false) {
 
-        $c = $this->db->file->find(array(), array('id', 'filename', 'parents'));
+        $c = $this->db->file->find(array(), array('id', 'filename', 'parent'));
 
         while($file = $c->fetch()) {
 
-            $update = array();
-
-            if(!is_array($file['parents']))
+            if(!$file['parent'])
                 continue;
 
             /*
-             * Make sure an objects parents exist!
-             *
-             * NOTE: This is allowed to be slow as it is never usually executed.
+             * Make sure an objects parent exist!
              */
-            foreach($file['parents'] as $index => $parentID) {
-
-                if(!$this->db->file->exists(array('id' => $parentID)))
-                    $update[] = $index;
-
-            }
-
-            if(count($update) > 0) {
-
-                foreach($update as $index)
-                    unset($file['parents'][$index]);
-
-                /*
-                 * Fix up any parentless objects
-                 */
-                if(count($file['parents']) == 0)
-                    $file['parents'] = array($this->rootObject['id']);
-
-                $this->db->file->update(array('id' => $file['id']), array('parents' => array('$array' => $file['parents'])));
-
-            }
+            if(!$this->db->file->exists(array('id' => $file['parent'])))
+                $this->db->file->update(array('id' => $file['id']), array('parent' => $this->rootObject['id']));
 
         }
+
+        //Remove headless chunks
+        $select = $this->db->file_chunk('fc')
+            ->leftjoin('file', array('f.start_chunk' => array('$ref' => 'fc.id')), 'f')
+            ->find(array('f.id' => null, 'fc.parent' => null), 'fc.id');
+
+        $this->db->exec('DELETE FROM file_chunk WHERE id IN (' . $select . ')');
 
         if($skip_root_reload !== true)
             $this->loadRootObject();
@@ -187,7 +173,7 @@ class DBI implements _Interface {
 
         $list = array();
 
-        foreach($parent['items'] as $filename => $file) {
+        foreach($parent['items'] as $file) {
 
             $fullpath = $path . $file['filename'];
 
@@ -343,7 +329,7 @@ class DBI implements _Interface {
 
         $info = array(
             'kind'         => 'dir',
-            'parents'      => array('$array' => $parent['id']),
+            'parent'       => $parent['id'],
             'filename'     => basename($path),
             'length'       => 0,
             'created_on'   => new \Hazaar\Date(),
@@ -366,37 +352,19 @@ class DBI implements _Interface {
 
     public function unlink($path) {
 
-        if($info = $this->info($path)) {
+        if(!($info = $this->info($path)))
+            return false;
 
-            if(!($parent =& $this->info($this->dirname($path))))
-                throw new \Exception('Unable to determine parent of path: ' . $path);
+        if(!($parent =& $this->info($this->dirname($path))))
+            throw new \Exception('Unable to determine parent of path: ' . $path);
 
-            if(count($info['parents']) > 1){
+        if(!$this->db->file->delete(array('id' => $info['id'])))
+            return false;
 
-                if(($key = array_search($parent['id'], $info['parents'])) !== null){
+        unset($parent['items'][$info['filename']]);
 
-                    unset($info['parents'][$key]);
-
-                    $this->db->file->update(array('id' => $info['id']), array('parents' => array('$array' => $info['parents'])));
-
-                }
-
-            }else{
-
-                if($info['kind'] != 'dir')
-                    $this->db->file_chunk->delete(array('file_id' => $info['id']));
-
-                if($this->db->file->delete(array('id' => $info['id']))){
-
-                    unset($parent['items'][$info['filename']]);
-
-                    return true;
-
-                }
-
-            }
-
-        }
+        if($info['kind'] !== 'dir')
+            $this->clean_chunk($info['start_chunk']);
 
         return true;
 
@@ -451,7 +419,7 @@ class DBI implements _Interface {
         if(!($item = $this->info($path)))
             return false;
 
-        if(!($file = $this->db->file_chunk->findOne(array('file_id' => $item['id']))))
+        if(!($file = $this->db->file_chunk->findOne(array('id' => $item['start_chunk']))))
             return false;
 
         return stream_get_contents($file['data']);
@@ -466,79 +434,82 @@ class DBI implements _Interface {
         if(!$parent)
             return false;
 
+        $size = strlen($bytes);
+
         $md5 = md5($bytes);
 
         if($info = $this->db->file->findOne(array('md5' => $md5))) {
 
-            if(in_array($parent['id'], $info['parents']))
-                return false;
-
-            $data = array(
-                'modified_on' => new \Hazaar\Date(),
-                'parents' => array('$push' => $parent['id'])
-            );
-
-            if($this->db->file->update(array('id' => $info['id']), $data)){
-
-                if(!array_key_exists('items', $parent))
-                    $parent['items'] = array();
-
-                $parent['items'][$info['filename']] = $info;
-
-                return true;
-
-            }
+            $chunk_id = $info['start_chunk'];
 
         } else {
 
-            $size = strlen($bytes);
+            $stmt = $this->db->prepare('INSERT INTO file_chunk (n, data) VALUES (?, ?) RETURNING id;');
+
+            $n = 0;
+
+            $stmt->bindParam(1, $n); //Support for multiple chunks will come later at some point
+
+            $stmt->bindParam(2, $bytes, \PDO::PARAM_LOB);
+
+            if(!($chunk_id = $stmt->execute()) > 0)
+                return false;
+
+        }
+
+        settype($chunk_id, 'integer');
+
+        if($fileInfo =& $this->info($path)){
+
+            //If it's the same chunk, just bomb out because we are not updating anything
+            if(($old_chunk = $fileInfo['start_chunk']) === $chunk_id)
+                return false;
+
+            $data = array(
+                'start_chunk' => $fileInfo['start_chunk'] = $chunk_id,
+                'md5'         => $fileInfo['md5']         = $md5,
+                'modified_on' => $fileInfo['modified_on'] = new \Hazaar\Date
+            );
+
+            if(!$this->db->file->update(array('id' => $fileInfo['id']), $data))
+                return false;
+
+            $this->clean_chunk($old_chunk);
+
+        }else{
 
             $fileInfo = array(
                 'kind'         => 'file',
-                'parents'      => array('$array' => $parent['id']),
+                'parent'       => $parent['id'],
+                'start_chunk'  => $chunk_id,
                 'filename'     => basename($path),
                 'created_on'   => new \Hazaar\Date(),
-                'modified_on'  => null,
+                'modified_on'  => new \Hazaar\Date(),
                 'length'       => $size,
                 'mime_type'    => $content_type,
                 'md5'          => $md5
             );
 
-            if($id = $this->db->file->insert($fileInfo, 'id')) {
+            if(!($id = $this->db->file->insert($fileInfo, 'id')))
+                return false;
 
-                $stmt = $this->db->prepare('INSERT INTO file_chunk (file_id, n, data) VALUES (?, ?, ?);');
+            $fileInfo['id'] = $id;
 
-                $stmt->bindParam(1, $id);
+            if(!array_key_exists('items', $parent))
+                $parent['items'] = array();
 
-                $n = 0;
-
-                $stmt->bindParam(2, $n); //Support for multiple chunks will come later at some point
-
-                $stmt->bindParam(3, $bytes, \PDO::PARAM_LOB);
-
-                //Insert the data chunk.  If this fails then remote the file.  We do this without a transaction due to the potential size.
-                if(!$stmt->execute()){
-
-                    $this->db->file->delete(array('id' => $id));
-
-                    throw new \Exception($this->db->errorInfo()[2]);
-
-                }
-
-                $fileInfo['id'] = $id;
-
-                if(!array_key_exists('items', $parent))
-                    $parent['items'] = array();
-
-                $parent['items'][$fileInfo['filename']] = $fileInfo;
-
-                return true;
-
-            }
+            $parent['items'][$fileInfo['filename']] = $fileInfo;
 
         }
 
-        return false;
+        return true;
+
+    }
+
+    private function clean_chunk($id){
+
+        if($this->db->file->find(array('start_chunk' => $id))->count() === 0)
+            $this->db->file_chunk->delete(array('id' => $id));
 
     }
 
@@ -571,20 +542,21 @@ class DBI implements _Interface {
         if(!$dstParent)
             return false;
 
-        $data = array(
-            'modified_on' => new \Hazaar\Date()
-        );
+        $target = $source;
 
-        if(!in_array($dstParent['id'], $source['parents']))
-            $data['parents'] = array('$push' => $dstParent['id']);
+        unset($target['id']);
 
-        if(!$this->db->file->update(array('id' => $source['id']), $data))
+        $target['modified_on'] = new \Hazaar\Date();
+
+        $target['parent'] = $dstParent['id'];
+
+        if(!$this->db->file->insert($target))
             return false;
 
         if(!array_key_exists('items', $dstParent))
             $dstParent['items'] = array();
 
-        $dstParent['items'][$source['filename']] = $source;
+        $dstParent['items'][$target['filename']] = $target;
 
         return true;
 
@@ -614,11 +586,9 @@ class DBI implements _Interface {
             return false;
 
         $data = array(
-            'modified_on' => new \MongoDate
+            'modified_on' => new \MongoDate,
+            'parent' => $dstParent['id']
         );
-
-        if(!in_array($dstParent['id'], $source['parents']))
-            $data['parents'] = array('$push' => $dstParent['id']);
 
         if(!$this->db->file->update(array('id' => $source['id']), $data))
             return false;
@@ -652,12 +622,12 @@ class DBI implements _Interface {
 
         if($srcParent['id'] === $dstParent['id']) { //We are renaming the file.
 
-            $dstParent['filename'] = $data['filename'] = basename($dst);
+            $data['filename'] = basename($dst);
 
             //Update the parents items array key with the new name.
             $basename = basename($src);
 
-            $dstParent['items'][basename($dst)] = $dstParent['items'][$basename];
+            $dstParent['items'][$data['filename']] = $dstParent['items'][$basename];
 
             unset($dstParent['items'][$basename]);
 
@@ -667,17 +637,7 @@ class DBI implements _Interface {
             if($dstParent['kind'] !== 'dir')
                 return false;
 
-            //Double check the source parent exists and remove it from the parents array
-            if(($key = array_search($srcParent['id'], $source['parents'])) !== null)
-                unset($source['parents'][$key]);
-
-            if(!in_array($dstParent['id'], $source['parents'])){
-
-                array_push($source['parents'], $dstParent['id']);
-
-                $data['parents'] = array('$array' => $source['parents']);
-
-            }
+            $data['parent'] = $dstParent['id'];
 
         }
 
@@ -725,7 +685,7 @@ class DBI implements _Interface {
 
             $target['group'] = $group;
 
-            return $this->collection->update(array('id' => $target['id']), array('group' => $group));
+            return $this->db->file->update(array('id' => $target['id']), array('group' => $group));
 
         }
 
