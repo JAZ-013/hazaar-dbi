@@ -236,6 +236,8 @@ abstract class BaseDriver implements Driver_Interface {
 
     public function exec($sql){
 
+        $sql = rtrim($sql, '; ') . ';';
+
         if(!($this->master && in_array($this->getSQLType($sql), BaseDriver::$master_cmds, true)))
             return $this->pdo->exec($sql);
 
@@ -244,6 +246,8 @@ abstract class BaseDriver implements Driver_Interface {
     }
 
     public function query($sql){
+
+        $sql = rtrim($sql, '; ') . ';';
 
         if(!($this->master && in_array($this->getSQLType($sql), BaseDriver::$master_cmds, true)))
             return $this->pdo->query($sql);
@@ -582,20 +586,16 @@ abstract class BaseDriver implements Driver_Interface {
 
         if ($returning === NULL || $returning === FALSE) {
 
-            $sql .= ';';
-
             $return_value = $this->exec($sql);
 
         } elseif ($returning === TRUE) {
-
-            $sql .= ';';
 
             if ($result = $this->query($sql))
                 $return_value = (int) $this->lastinsertid();
 
         } elseif (is_string($returning)) {
 
-            $sql .= ' RETURNING ' . $returning . ';';
+            $sql .= ' RETURNING ' . $returning;
 
             if ($result = $this->query($sql))
                 $return_value = $result->fetchColumn(0);
@@ -633,8 +633,6 @@ abstract class BaseDriver implements Driver_Interface {
         if(is_array($criteria) && count($criteria) > 0)
             $sql .= ' WHERE ' . $this->prepareCriteria($criteria);
 
-        $sql .= ';';
-
         return $this->exec($sql);
 
     }
@@ -646,7 +644,7 @@ abstract class BaseDriver implements Driver_Interface {
         if(is_array($from) && count($from) > 0)
             $sql .= ' USING ' . implode(', ', $from);
 
-        $sql .= ' WHERE ' . $this->prepareCriteria($criteria) . ';';
+        $sql .= ' WHERE ' . $this->prepareCriteria($criteria);
 
         return $this->exec($sql);
 
@@ -654,9 +652,7 @@ abstract class BaseDriver implements Driver_Interface {
 
     public function deleteAll($table) {
 
-        $sql = 'DELETE FROM ' . $this->field($table) . ';';
-
-        return $this->exec($sql);
+        return $this->exec('DELETE FROM ' . $this->field($table));
 
     }
 
@@ -851,8 +847,6 @@ abstract class BaseDriver implements Driver_Interface {
         if (array_key_exists('default', $column_spec) && $column_spec['default'] !== null)
             $sql .= ' DEFAULT ' . $column_spec['default'];
 
-        $sql .= ';';
-
         $affected = $this->exec($sql);
 
         if ($affected === FALSE)
@@ -933,8 +927,6 @@ abstract class BaseDriver implements Driver_Interface {
         if ($this->schema)
             $sql .= " AND sequence_schema = '$this->schema'";
 
-        $sql .= ';';
-
         $result = $this->query($sql);
 
         return $result->fetchAll(\PDO::FETCH_ASSOC);
@@ -966,8 +958,6 @@ abstract class BaseDriver implements Driver_Interface {
 
         if (array_key_exists('using', $idx_info) && $idx_info['using'])
             $sql .= ' USING ' . $idx_info['using'];
-
-        $sql .= ';';
 
         $affected = $this->exec($sql);
 
@@ -1044,8 +1034,6 @@ abstract class BaseDriver implements Driver_Interface {
         if (array_key_exists('references', $info))
             $sql .= " REFERENCES " . $this->field($info['references']['table']) . " (" . $this->field($info['references']['column']) . ") ON UPDATE $info[update_rule] ON DELETE $info[delete_rule]";
 
-        $sql .= ';';
-
         $affected = $this->exec($sql);
 
         if ($affected === FALSE)
@@ -1057,7 +1045,7 @@ abstract class BaseDriver implements Driver_Interface {
 
     public function dropConstraint($name, $table, $cascade = false) {
 
-        $sql = "ALTER TABLE " . $this->field($table) . " DROP CONSTRAINT " . $this->field($name) . ($cascade?' CASCADE':'') . ';';
+        $sql = "ALTER TABLE " . $this->field($table) . " DROP CONSTRAINT " . $this->field($name) . ($cascade?' CASCADE':'');
 
         $affected = $this->exec($sql);
 
@@ -1082,7 +1070,7 @@ abstract class BaseDriver implements Driver_Interface {
 
     public function createView($name, $content){
 
-        $sql = 'CREATE OR REPLACE VIEW ' . $this->field($name) . ' AS ' . rtrim($content, ' ;') . ';';
+        $sql = 'CREATE OR REPLACE VIEW ' . $this->field($name) . ' AS ' . rtrim($content, ' ;');
 
         return ($this->exec($sql) !== false);
 
@@ -1094,8 +1082,6 @@ abstract class BaseDriver implements Driver_Interface {
 
         if($cascade === true)
             $sql .= ' CASCADE';
-
-        $sql .= ';';
 
         return ($this->exec($sql) !== false);
 
@@ -1211,8 +1197,6 @@ abstract class BaseDriver implements Driver_Interface {
         if($cascade === true)
             $sql .= ' CASCADE';
 
-        $sql .= ';';
-
         return ($this->exec($sql) !== false);
 
     }
@@ -1239,8 +1223,6 @@ abstract class BaseDriver implements Driver_Interface {
         $sql .= ' ' . ($restart_identity ? 'RESTART IDENTITY' : 'CONTINUE IDENTITY');
 
         $sql .=  ' ' . ($cascade ? 'CASCADE' : 'RESTRICT');
-
-        $sql .= ';';
 
         return ($this->exec($sql) !== false);
 

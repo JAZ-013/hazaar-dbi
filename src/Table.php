@@ -176,7 +176,7 @@ class Table {
      *
      * @return string
      */
-    public function toString($terminate_with_colon = TRUE) {
+    public function toString($terminate_with_colon = FALSE) {
 
         $sql = 'SELECT';
 
