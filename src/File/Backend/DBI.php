@@ -12,18 +12,25 @@ class DBI implements _Interface {
 
     private $rootObject;
 
-    private $chunk_size = 2147483648;
+    private $chunk_size = 4194304;
 
     public function __construct($options = array()) {
 
+        $dbi = array('dbi' => \Hazaar\DBI\Adapter::getDefaultConfig());
+
         if($options instanceof \Hazaar\Map)
-            $options->enhance(\Hazaar\DBI\Adapter::getDefaultConfig());
+            $options->enhance($dbi);
         else
-            $options = new \Hazaar\Map(\Hazaar\DBI\Adapter::getDefaultConfig(), $options);
+            $options = new \Hazaar\Map($dbi, $options);
 
         $this->options = $options;
 
-        $this->db = new \Hazaar\DBI\Adapter($this->options);
+        $this->chunk_size = ake($this->options, 'chunkSize', $this->chunk_size);
+
+        if(is_string($this->chunk_size))
+            $this->chunk_size = intval(bytes_str($this->chunk_size));
+
+        $this->db = new \Hazaar\DBI\Adapter($this->options['dbi']);
 
         $this->loadRootObject();
 
@@ -154,7 +161,8 @@ class DBI implements _Interface {
             ->leftjoin('file', array('f.start_chunk' => array('$ref' => 'fc.id')), 'f')
             ->find(array('f.id' => null, 'fc.parent' => null), 'fc.id');
 
-        $this->db->exec('DELETE FROM file_chunk WHERE id IN (' . $select . ')');
+        while($row = $select->fetch())
+            $this->clean_chunk($row['id']);
 
         if($skip_root_reload !== true)
             $this->loadRootObject();
@@ -419,10 +427,20 @@ class DBI implements _Interface {
         if(!($item = $this->info($path)))
             return false;
 
-        if(!($file = $this->db->file_chunk->findOne(array('id' => $item['start_chunk']))))
-            return false;
+        $sql = 'WITH RECURSIVE chunk_chain(id, parent, data) AS (SELECT id, parent, data FROM file_chunk WHERE id = ' . $item['start_chunk'];
 
-        return stream_get_contents($file['data']);
+        $sql .= ' UNION ALL SELECT fc.id, fc.parent, fc.data FROM chunk_chain cc INNER JOIN file_chunk AS fc ON fc.parent = cc.id)';
+
+        $sql .= ' SELECT data FROM chunk_chain;';
+
+        $result = $this->db->query($sql);
+
+        $bytes = '';
+
+        while($chunk = $result->fetch())
+            $bytes .= stream_get_contents($chunk['data']);
+
+        return $bytes;
 
     }
 
@@ -444,16 +462,37 @@ class DBI implements _Interface {
 
         } else {
 
-            $stmt = $this->db->prepare('INSERT INTO file_chunk (n, data) VALUES (?, ?) RETURNING id;');
+            $stmt = $this->db->prepare('INSERT INTO file_chunk (parent, n, data) VALUES (?, ?, ?) RETURNING id;');
 
-            $n = 0;
+            $chunks = intval(ceil($size / $this->chunk_size));
 
-            $stmt->bindParam(1, $n); //Support for multiple chunks will come later at some point
+            $last_chunk_id = null;
 
-            $stmt->bindParam(2, $bytes, \PDO::PARAM_LOB);
+            for($n = 0; $n < $chunks; $n++){
 
-            if(!($chunk_id = $stmt->execute()) > 0)
-                return false;
+                $stmt->bindParam(1, $last_chunk_id);
+
+                $stmt->bindParam(2, $n); //Support for multiple chunks will come later at some point
+
+                if($size > $this->chunk_size){
+
+                    $chunk = substr($bytes, $n * $this->chunk_size, $this->chunk_size);
+
+                    $stmt->bindParam(3, $chunk, \PDO::PARAM_LOB);
+
+                }else{
+
+                    $stmt->bindParam(3, $bytes, \PDO::PARAM_LOB);
+
+                }
+
+                if(!($last_chunk_id = $stmt->execute()) > 0)
+                    return false;
+
+                if(intval($n) === 0)
+                    $chunk_id = $last_chunk_id;
+
+            }
 
         }
 
@@ -506,10 +545,21 @@ class DBI implements _Interface {
 
     }
 
-    private function clean_chunk($id){
+    private function clean_chunk($start_chunk_id){
 
-        if($this->db->file->find(array('start_chunk' => $id))->count() === 0)
-            $this->db->file_chunk->delete(array('id' => $id));
+        if($this->db->file->find(array('start_chunk' => $start_chunk_id))->count() !== 0)
+            return false;
+
+        $sql = 'WITH RECURSIVE chunk_chain(id, parent) AS (SELECT id, parent FROM file_chunk WHERE id = ' . $start_chunk_id;
+
+        $sql .= ' UNION ALL SELECT fc.id, fc.parent FROM chunk_chain cc INNER JOIN file_chunk AS fc ON fc.parent = cc.id)';
+
+        $sql .= ' SELECT id FROM chunk_chain;';
+
+        if(!($result = $this->db->query($sql)))
+            throw new \Exception($this->db->errorInfo()[2]);
+
+        return $this->db->file_chunk->delete(array('id' => array('$in' => array_column($result->fetchAll(), 'id'))));
 
     }
 
