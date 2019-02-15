@@ -87,13 +87,18 @@ class DBI implements _Interface {
 
                 $data = $row;
 
-                unset($row['parents']);
+                unset($data['parents']);
 
-                $row['parent'] = $parent;
+                if($data['kind'] !== 'dir')
+                    unset($data['id']);
 
-                $row['start_chunk'] = ake($chunk_map, $row['id']);
+                if($parent)
+                    $data['parent'] = $parent;
 
-                $this->db->hz_file->insert($data);
+                $data['start_chunk'] = ake($chunk_map, $row['id']);
+
+                if(!$this->db->hz_file->insert($data))
+                    throw $this->db->errorException();
 
             }
 
