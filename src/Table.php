@@ -157,7 +157,7 @@ class Table {
             $sql = 'SELECT EXISTS (' . $this->toString(false) . ');';
 
         if (!($result = $this->adapter->query($sql)))
-            throw new \Exception($this->adapter->errorInfo()[2]);
+            throw $this->adapter->errorException();
 
         return boolify($result->fetchColumn(0));
 
@@ -310,7 +310,7 @@ class Table {
             $sql = $this->toString();
 
             if (!($this->result = $this->adapter->query($sql)))
-                throw new \Exception($this->adapter->errorinfo()[2]);
+                throw $this->adapter->errorException();
 
         }
 

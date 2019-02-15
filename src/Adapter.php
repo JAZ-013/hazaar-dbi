@@ -586,4 +586,20 @@ class Adapter {
 
     }
 
+    public function errorException($msg = null){
+
+        if($err = $this->errorinfo()){
+
+            if($err[1] !== null)
+                $msg .= (($msg !== null) ? ' SQL ERROR ' . $err[0] . ': ' : $err[0] . ': ') . $err[2];
+
+            if($msg)
+                return new \Exception($msg, $err[1]);
+
+        }
+
+        return new \Exception('Unknown DBI Error!');
+
+    }
+
 }
