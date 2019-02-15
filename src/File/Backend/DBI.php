@@ -42,42 +42,77 @@ class DBI implements _Interface {
 
     }
 
-    public function loadRootObject() {
+    private function initFilesystem(){
 
-        if(!($this->rootObject = $this->db->file->findOne(array('parent' => null)))) {
+        $schema = realpath(__DIR__ . str_repeat(DIRECTORY_SEPARATOR . '..', 3)
+            . DIRECTORY_SEPARATOR . 'libs'
+            . DIRECTORY_SEPARATOR . 'dbi_filesystem_schema.json');
 
-            $this->rootObject = array(
-                'kind'         => 'dir',
-                'parent'       => null,
-                'filename'     => 'ROOT',
-                'created_on'   => new \Hazaar\Date(),
-                'modified_on'  => null,
-                'length'       => 0,
-                'mime_type'    => 'directory'
-            );
+        $manager = $this->db->getSchemaManager();
 
-            if(!($this->rootObject['id'] = $this->db->file->insert($this->rootObject, 'id')))
-                throw new \Exception('Unable to create DBI filesystem root object: ' . $this->db->errorInfo()[2]);
+        if(!$manager->createSchemaFromFile($schema))
+            throw new \Exception('Unable to configure DBI filesystem schema!');
 
-            /*
-             * If we are recreating the ROOT document then everything is either
-             *
-             * a) New - In which case this won't do a thing
-             *      - or possibly -
-             * b) Screwed - In which case this should make everything work again.
-             *
-             */
-            $this->fsck(true);
+        //Look for the old tables and if they exists, do an upgrade!
+        if($this->db->tableExists('file') && $this->db->tableExists('file_chunk')){
+
+            //if(!$this->db->exec('ALTER TABLE file ALTER COLUMN parents SET DATA TYPE integer;'))
+            //throw $this->db->errorException();
 
         }
 
-        if(!$this->rootObject['created_on'] instanceof \Hazaar\Date)
-            $this->rootObject['created_on'] = new \Hazaar\Date($this->rootObject['created_on']);
+    }
 
-        if($this->rootObject['modified_on'] && !$this->rootObject['modified_on'] instanceof \Hazaar\Date)
-            $this->rootObject['modified_on'] = new \Hazaar\Date($this->rootObject['modified_on']);
+    public function loadRootObject() {
 
-        return is_array($this->rootObject);
+        try{
+
+            if(!($this->rootObject = $this->db->hz_file->findOne(array('parent' => null)))) {
+
+                $this->rootObject = array(
+                    'kind'         => 'dir',
+                    'parent'       => null,
+                    'filename'     => 'ROOT',
+                    'created_on'   => new \Hazaar\Date(),
+                    'modified_on'  => null,
+                    'length'       => 0,
+                    'mime_type'    => 'directory'
+                );
+
+                if(!($this->rootObject['id'] = $this->db->hz_file->insert($this->rootObject, 'id')))
+                    throw new \Exception('Unable to create DBI filesystem root object: ' . $this->db->errorInfo()[2]);
+
+                /*
+                 * If we are recreating the ROOT document then everything is either
+                 *
+                 * a) New - In which case this won't do a thing
+                 *      - or possibly -
+                 * b) Screwed - In which case this should make everything work again.
+                 *
+                 */
+                $this->fsck(true);
+
+            }
+
+            if(!$this->rootObject['created_on'] instanceof \Hazaar\Date)
+                $this->rootObject['created_on'] = new \Hazaar\Date($this->rootObject['created_on']);
+
+            if($this->rootObject['modified_on'] && !$this->rootObject['modified_on'] instanceof \Hazaar\Date)
+                $this->rootObject['modified_on'] = new \Hazaar\Date($this->rootObject['modified_on']);
+
+            return is_array($this->rootObject);
+
+        }
+        catch(\Throwable $e){
+
+            if($e->getCode() === 7 && substr($e->getMessage(), 0, 5) === '42P01')
+                $this->initFilesystem();
+            else
+                throw $e;
+
+        }
+
+        return false;
 
     }
 
@@ -86,7 +121,7 @@ class DBI implements _Interface {
         if(!is_array($parent))
             return false;
 
-        $q = $this->db->file->find(array('parent' => $parent['id']));
+        $q = $this->db->hz_file->find(array('parent' => $parent['id']));
 
         $parent['items'] = array();
 
@@ -141,7 +176,7 @@ class DBI implements _Interface {
 
     public function fsck($skip_root_reload = false) {
 
-        $c = $this->db->file->find(array(), array('id', 'filename', 'parent'));
+        $c = $this->db->hz_file->find(array(), array('id', 'filename', 'parent'));
 
         while($file = $c->fetch()) {
 
@@ -151,14 +186,14 @@ class DBI implements _Interface {
             /*
              * Make sure an objects parent exist!
              */
-            if(!$this->db->file->exists(array('id' => $file['parent'])))
-                $this->db->file->update(array('id' => $file['id']), array('parent' => $this->rootObject['id']));
+            if(!$this->db->hz_file->exists(array('id' => $file['parent'])))
+                $this->db->hz_file->update(array('id' => $file['id']), array('parent' => $this->rootObject['id']));
 
         }
 
         //Remove headless chunks
-        $select = $this->db->file_chunk('fc')
-            ->leftjoin('file', array('f.start_chunk' => array('$ref' => 'fc.id')), 'f')
+        $select = $this->db->hz_file_chunk('fc')
+            ->leftjoin('hz_file', array('f.start_chunk' => array('$ref' => 'fc.id')), 'f')
             ->find(array('f.id' => null, 'fc.parent' => null), 'fc.id');
 
         while($row = $select->fetch())
@@ -344,7 +379,7 @@ class DBI implements _Interface {
             'modified_on'  => null
         );
 
-        if(!($id = $this->db->file->insert($info, 'id')) > 0)
+        if(!($id = $this->db->hz_file->insert($info, 'id')) > 0)
             return false;
 
         $info['id'] = $id;
@@ -366,7 +401,7 @@ class DBI implements _Interface {
         if(!($parent =& $this->info($this->dirname($path))))
             throw new \Exception('Unable to determine parent of path: ' . $path);
 
-        if(!$this->db->file->delete(array('id' => $info['id'])))
+        if(!$this->db->hz_file->delete(array('id' => $info['id'])))
             return false;
 
         unset($parent['items'][$info['filename']]);
@@ -427,9 +462,9 @@ class DBI implements _Interface {
         if(!($item = $this->info($path)))
             return false;
 
-        $sql = 'WITH RECURSIVE chunk_chain(id, parent, data) AS (SELECT id, parent, data FROM file_chunk WHERE id = ' . $item['start_chunk'];
+        $sql = 'WITH RECURSIVE chunk_chain(id, parent, data) AS (SELECT id, parent, data FROM hz_file_chunk WHERE id = ' . $item['start_chunk'];
 
-        $sql .= ' UNION ALL SELECT fc.id, fc.parent, fc.data FROM chunk_chain cc INNER JOIN file_chunk AS fc ON fc.parent = cc.id)';
+        $sql .= ' UNION ALL SELECT fc.id, fc.parent, fc.data FROM chunk_chain cc INNER JOIN hz_file_chunk AS fc ON fc.parent = cc.id)';
 
         $sql .= ' SELECT data FROM chunk_chain;';
 
@@ -456,13 +491,13 @@ class DBI implements _Interface {
 
         $md5 = md5($bytes);
 
-        if($info = $this->db->file->findOne(array('md5' => $md5))) {
+        if($info = $this->db->hz_file->findOne(array('md5' => $md5))) {
 
             $chunk_id = $info['start_chunk'];
 
         } else {
 
-            $stmt = $this->db->prepare('INSERT INTO file_chunk (parent, n, data) VALUES (?, ?, ?) RETURNING id;');
+            $stmt = $this->db->prepare('INSERT INTO hz_file_chunk (parent, n, data) VALUES (?, ?, ?) RETURNING id;');
 
             $chunks = intval(ceil($size / $this->chunk_size));
 
@@ -487,7 +522,9 @@ class DBI implements _Interface {
                 }
 
                 if(!($last_chunk_id = $stmt->execute()) > 0)
-                    return false;
+                    throw $this->db->errorException('Write failed!');
+
+                settype($last_chunk_id, 'integer');
 
                 if(intval($n) === 0)
                     $chunk_id = $last_chunk_id;
@@ -495,8 +532,6 @@ class DBI implements _Interface {
             }
 
         }
-
-        settype($chunk_id, 'integer');
 
         if($fileInfo =& $this->info($path)){
 
@@ -510,7 +545,7 @@ class DBI implements _Interface {
                 'modified_on' => $fileInfo['modified_on'] = new \Hazaar\Date
             );
 
-            if(!$this->db->file->update(array('id' => $fileInfo['id']), $data))
+            if(!$this->db->hz_file->update(array('id' => $fileInfo['id']), $data))
                 return false;
 
             $this->clean_chunk($old_chunk);
@@ -529,8 +564,8 @@ class DBI implements _Interface {
                 'md5'          => $md5
             );
 
-            if(!($id = $this->db->file->insert($fileInfo, 'id')))
-                return false;
+            if(!($id = $this->db->hz_file->insert($fileInfo, 'id')))
+                throw $this->db->errorException();
 
             $fileInfo['id'] = $id;
 
@@ -547,19 +582,19 @@ class DBI implements _Interface {
 
     private function clean_chunk($start_chunk_id){
 
-        if($this->db->file->find(array('start_chunk' => $start_chunk_id))->count() !== 0)
+        if($this->db->hz_file->find(array('start_chunk' => $start_chunk_id))->count() !== 0)
             return false;
 
-        $sql = 'WITH RECURSIVE chunk_chain(id, parent) AS (SELECT id, parent FROM file_chunk WHERE id = ' . $start_chunk_id;
+        $sql = 'WITH RECURSIVE chunk_chain(id, parent) AS (SELECT id, parent FROM hz_file_chunk WHERE id = ' . $start_chunk_id;
 
-        $sql .= ' UNION ALL SELECT fc.id, fc.parent FROM chunk_chain cc INNER JOIN file_chunk AS fc ON fc.parent = cc.id)';
+        $sql .= ' UNION ALL SELECT fc.id, fc.parent FROM chunk_chain cc INNER JOIN hz_file_chunk AS fc ON fc.parent = cc.id)';
 
         $sql .= ' SELECT id FROM chunk_chain;';
 
         if(!($result = $this->db->query($sql)))
             throw new \Exception($this->db->errorInfo()[2]);
 
-        return $this->db->file_chunk->delete(array('id' => array('$in' => array_column($result->fetchAll(), 'id'))));
+        return $this->db->hz_file_chunk->delete(array('id' => array('$in' => array_column($result->fetchAll(), 'id'))));
 
     }
 
@@ -600,7 +635,7 @@ class DBI implements _Interface {
 
         $target['parent'] = $dstParent['id'];
 
-        if(!$this->db->file->insert($target))
+        if(!$this->db->hz_file->insert($target))
             return false;
 
         if(!array_key_exists('items', $dstParent))
@@ -640,7 +675,7 @@ class DBI implements _Interface {
             'parent' => $dstParent['id']
         );
 
-        if(!$this->db->file->update(array('id' => $source['id']), $data))
+        if(!$this->db->hz_file->update(array('id' => $source['id']), $data))
             return false;
 
         if(!array_key_exists('items', $dstParent))
@@ -691,7 +726,7 @@ class DBI implements _Interface {
 
         }
 
-        if(!$this->db->file->update(array('id' => $source['id']), $data))
+        if(!$this->db->hz_file->update(array('id' => $source['id']), $data))
             throw new \Exception($this->db->errorInfo()[2]);
 
         return true;
@@ -707,7 +742,7 @@ class DBI implements _Interface {
 
             $target['mode'] = $mode;
 
-            return $this->db->file->update(array('id' => $target['id']), array('mode' => $mode));
+            return $this->db->hz_file->update(array('id' => $target['id']), array('mode' => $mode));
 
         }
 
@@ -721,7 +756,7 @@ class DBI implements _Interface {
 
             $target['owner'] = $user;
 
-            return $this->db->file->update(array('id' => $target['id']), array('owner' => $user));
+            return $this->db->hz_file->update(array('id' => $target['id']), array('owner' => $user));
 
         }
 
@@ -735,7 +770,7 @@ class DBI implements _Interface {
 
             $target['group'] = $group;
 
-            return $this->db->file->update(array('id' => $target['id']), array('group' => $group));
+            return $this->db->hz_file->update(array('id' => $target['id']), array('group' => $group));
 
         }
 
@@ -746,7 +781,7 @@ class DBI implements _Interface {
     public function set_meta($path, $values) {
 
         if($target =& $this->info($path))
-            return $this->db->file->update(array('id' => $target['id']), array('metadata' => json_encode($values)));
+            return $this->db->hz_file->update(array('id' => $target['id']), array('metadata' => json_encode($values)));
 
         if($parent =& $this->info($this->dirname($path))) {
 

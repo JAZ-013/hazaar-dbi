@@ -27,6 +27,8 @@ class Manager {
 
     static public $schema_info_table = 'schema_info';
 
+    private $ignore_tables = array('schema_info', 'hz_file', 'hz_file_chunk');
+
     function __construct(Adapter $dbi) {
 
         $this->dbi = $dbi;
@@ -263,7 +265,7 @@ class Manager {
 
             $result = $this->dbi->query('SELECT CURRENT_TIMESTAMP');
 
-            if (!$result instanceof Result)
+            if (!$result instanceof \Hazaar\DBI\Result)
                 throw new \Exception('No rows returned!');
 
             $this->log("Starting at: " . $result->fetchColumn(0));
@@ -397,7 +399,7 @@ class Manager {
 
             $name = $table['name'];
 
-            if ($name == 'schema_info')
+            if (in_array($name, $this->ignore_tables))
                 continue;
 
             $this->log("Processing table '$name'.");
@@ -1234,6 +1236,9 @@ class Manager {
      */
     public function createSchema($schema){
 
+        if(!\Hazaar\Map::is_array($schema))
+            return false;
+
         $this->dbi->beginTransaction();
 
         try{
@@ -1357,6 +1362,18 @@ class Manager {
         $this->dbi->commit();
 
         return true;
+
+    }
+
+    public function createSchemaFromFile($filename){
+
+        if(!$filename = realpath($filename))
+            throw new \Exception('Schema file not found!', 404);
+
+        if(!($schema = json_decode(file_get_contents($filename), true)))
+            throw new \Exception('Schema file contents is not a valid schema!');
+
+        return $this->createSchema($schema);
 
     }
 
