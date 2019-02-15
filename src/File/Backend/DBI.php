@@ -12,23 +12,22 @@ class DBI implements _Interface {
 
     private $rootObject;
 
-    private $chunk_size = 4194304;
-
     public function __construct($options = array()) {
 
-        $dbi = array('dbi' => \Hazaar\DBI\Adapter::getDefaultConfig());
+        $defaults = array(
+            'dbi' => \Hazaar\DBI\Adapter::getDefaultConfig(),
+            'chunkSize' => 4194304
+        );
 
         if($options instanceof \Hazaar\Map)
-            $options->enhance($dbi);
+            $options->enhance($defaults);
         else
-            $options = new \Hazaar\Map($dbi, $options);
+            $options = new \Hazaar\Map($defaults, $options);
 
         $this->options = $options;
 
-        $this->chunk_size = ake($this->options, 'chunkSize', $this->chunk_size);
-
-        if(is_string($this->chunk_size))
-            $this->chunk_size = intval(bytes_str($this->chunk_size));
+        if(is_string($this->options['chunk_size']))
+            $this->options['chunk_size'] = intval(bytes_str($this->options['chunk_size']));
 
         $this->db = new \Hazaar\DBI\Adapter($this->options['dbi']);
 
@@ -497,9 +496,11 @@ class DBI implements _Interface {
 
         } else {
 
+            $chunk_size = $this->options['chunk_size'];
+
             $stmt = $this->db->prepare('INSERT INTO hz_file_chunk (parent, n, data) VALUES (?, ?, ?) RETURNING id;');
 
-            $chunks = intval(ceil($size / $this->chunk_size));
+            $chunks = intval(ceil($size / $chunk_size));
 
             $last_chunk_id = null;
 
@@ -509,9 +510,9 @@ class DBI implements _Interface {
 
                 $stmt->bindParam(2, $n); //Support for multiple chunks will come later at some point
 
-                if($size > $this->chunk_size){
+                if($size > $chunk_size){
 
-                    $chunk = substr($bytes, $n * $this->chunk_size, $this->chunk_size);
+                    $chunk = substr($bytes, $n * $chunk_size, $chunk_size);
 
                     $stmt->bindParam(3, $chunk, \PDO::PARAM_LOB);
 
