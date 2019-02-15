@@ -236,8 +236,10 @@ class Result implements \ArrayAccess, \Countable, \Iterator {
         else
             $result = $this->statement->execute();
 
-        if($result)
-            $this->processStatement($this->statement);
+        if(!$result)
+            return false;
+
+        $this->processStatement($this->statement);
 
         if(preg_match('/^INSERT/i', $this->statement->queryString))
             return $this->adapter->lastInsertId();
