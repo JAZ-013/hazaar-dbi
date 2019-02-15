@@ -518,13 +518,13 @@ class Adapter {
 
     }
 
-    public function insert($table, $fields, $returning){
+    public function insert($table, $fields, $returning = null){
 
         return $this->driver->insert($table, $this->encrypt($table, $fields), $returning);
 
     }
 
-    public function update($table, $fields, $criteria, $from = array()){
+    public function update($table, $fields, $criteria = array(), $from = array()){
 
         return $this->driver->update($table, $this->encrypt($table, $fields), $criteria, $from);
 

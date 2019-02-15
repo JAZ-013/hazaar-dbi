@@ -49,7 +49,7 @@ interface Driver_Interface {
 
     public function prepare($sql);
 
-    public function insert($table, $fields, $returning = 'id');
+    public function insert($table, $fields, $returning = null);
 
     public function update($table, $fields, $criteria = array());
 
@@ -561,7 +561,7 @@ abstract class BaseDriver implements Driver_Interface {
 
     }
 
-    public function insert($table, $fields, $returning = NULL) {
+    public function insert($table, $fields, $returning = null) {
 
         if($fields instanceof \Hazaar\Map)
             $fields = $fields->toArray();
