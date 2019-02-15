@@ -43,6 +43,9 @@ class DBI implements _Interface {
 
     private function initFilesystem(){
 
+        if($this->db->tableExists('hz_file') && $this->db->tableExists('hz_file_chunk'))
+            return;
+
         $schema = realpath(__DIR__ . str_repeat(DIRECTORY_SEPARATOR . '..', 3)
             . DIRECTORY_SEPARATOR . 'libs'
             . DIRECTORY_SEPARATOR . 'dbi_filesystem_schema.json');
@@ -53,10 +56,46 @@ class DBI implements _Interface {
             throw new \Exception('Unable to configure DBI filesystem schema!');
 
         //Look for the old tables and if they exists, do an upgrade!
-        if($this->db->tableExists('file') && $this->db->tableExists('file_chunk')){
+        if($this->db->tableExists('file') && $this->db->tableExists('file_chunk'))
+            $this->upgradeFilesystem('file', 'file_chunk');
 
-            //if(!$this->db->exec('ALTER TABLE file ALTER COLUMN parents SET DATA TYPE integer;'))
-            //throw $this->db->errorException();
+    }
+
+    public function upgradeFilesystem($file_table = 'file', $chunk_table = 'file_chunk'){
+
+        $this->initFilesystem();
+
+        $chunk_map = array();
+
+        $q = $this->db->table($chunk_table)->fields(array('id', 'file_id'));
+
+        while($row = $q->fetch())
+            $chunk_map[$row['file_id']] = $row['id'];
+
+        $this->db->query('INSERT INTO hz_file_chunk SELECT id, null, n, data FROM ' . $chunk_table . ' RETURNING id');
+
+        $files = $this->db->table($file_table)->sort(array('parents' => array('$nulls' => 1, '$dir' => 1)));
+
+        while($row = $files->fetch()){
+
+            $parents = $row['parents'];
+
+            if(!is_array($parents))
+                $parents = array(null); //The root node
+
+            foreach($parents as $parent){
+
+                $data = $row;
+
+                unset($row['parents']);
+
+                $row['parent'] = $parent;
+
+                $row['start_chunk'] = ake($chunk_map, $row['id']);
+
+                $this->db->hz_file->insert($data);
+
+            }
 
         }
 

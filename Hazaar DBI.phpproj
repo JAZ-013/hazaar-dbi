@@ -59,6 +59,7 @@
     <Content Include="libs\console\snapshot.phtml" />
     <Content Include="libs\console\sync.phtml" />
     <Content Include="libs\console\version_info.phtml" />
+    <Content Include="libs\dbi_filesystem_schema.json" />
     <Content Include="mkdocs.yml" />
   </ItemGroup>
 </Project>
