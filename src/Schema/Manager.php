@@ -1973,15 +1973,15 @@ class Manager {
                     throw new \Exception('Unable to configure DBI filesystem schema!');
 
                 //Look for the old tables and if they exists, do an upgrade!
-                if($this->db->tableExists('file') && $this->db->tableExists('file_chunk')){
+                if($fs_db->tableExists('file') && $fs_db->tableExists('file_chunk')){
 
-                    $this->db->query("INSERT INTO hz_file_chunk SELECT id, null, n, data FROM $chunk_table;");
+                    $fs_db->query("INSERT INTO hz_file_chunk SELECT id, null, n, data FROM file_chunk;");
 
-                    if(!$this->db->query("INSERT INTO hz_file SELECT id, kind, unnest(parents) as parent, null, filename, created_on, modified_on, length, mime_type, md5, owner, \"group\", mode, metadata FROM $file_table f WHERE kind = 'dir'"))
-                        throw $this->db->errorException();
+                    if(!$fs_db->query("INSERT INTO hz_file SELECT id, kind, unnest(parents) as parent, null, filename, created_on, modified_on, length, mime_type, md5, owner, \"group\", mode, metadata FROM file f WHERE kind = 'dir'"))
+                        throw $fs_db->errorException();
 
-                    if(!$this->db->query("INSERT INTO hz_file (kind, parent, start_chunk, filename, created_on, modified_on, length, mime_type, md5, owner, \"group\", mode, metadata) SELECT kind, unnest(parents) as parent, (SELECT fc.id FROM file_chunk fc WHERE fc.file_id=f.id), filename, created_on, modified_on, length, mime_type, md5, owner, \"group\", mode, metadata FROM $file_table f WHERE kind = 'file'"))
-                        throw $this->db->errorException();
+                    if(!$fs_db->query("INSERT INTO hz_file (kind, parent, start_chunk, filename, created_on, modified_on, length, mime_type, md5, owner, \"group\", mode, metadata) SELECT kind, unnest(parents) as parent, (SELECT fc.id FROM file_chunk fc WHERE fc.file_id=f.id), filename, created_on, modified_on, length, mime_type, md5, owner, \"group\", mode, metadata FROM file f WHERE kind = 'file'"))
+                        throw $fs_db->errorException();
 
                 }
 
