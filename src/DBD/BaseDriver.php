@@ -20,6 +20,8 @@ interface Driver_Interface {
 
     public function connect($dsn, $username = NULL, $password = NULL, $driver_options = NULL);
 
+    public function repair();
+
     public function beginTransaction();
 
     public function commit();
@@ -142,6 +144,12 @@ abstract class BaseDriver implements Driver_Interface {
     public function connect($dsn, $username = null, $password = null, $driver_options = null) {
 
         $this->pdo = new \PDO($dsn, $username, $password, $driver_options);
+
+        return true;
+
+    }
+
+    public function repair(){
 
         return true;
 

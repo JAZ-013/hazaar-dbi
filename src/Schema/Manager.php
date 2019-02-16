@@ -1980,6 +1980,8 @@ class Manager {
                     if(!$fs_db->query("INSERT INTO hz_file SELECT id, kind, unnest(parents) as parent, null, filename, created_on, modified_on, length, mime_type, md5, owner, \"group\", mode, metadata FROM file f WHERE kind = 'dir'"))
                         throw $fs_db->errorException();
 
+                    $fs_db->driver->repair();
+
                     if(!$fs_db->query("INSERT INTO hz_file (kind, parent, start_chunk, filename, created_on, modified_on, length, mime_type, md5, owner, \"group\", mode, metadata) SELECT kind, unnest(parents) as parent, (SELECT fc.id FROM file_chunk fc WHERE fc.file_id=f.id), filename, created_on, modified_on, length, mime_type, md5, owner, \"group\", mode, metadata FROM file f WHERE kind = 'file'"))
                         throw $fs_db->errorException();
 

@@ -12,6 +12,39 @@ class Pgsql extends BaseDriver {
 
     }
 
+    public function repair(){
+
+        /*
+         * Fix sequence current values to max value of column
+         *
+         * See: https://wiki.postgresql.org/wiki/Fixing_Sequences
+         */
+        $sql = "SELECT 'SELECT SETVAL(' ||
+               quote_literal(quote_ident(PGT.schemaname) || '.' || quote_ident(S.relname)) ||
+               ', COALESCE(MAX(' ||quote_ident(C.attname)|| '), 1) ) FROM ' ||
+               quote_ident(PGT.schemaname)|| '.'||quote_ident(T.relname)|| ';'
+               FROM pg_class AS S,
+                    pg_depend AS D,
+                    pg_class AS T,
+                    pg_attribute AS C,
+                    pg_tables AS PGT
+               WHERE S.relkind = 'S'
+                   AND S.oid = D.objid
+                   AND D.refobjid = T.oid
+                   AND D.refobjid = C.attrelid
+                   AND D.refobjsubid = C.attnum
+                   AND T.relname = PGT.tablename
+               ORDER BY S.relname;";
+
+        $result = $this->query($sql);
+
+        while($seq = $result->fetchColumn(0))
+            $this->query($seq);
+
+        return true;
+
+    }
+
     public function fixValue($value){
 
         if(!$value)
@@ -171,39 +204,6 @@ class Pgsql extends BaseDriver {
         }
 
         return $indexes;
-
-    }
-
-    public function repair(){
-
-        /*
-         * Fix sequence current values to max value of column
-         *
-         * See: https://wiki.postgresql.org/wiki/Fixing_Sequences
-         */
-        $sql = "SELECT 'SELECT SETVAL(' ||
-               quote_literal(quote_ident(PGT.schemaname) || '.' || quote_ident(S.relname)) ||
-               ', COALESCE(MAX(' ||quote_ident(C.attname)|| '), 1) ) FROM ' ||
-               quote_ident(PGT.schemaname)|| '.'||quote_ident(T.relname)|| ';'
-               FROM pg_class AS S,
-                    pg_depend AS D,
-                    pg_class AS T,
-                    pg_attribute AS C,
-                    pg_tables AS PGT
-               WHERE S.relkind = 'S'
-                   AND S.oid = D.objid
-                   AND D.refobjid = T.oid
-                   AND D.refobjid = C.attrelid
-                   AND D.refobjsubid = C.attnum
-                   AND T.relname = PGT.tablename
-               ORDER BY S.relname;";
-
-        $result = $this->query($sql);
-
-        while($seq = $result->fetchColumn(0))
-            $this->query($seq);
-
-        return true;
 
     }
 

@@ -27,8 +27,8 @@ class DBI implements _Interface {
 
         $this->options = $options;
 
-        if(is_string($this->options['chunk_size']))
-            $this->options['chunk_size'] = intval(bytes_str($this->options['chunk_size']));
+        if(is_string($this->options['chunkSize']))
+            $this->options['chunkSize'] = intval(bytes_str($this->options['chunkSize']));
 
         $this->db = new \Hazaar\DBI\Adapter($this->options['dbi']);
 
@@ -43,8 +43,6 @@ class DBI implements _Interface {
     }
 
     public function loadRootObject() {
-
-
 
         if(!($this->rootObject = $this->db->hz_file->findOne(array('parent' => null)))) {
 
@@ -464,7 +462,7 @@ class DBI implements _Interface {
 
         } else {
 
-            $chunk_size = $this->options['chunk_size'];
+            $chunk_size = $this->options['chunkSize'];
 
             $stmt = $this->db->prepare('INSERT INTO hz_file_chunk (parent, n, data) VALUES (?, ?, ?) RETURNING id;');
 
