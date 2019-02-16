@@ -794,4 +794,22 @@ class DBI implements _Interface {
 
     }
 
+    public function find($search = NULL, $path = '/', $case_insensitive = false){
+
+        $list = array();
+
+        $method = ($case_insensitive ? '$ilike' : '$like');
+
+        $result = $this->db->file->find(array(array('filename' => array($method => str_replace('*', '%', $search)))));
+
+        while($file = $result->fetch()){
+
+            $list[] = '/' . $file['filename'];
+
+        }
+
+        return $list;
+
+    }
+
 }
