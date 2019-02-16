@@ -1075,148 +1075,150 @@ class Manager {
         /**
          * Check to see if we are at the current version first.
          */
-        if ($current_version == $version) {
+        if ($current_version === $version) {
 
             $this->log("Database is already at version: $version");
 
-            if($force_data_sync)
-                $this->syncData();
+        }else{
 
-            return true;
+            $this->log('Starting database migration process.');
 
-        }
-
-        $this->log('Starting database migration process.');
-
-        if (!$current_version && $version == $schema['version']) {
-
-            /**
-             * This section sets up the database using the existing schema without migration replay.
-             *
-             * The criteria here is:
-             *
-             * * No current version
-             * * $version must equal the schema file version
-             *
-             * Otherwise we have to replay the migration files from current version to the target version.
-             */
-
-            if (count($this->dbi->listTables()) > 1){
-
-                $this->log("Tables exist in database but no schema info was found!  This should only be run on an empty database!");
-
-                return false;
-
-            }
-
-            /*
-             * There is no current database so just initialise from the schema file.
-             */
-            $this->log("Initialising database" . ($version ? " at version '$version'" : ''));
-
-            if ($schema['version'] > 0){
-
-                if($test || $this->createSchema($schema)){
-
-                    foreach($versions as $ver => $name)
-                        $this->dbi->insert('schema_info', array('version' => $ver));
-
-                }
-
-            }
-
-        } else {
-
-            if (!array_key_exists($current_version, $versions))
-                throw new \Exception("Your current database version has no migration source.");
-
-            $this->log("Migrating from version '$current_version' to '$version'.");
-
-            if ($version < $current_version) {
-
-                $mode = 'down';
-
-                krsort($versions);
-
-            }
-
-            $source = reset($versions);
-
-            $this->log("Migrating $mode");
-
-            do {
-
-                $ver = key($versions);
+            if (!$current_version && $version == $schema['version']) {
 
                 /**
-                 * Break out once we get to the end of versions
+                 * This section sets up the database using the existing schema without migration replay.
+                 *
+                 * The criteria here is:
+                 *
+                 * * No current version
+                 * * $version must equal the schema file version
+                 *
+                 * Otherwise we have to replay the migration files from current version to the target version.
                  */
-                if (($mode == 'up' && ($ver > $version || $ver <= $current_version)) || ($mode == 'down' && ($ver <= $version || $ver > $current_version)))
-                    continue;
 
-                if ($mode == 'up') {
+                if (count($this->dbi->listTables()) > 1){
 
-                    $this->log("--> Replaying version '$ver' from file '$source'.");
-
-                } elseif ($mode == 'down') {
-
-                    $this->log("<-- Rolling back version '$ver' from file '$source'.");
-
-                } else {
-
-                    throw new \Exception("Unknown mode!");
-
-                }
-
-                if (!($current_schema = json_decode($source->get_contents(), true)))
-                    throw new \Exception("Unable to parse the migration file.  Bad JSON?");
-
-                try{
-
-                    $this->dbi->beginTransaction();
-
-                    $this->replay($current_schema[$mode], $test, ake($current_schema, 'version', 1));
-
-                    if ($mode == 'up') {
-
-                        $this->log('Inserting version record: ' . $ver);
-
-                        if (!$test)
-                            $this->dbi->insert('schema_info', array('version' => $ver));
-
-                    } elseif ($mode == 'down') {
-
-                        $this->log('Removing version record: ' . $ver);
-
-                        if (!$test)
-                            $this->dbi->delete('schema_info', array('version' => $ver));
-
-                    }
-
-                    if($this->dbi->errorCode() > 0)
-                        throw new \Exception($this->dbi->errorInfo()[2]);
-
-                    $this->dbi->commit();
-
-                }
-                catch(\Exception $e){
-
-                    $this->dbi->rollBack();
-
-                    $this->log($e->getMessage());
+                    $this->log("Tables exist in database but no schema info was found!  This should only be run on an empty database!");
 
                     return false;
 
                 }
 
-                $this->log("-- Replay of version '$ver' completed.");
+                /*
+                 * There is no current database so just initialise from the schema file.
+                 */
+                $this->log("Initialising database" . ($version ? " at version '$version'" : ''));
 
-            } while($source = next($versions));
+                if ($schema['version'] > 0){
+
+                    if($test || $this->createSchema($schema)){
+
+                        foreach($versions as $ver => $name)
+                            $this->dbi->insert('schema_info', array('version' => $ver));
+
+                    }
+
+                }
+
+            } else {
+
+                if (!array_key_exists($current_version, $versions))
+                    throw new \Exception("Your current database version has no migration source.");
+
+                $this->log("Migrating from version '$current_version' to '$version'.");
+
+                if ($version < $current_version) {
+
+                    $mode = 'down';
+
+                    krsort($versions);
+
+                }
+
+                $source = reset($versions);
+
+                $this->log("Migrating $mode");
+
+                do {
+
+                    $ver = key($versions);
+
+                    /**
+                     * Break out once we get to the end of versions
+                     */
+                    if (($mode == 'up' && ($ver > $version || $ver <= $current_version)) || ($mode == 'down' && ($ver <= $version || $ver > $current_version)))
+                        continue;
+
+                    if ($mode == 'up') {
+
+                        $this->log("--> Replaying version '$ver' from file '$source'.");
+
+                    } elseif ($mode == 'down') {
+
+                        $this->log("<-- Rolling back version '$ver' from file '$source'.");
+
+                    } else {
+
+                        throw new \Exception("Unknown mode!");
+
+                    }
+
+                    if (!($current_schema = json_decode($source->get_contents(), true)))
+                        throw new \Exception("Unable to parse the migration file.  Bad JSON?");
+
+                    try{
+
+                        $this->dbi->beginTransaction();
+
+                        $this->replay($current_schema[$mode], $test, ake($current_schema, 'version', 1));
+
+                        if ($mode == 'up') {
+
+                            $this->log('Inserting version record: ' . $ver);
+
+                            if (!$test)
+                                $this->dbi->insert('schema_info', array('version' => $ver));
+
+                        } elseif ($mode == 'down') {
+
+                            $this->log('Removing version record: ' . $ver);
+
+                            if (!$test)
+                                $this->dbi->delete('schema_info', array('version' => $ver));
+
+                        }
+
+                        if($this->dbi->errorCode() > 0)
+                            throw new \Exception($this->dbi->errorInfo()[2]);
+
+                        $this->dbi->commit();
+
+                    }
+                    catch(\Exception $e){
+
+                        $this->dbi->rollBack();
+
+                        $this->log($e->getMessage());
+
+                        return false;
+
+                    }
+
+                    $this->log("-- Replay of version '$ver' completed.");
+
+                } while($source = next($versions));
+
+            }
+
+            if($mode === 'up')
+                $force_data_sync = true;
 
         }
 
+        $this->initDBIFilesystem();
+
         //Insert data records.  Will only happen in an up migration.
-        if($mode == 'up'){
+        if($force_data_sync){
 
             if(!$this->syncData(null, $test))
                 return false;
@@ -1930,6 +1932,113 @@ class Manager {
     public function getMigrationLog() {
 
         return $this->migration_log;
+
+    }
+
+    private function initDBIFilesystem(){
+
+        $config = new \Hazaar\Application\Config('media');
+
+        foreach($config as $name => $settings){
+
+            if($settings->get('type') !== 'DBI')
+                continue;
+
+            $fs_db = null;
+
+            $this->log('Found DBI filesystem: ' . $name);
+
+            try{
+
+                $settings->enhance(array('dbi' => \Hazaar\DBI\Adapter::getDefaultConfig(), 'initialise' => true));
+
+                $fs_db = new \Hazaar\DBI\Adapter($settings['dbi']);
+
+                if($fs_db->tableExists('hz_file') && $fs_db->tableExists('hz_file_chunk'))
+                    continue;
+
+                if($settings['initialise'] !== true)
+                    throw new \Exception($name . ' requires initialisation but initialise is disabled!');
+
+                $schema = realpath(__DIR__ . str_repeat(DIRECTORY_SEPARATOR . '..', 2)
+                    . DIRECTORY_SEPARATOR . 'libs'
+                    . DIRECTORY_SEPARATOR . 'dbi_filesystem'
+                    . DIRECTORY_SEPARATOR . 'schema.json');
+
+                $manager = $fs_db->getSchemaManager();
+
+                $this->log('Initialising DBI filesystem: ' . $name);
+
+                if(!$manager->createSchemaFromFile($schema))
+                    throw new \Exception('Unable to configure DBI filesystem schema!');
+
+                //Look for the old tables and if they exists, do an upgrade!
+                if($this->db->tableExists('file') && $this->db->tableExists('file_chunk')){
+
+                    $this->db->query("INSERT INTO hz_file_chunk SELECT id, null, n, data FROM $chunk_table;");
+
+                    if(!$this->db->query("INSERT INTO hz_file SELECT id, kind, unnest(parents) as parent, null, filename, created_on, modified_on, length, mime_type, md5, owner, \"group\", mode, metadata FROM $file_table f WHERE kind = 'dir'"))
+                        throw $this->db->errorException();
+
+                    if(!$this->db->query("INSERT INTO hz_file (kind, parent, start_chunk, filename, created_on, modified_on, length, mime_type, md5, owner, \"group\", mode, metadata) SELECT kind, unnest(parents) as parent, (SELECT fc.id FROM file_chunk fc WHERE fc.file_id=f.id), filename, created_on, modified_on, length, mime_type, md5, owner, \"group\", mode, metadata FROM $file_table f WHERE kind = 'file'"))
+                        throw $this->db->errorException();
+
+                }
+
+            }
+            catch(\Exception $e){
+
+                $this->log($e->getMessage());
+
+                continue;
+
+            }
+
+        }
+
+    }
+
+    public function upgradeFilesystem($file_table = 'file', $chunk_table = 'file_chunk'){
+
+        $this->db->query("INSERT INTO hz_file_chunk SELECT id, null, n, data FROM $chunk_table;");
+
+        if(!$this->db->query("INSERT INTO hz_file SELECT id, kind, unnest(parents) as parent, null, filename, created_on, modified_on, length, mime_type, md5, owner, \"group\", mode, metadata FROM $file_table f WHERE kind = 'dir'"))
+            throw $this->db->errorException();
+
+        if(!$this->db->query("INSERT INTO hz_file (kind, parent, start_chunk, filename, created_on, modified_on, length, mime_type, md5, owner, \"group\", mode, metadata) SELECT kind, unnest(parents) as parent, (SELECT fc.id FROM file_chunk fc WHERE fc.file_id=f.id), filename, created_on, modified_on, length, mime_type, md5, owner, \"group\", mode, metadata FROM $file_table f WHERE kind = 'file'"))
+            throw $this->db->errorException();
+
+        /*
+
+        $files = $this->db->table($file_table)->sort(array('parents' => array('$nulls' => 1, '$dir' => 1)));
+
+        while($row = $files->fetch()){
+
+        $parents = $row['parents'];
+
+        if(!is_array($parents))
+        $parents = array(null); //The root node
+
+        foreach($parents as $parent){
+
+        $data = $row;
+
+        unset($data['parents']);
+
+        if($data['kind'] !== 'dir')
+        unset($data['id']);
+
+        if($parent)
+        $data['parent'] = $parent;
+
+        $data['start_chunk'] = ake($chunk_map, $row['id']);
+
+        if(!$this->db->hz_file->insert($data))
+        throw $this->db->errorException();
+
+        }
+
+        }*/
 
     }
 

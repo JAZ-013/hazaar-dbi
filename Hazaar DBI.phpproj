@@ -40,6 +40,7 @@
     <Folder Include="libs\console\" />
     <Folder Include="libs\console\css\" />
     <Folder Include="libs\console\js\" />
+    <Folder Include="libs\dbi_filesystem\" />
     <Folder Include="src\DBD\Exception" />
     <Folder Include="src\DBD" />
     <Folder Include="src\Exception" />
@@ -59,7 +60,7 @@
     <Content Include="libs\console\snapshot.phtml" />
     <Content Include="libs\console\sync.phtml" />
     <Content Include="libs\console\version_info.phtml" />
-    <Content Include="libs\dbi_filesystem_schema.json" />
+    <Content Include="libs\dbi_filesystem\schema.json" />
     <Content Include="mkdocs.yml" />
   </ItemGroup>
 </Project>

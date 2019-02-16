@@ -16,6 +16,7 @@ class DBI implements _Interface {
 
         $defaults = array(
             'dbi' => \Hazaar\DBI\Adapter::getDefaultConfig(),
+            'initialise' => true,
             'chunkSize' => 4194304
         );
 
@@ -41,126 +42,44 @@ class DBI implements _Interface {
 
     }
 
-    private function initFilesystem(){
-
-        if($this->db->tableExists('hz_file') && $this->db->tableExists('hz_file_chunk'))
-            return;
-
-        $schema = realpath(__DIR__ . str_repeat(DIRECTORY_SEPARATOR . '..', 3)
-            . DIRECTORY_SEPARATOR . 'libs'
-            . DIRECTORY_SEPARATOR . 'dbi_filesystem_schema.json');
-
-        $manager = $this->db->getSchemaManager();
-
-        if(!$manager->createSchemaFromFile($schema))
-            throw new \Exception('Unable to configure DBI filesystem schema!');
-
-        //Look for the old tables and if they exists, do an upgrade!
-        //if($this->db->tableExists('file') && $this->db->tableExists('file_chunk'))
-        //    $this->upgradeFilesystem('file', 'file_chunk');
-
-    }
-
-    public function upgradeFilesystem($file_table = 'file', $chunk_table = 'file_chunk'){
-
-        //$this->initFilesystem();
-
-        $this->db->hz_file_chunk->truncate(true);
-
-        $this->db->hz_file->truncate(true);
-
-        $this->db->query("INSERT INTO hz_file_chunk SELECT id, null, n, data FROM $chunk_table;");
-
-        if(!$this->db->query("INSERT INTO hz_file SELECT id, kind, unnest(parents) as parent, null, filename, created_on, modified_on, length, mime_type, md5, owner, \"group\", mode, metadata FROM $file_table f WHERE kind = 'dir'"))
-            throw $this->db->errorException();
-
-        if(!$this->db->query("INSERT INTO hz_file (kind, parent, start_chunk, filename, created_on, modified_on, length, mime_type, md5, owner, \"group\", mode, metadata) SELECT kind, unnest(parents) as parent, (SELECT fc.id FROM file_chunk fc WHERE fc.file_id=f.id), filename, created_on, modified_on, length, mime_type, md5, owner, \"group\", mode, metadata FROM $file_table f WHERE kind = 'file'"))
-            throw $this->db->errorException();
-
-        /*
-
-        $files = $this->db->table($file_table)->sort(array('parents' => array('$nulls' => 1, '$dir' => 1)));
-
-        while($row = $files->fetch()){
-
-        $parents = $row['parents'];
-
-        if(!is_array($parents))
-        $parents = array(null); //The root node
-
-        foreach($parents as $parent){
-
-        $data = $row;
-
-        unset($data['parents']);
-
-        if($data['kind'] !== 'dir')
-        unset($data['id']);
-
-        if($parent)
-        $data['parent'] = $parent;
-
-        $data['start_chunk'] = ake($chunk_map, $row['id']);
-
-        if(!$this->db->hz_file->insert($data))
-        throw $this->db->errorException();
-
-        }
-
-        }*/
-
-    }
-
     public function loadRootObject() {
 
-        try{
 
-            if(!($this->rootObject = $this->db->hz_file->findOne(array('parent' => null)))) {
 
-                $this->rootObject = array(
-                    'kind'         => 'dir',
-                    'parent'       => null,
-                    'filename'     => 'ROOT',
-                    'created_on'   => new \Hazaar\Date(),
-                    'modified_on'  => null,
-                    'length'       => 0,
-                    'mime_type'    => 'directory'
-                );
+        if(!($this->rootObject = $this->db->hz_file->findOne(array('parent' => null)))) {
 
-                if(!($this->rootObject['id'] = $this->db->hz_file->insert($this->rootObject, 'id')))
-                    throw new \Exception('Unable to create DBI filesystem root object: ' . $this->db->errorInfo()[2]);
+            $this->rootObject = array(
+                'kind'         => 'dir',
+                'parent'       => null,
+                'filename'     => 'ROOT',
+                'created_on'   => new \Hazaar\Date(),
+                'modified_on'  => null,
+                'length'       => 0,
+                'mime_type'    => 'directory'
+            );
 
-                /*
-                 * If we are recreating the ROOT document then everything is either
-                 *
-                 * a) New - In which case this won't do a thing
-                 *      - or possibly -
-                 * b) Screwed - In which case this should make everything work again.
-                 *
-                 */
-                $this->fsck(true);
+            if(!($this->rootObject['id'] = $this->db->hz_file->insert($this->rootObject, 'id')))
+                throw new \Exception('Unable to create DBI filesystem root object: ' . $this->db->errorInfo()[2]);
 
-            }
-
-            if(!$this->rootObject['created_on'] instanceof \Hazaar\Date)
-                $this->rootObject['created_on'] = new \Hazaar\Date($this->rootObject['created_on']);
-
-            if($this->rootObject['modified_on'] && !$this->rootObject['modified_on'] instanceof \Hazaar\Date)
-                $this->rootObject['modified_on'] = new \Hazaar\Date($this->rootObject['modified_on']);
-
-            return is_array($this->rootObject);
-
-        }
-        catch(\Throwable $e){
-
-            if($e->getCode() === 7 && substr($e->getMessage(), 0, 5) === '42P01')
-                $this->initFilesystem();
-            else
-                throw $e;
+            /*
+             * If we are recreating the ROOT document then everything is either
+             *
+             * a) New - In which case this won't do a thing
+             *      - or possibly -
+             * b) Screwed - In which case this should make everything work again.
+             *
+             */
+            $this->fsck(true);
 
         }
 
-        return false;
+        if(!$this->rootObject['created_on'] instanceof \Hazaar\Date)
+            $this->rootObject['created_on'] = new \Hazaar\Date($this->rootObject['created_on']);
+
+        if($this->rootObject['modified_on'] && !$this->rootObject['modified_on'] instanceof \Hazaar\Date)
+            $this->rootObject['modified_on'] = new \Hazaar\Date($this->rootObject['modified_on']);
+
+        return is_array($this->rootObject);
 
     }
 
