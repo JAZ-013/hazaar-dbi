@@ -263,7 +263,7 @@ class Manager {
 
             $result = $this->dbi->query('SELECT CURRENT_TIMESTAMP');
 
-            if (!$result instanceof Result)
+            if (!$result instanceof \Hazaar\DBI\Result)
                 throw new \Exception('No rows returned!');
 
             $this->log("Starting at: " . $result->fetchColumn(0));
