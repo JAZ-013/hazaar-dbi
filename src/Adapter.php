@@ -518,13 +518,13 @@ class Adapter {
 
     }
 
-    public function insert($table, $fields, $returning){
+    public function insert($table, $fields, $returning = null){
 
         return $this->driver->insert($table, $this->encrypt($table, $fields), $returning);
 
     }
 
-    public function update($table, $fields, $criteria, $from = array()){
+    public function update($table, $fields, $criteria = array(), $from = array()){
 
         return $this->driver->update($table, $this->encrypt($table, $fields), $criteria, $from);
 
@@ -583,6 +583,22 @@ class Adapter {
     public function truncate($table_name, $only = false, $restart_identity = false, $cascade = false){
 
         return $this->driver->truncate($table_name, $only, $restart_identity, $cascade);
+
+    }
+
+    public function errorException($msg = null){
+
+        if($err = $this->errorinfo()){
+
+            if($err[1] !== null)
+                $msg .= (($msg !== null) ? ' SQL ERROR ' . $err[0] . ': ' : $err[0] . ': ') . $err[2];
+
+            if($msg)
+                return new \Exception($msg, $err[1]);
+
+        }
+
+        return new \Exception('Unknown DBI Error!');
 
     }
 

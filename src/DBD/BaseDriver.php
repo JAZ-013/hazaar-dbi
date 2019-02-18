@@ -20,6 +20,8 @@ interface Driver_Interface {
 
     public function connect($dsn, $username = NULL, $password = NULL, $driver_options = NULL);
 
+    public function repair();
+
     public function beginTransaction();
 
     public function commit();
@@ -49,7 +51,7 @@ interface Driver_Interface {
 
     public function prepare($sql);
 
-    public function insert($table, $fields, $returning = 'id');
+    public function insert($table, $fields, $returning = null);
 
     public function update($table, $fields, $criteria = array());
 
@@ -142,6 +144,12 @@ abstract class BaseDriver implements Driver_Interface {
     public function connect($dsn, $username = null, $password = null, $driver_options = null) {
 
         $this->pdo = new \PDO($dsn, $username, $password, $driver_options);
+
+        return true;
+
+    }
+
+    public function repair(){
 
         return true;
 
@@ -561,7 +569,7 @@ abstract class BaseDriver implements Driver_Interface {
 
     }
 
-    public function insert($table, $fields, $returning = NULL) {
+    public function insert($table, $fields, $returning = null) {
 
         if($fields instanceof \Hazaar\Map)
             $fields = $fields->toArray();
@@ -570,17 +578,27 @@ abstract class BaseDriver implements Driver_Interface {
         elseif($fields instanceof \stdClass)
             $fields = (array)$fields;
 
-        $field_def = array_keys($fields);
+        $sql = 'INSERT INTO ' . $this->field($table);
 
-        foreach($field_def as &$field)
-            $field = $this->field($field);
+        if($fields instanceof \Hazaar\DBI\Table){
 
-        $value_def = array_values($fields);
+            $sql .= ' ' . (string)$fields;
 
-        foreach($value_def as $key => &$value)
-            $value = $this->prepareValue($value, null, $field_def[$key]);
+        }else{
 
-        $sql = 'INSERT INTO ' . $this->field($table) . ' ( ' . implode(', ', $field_def) . ' ) VALUES ( ' . implode(', ', $value_def) . ' )';
+            $field_def = array_keys($fields);
+
+            foreach($field_def as &$field)
+                $field = $this->field($field);
+
+            $value_def = array_values($fields);
+
+            foreach($value_def as $key => &$value)
+                $value = $this->prepareValue($value, null, $field_def[$key]);
+
+            $sql .= ' ( ' . implode(', ', $field_def) . ' ) VALUES ( ' . implode(', ', $value_def) . ' )';
+
+        }
 
         $return_value = FALSE;
 
