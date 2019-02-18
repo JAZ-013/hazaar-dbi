@@ -167,6 +167,8 @@ class DBI implements _Interface {
         if($skip_root_reload !== true)
             $this->loadRootObject();
 
+        $this->db->repair();
+
         return true;
 
     }

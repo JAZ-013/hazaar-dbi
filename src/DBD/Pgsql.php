@@ -19,10 +19,10 @@ class Pgsql extends BaseDriver {
          *
          * See: https://wiki.postgresql.org/wiki/Fixing_Sequences
          */
-        $sql = "SELECT 'SELECT SETVAL(' ||
+        $sql = "SELECT quote_ident(PGT.schemaname) || '.' || quote_ident(T.relname) as t, 'SELECT SETVAL(' ||
                quote_literal(quote_ident(PGT.schemaname) || '.' || quote_ident(S.relname)) ||
                ', COALESCE(MAX(' ||quote_ident(C.attname)|| '), 1) ) FROM ' ||
-               quote_ident(PGT.schemaname)|| '.'||quote_ident(T.relname)|| ';'
+               quote_ident(PGT.schemaname) || '.' || quote_ident(T.relname) || ';' as sql
                FROM pg_class AS S,
                     pg_depend AS D,
                     pg_class AS T,
@@ -38,8 +38,18 @@ class Pgsql extends BaseDriver {
 
         $result = $this->query($sql);
 
-        while($seq = $result->fetchColumn(0))
-            $this->query($seq);
+        $tables = array();
+
+        while($row = $result->fetch(\PDO::FETCH_ASSOC)){
+
+            $tables[] = $row['t'];
+
+            $this->query($row['sql']);
+
+        }
+
+        //Do a quick vacuum as well.
+        $this->query('VACUUM');
 
         return true;
 
