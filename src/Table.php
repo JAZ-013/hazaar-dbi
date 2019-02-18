@@ -352,9 +352,9 @@ class Table {
      * @param mixed $fields A valid field definition
      * @return Table
      */
-    public function fields($fields) {
+    public function fields() {
 
-        $this->fields = array_merge($this->fields, (array)$fields);
+        $this->fields[] = func_get_args();
 
         return $this;
 
@@ -366,9 +366,9 @@ class Table {
      * @param mixed $fields One or more column names
      * @return Table
      */
-    public function select($fields){
+    public function select(){
 
-        return $this->fields($fields);
+        return $this->fields(func_get_args());
 
     }
 

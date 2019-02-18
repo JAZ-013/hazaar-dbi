@@ -74,6 +74,17 @@ class Pgsql extends BaseDriver {
 
     public function field($string) {
 
+        if(!is_string($string)){
+
+            if(is_bool($string))
+                return boolstr($string);
+            elseif($string === null)
+                return 'NULL';
+            else
+                return (string)$string;
+
+        }
+
         //This matches an string that contain a non-word character, which means it is either a function call, concat or
         //at least definitely not a reserved word as all reserved words have only word characters
         if (preg_match('/\W/', $string))

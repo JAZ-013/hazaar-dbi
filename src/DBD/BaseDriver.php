@@ -578,17 +578,27 @@ abstract class BaseDriver implements Driver_Interface {
         elseif($fields instanceof \stdClass)
             $fields = (array)$fields;
 
-        $field_def = array_keys($fields);
+        $sql = 'INSERT INTO ' . $this->field($table);
 
-        foreach($field_def as &$field)
-            $field = $this->field($field);
+        if($fields instanceof \Hazaar\DBI\Table){
 
-        $value_def = array_values($fields);
+            $sql .= ' ' . (string)$fields;
 
-        foreach($value_def as $key => &$value)
-            $value = $this->prepareValue($value, null, $field_def[$key]);
+        }else{
 
-        $sql = 'INSERT INTO ' . $this->field($table) . ' ( ' . implode(', ', $field_def) . ' ) VALUES ( ' . implode(', ', $value_def) . ' )';
+            $field_def = array_keys($fields);
+
+            foreach($field_def as &$field)
+                $field = $this->field($field);
+
+            $value_def = array_values($fields);
+
+            foreach($value_def as $key => &$value)
+                $value = $this->prepareValue($value, null, $field_def[$key]);
+
+            $sql .= ' ( ' . implode(', ', $field_def) . ' ) VALUES ( ' . implode(', ', $value_def) . ' )';
+
+        }
 
         $return_value = FALSE;
 
