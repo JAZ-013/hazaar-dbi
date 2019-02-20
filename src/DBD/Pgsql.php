@@ -4,6 +4,14 @@ namespace Hazaar\DBI\DBD;
 
 class Pgsql extends BaseDriver {
 
+    static public $dsn_elements = array(
+        'host',
+        'port',
+        'dbname',
+        'user',
+        'password'
+    );
+
     public function __construct($config){
 
         parent::__construct($config);

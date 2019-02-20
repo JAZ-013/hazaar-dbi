@@ -4,6 +4,14 @@ namespace Hazaar\DBI\DBD;
 
 class Mysql extends BaseDriver {
 
+    static public $dsn_elements = array(
+        'host',
+        'port',
+        'dbname',
+        'unix_socket',
+        'charset'
+    );
+
     protected $quote_special = '`';
 
     protected $reserved_words = array(
