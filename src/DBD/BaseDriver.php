@@ -957,7 +957,7 @@ abstract class BaseDriver implements Driver_Interface {
 
     public function dropIndex($name) {
 
-        $sql = $this->exec('DROP INDEX ' . $this->field($name));
+        $sql = 'DROP INDEX ' . $this->field($name);
 
         $affected = $this->exec($sql);
 
