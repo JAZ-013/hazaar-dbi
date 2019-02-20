@@ -64,6 +64,8 @@ interface Driver_Interface {
  */
 abstract class BaseDriver implements Driver_Interface {
 
+    static public $dsn_elements = array();
+
     protected $allow_constraints = true;
 
     protected $reserved_words = array();
@@ -121,15 +123,14 @@ abstract class BaseDriver implements Driver_Interface {
 
         $options = $config->toArray();
 
-        if(array_key_exists('driver', $options))
-            unset($options['driver']);
+        $DBD = 'Hazaar\\DBI\\DBD\\' . ucfirst($config->driver);
 
-        if(array_key_exists('master', $options))
-            unset($options['master']);
+        if(!class_exists($DBD))
+            return false;
 
-        $dsn = $config->driver . ':' . array_flatten($options, '=', ';');
+        $options = array_intersect_key($options, array_combine($DBD::$dsn_elements, $DBD::$dsn_elements));
 
-        return $dsn;
+        return $config->driver . ':' . array_flatten($options, '=', ';');
 
     }
 
