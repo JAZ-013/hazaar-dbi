@@ -287,6 +287,12 @@ class Mysql extends BaseDriver {
 
     }
 
+    public function setTimezone($tz){
+
+        return $this->exec("SET time_zone = '$tz';");
+
+    }
+
     public function quote($string) {
 
         if ($string instanceof \Hazaar\Date)

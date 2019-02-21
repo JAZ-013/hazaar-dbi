@@ -20,6 +20,12 @@ class Pgsql extends BaseDriver {
 
     }
 
+    public function setTimezone($tz){
+
+        return $this->exec("SET TIME ZONE '$tz';");
+
+    }
+
     public function repair(){
 
         /*

@@ -114,6 +114,9 @@ class Adapter {
 
         $this->connect($dsn, $user, $password);
 
+        if($this->config->has('timezone'))
+            $this->setTimezone($this->config['timezone']);
+
         if(array_key_exists('encrypt', $this->options) && !array_key_exists('key', $this->options['encrypt'])){
 
             $keyfile = \Hazaar\Application::getInstance()->runtimePath(ake($this->options['encrypt'], 'keyfile', '.db_key'));
@@ -163,7 +166,11 @@ class Adapter {
 
         if (!array_key_exists($env, Adapter::$default_config)){
 
-            $config = new \Hazaar\Application\Config('database', $env, array(), FILE_PATH_CONFIG, true);
+            $defaults = array(
+                'timezone' => date_default_timezone_get()
+            );
+
+            $config = new \Hazaar\Application\Config('database', $env, $defaults, FILE_PATH_CONFIG, true);
 
             if(!$config->loaded())
                 return null;
