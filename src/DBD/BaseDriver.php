@@ -325,12 +325,17 @@ abstract class BaseDriver implements Driver_Interface {
                         break;
 
                     case 'ne':
-                    case 'not' :
 
                         if(is_null($value))
                             $parts[] = 'IS NOT NULL';
                         else
                             $parts[] = '!= ' . $this->prepareValue($value);
+
+                        break;
+
+                    case 'not' :
+
+                        $parts[] = 'NOT (' . $this->prepareCriteria($value) . ')';
 
                         break;
 
