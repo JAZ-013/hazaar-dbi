@@ -175,7 +175,7 @@ class DBI implements _Interface {
 
     public function scandir($path, $regex_filter = null, $show_hidden = false) {
 
-        if(!($parent = $this->info($path)))
+        if(!($parent =& $this->info($path)))
             return false;
 
         if(!array_key_exists('items', $parent))
