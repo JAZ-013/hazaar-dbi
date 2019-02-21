@@ -133,6 +133,12 @@ class Sqlite extends BaseDriver {
         'WITHOUT'
     );
 
+    public function setTimezone($tz){
+
+        return false;
+
+    }
+
     static function mkdsn($config){
 
         $filename = ($config->has('filename') ? $config->filename : 'database.sqlite' );
