@@ -112,7 +112,8 @@ class Adapter {
 
         }
 
-        $this->connect($dsn, $user, $password);
+        if(!$this->connect($dsn, $user, $password))
+            throw new Exception\ConnectionFailed($this->config['host']);
 
         if($this->config->has('timezone'))
             $this->setTimezone($this->config['timezone']);
@@ -223,7 +224,7 @@ class Adapter {
             ), $driver_options);
 
             if (!$this->driver->connect($dsn, $username, $password, $driver_options))
-                throw new Exception\ConnectionFailed($dsn);
+                return false;
 
             Adapter::$connections[$hash] = $this->driver;
 

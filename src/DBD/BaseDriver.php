@@ -144,7 +144,16 @@ abstract class BaseDriver implements Driver_Interface {
 
     public function connect($dsn, $username = null, $password = null, $driver_options = null) {
 
-        $this->pdo = new \PDO($dsn, $username, $password, $driver_options);
+        try{
+
+            $this->pdo = new \PDO($dsn, $username, $password, $driver_options);
+
+        }
+        catch(\Exception $e){
+
+            return false;
+
+        }
 
         return true;
 
