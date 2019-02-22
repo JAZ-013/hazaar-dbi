@@ -794,21 +794,44 @@ class DBI implements _Interface {
 
     }
 
+    private function resolveFullPaths($array_if_file_ids){
+
+        $sql = 'WITH RECURSIVE fullpath (id, parent, fullpath) AS (
+	        SELECT f.id as file_id, f.parent, f.filename
+	        FROM hz_file f
+	        WHERE f.parent IS NOT NULL
+	        UNION ALL
+	        SELECT fp.id, f.parent, f.filename FROM hz_file f
+	        INNER JOIN fullpath fp ON fp.parent = f.id
+	        WHERE f.parent IS NOT NULL
+        )
+        SELECT id, \'/\' || string_agg(fullpath, \'/\' ORDER BY parent ASC) as fullpath
+        FROM fullpath
+        WHERE id IN (' . implode(', ', $array_if_file_ids) . ')
+        GROUP BY id';
+
+        if($result = $this->db->query($sql))
+            return array_column($result->fetchAll(), 'fullpath');
+
+        return false;
+
+    }
+
     public function find($search = NULL, $path = '/', $case_insensitive = false){
 
         $list = array();
 
-        $method = ($case_insensitive ? '$ilike' : '$like');
+        $result = $this->db->hz_file->find(array(array(
+            'filename' => array(($case_insensitive ? '$ilike' : '$like') => '%' . $search . '%')
+        )));
 
-        $result = $this->db->file->find(array(array('filename' => array($method => str_replace('*', '%', $search)))));
+        while($file = $result->fetch())
+            $list[] = $file['id'];
 
-        while($file = $result->fetch()){
+        if(count($list) > 0)
+            return $this->resolveFullPaths($list);
 
-            $list[] = '/' . $file['filename'];
-
-        }
-
-        return $list;
+        return false;
 
     }
 
