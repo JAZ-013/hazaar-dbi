@@ -1096,27 +1096,37 @@ class Manager {
                  * Otherwise we have to replay the migration files from current version to the target version.
                  */
 
-                if (count($this->dbi->listTables()) > 1){
+                $tables = $this->dbi->listTables();
+
+                $excluded = $this->ignore_tables;
+
+                $tables = array_filter($tables, function($value) use($excluded){
+                    return !($value['schema'] === 'public' && in_array($value['name'], $excluded));
+                });
+
+                if (count($tables) > 0){
 
                     $this->log("Tables exist in database but no schema info was found!  This should only be run on an empty database!");
 
-                    return false;
+                }else{
 
-                }
+                    /*
+                     * There is no current database so just initialise from the schema file.
+                     */
+                    $this->log("Initialising database" . ($version ? " at version '$version'" : ''));
 
-                /*
-                 * There is no current database so just initialise from the schema file.
-                 */
-                $this->log("Initialising database" . ($version ? " at version '$version'" : ''));
+                    if ($schema['version'] > 0){
 
-                if ($schema['version'] > 0){
+                        if($test || $this->createSchema($schema)){
 
-                    if($test || $this->createSchema($schema)){
+                            foreach($versions as $ver => $name)
+                                $this->dbi->insert('schema_info', array('version' => $ver));
 
-                        foreach($versions as $ver => $name)
-                            $this->dbi->insert('schema_info', array('version' => $ver));
+                        }
 
                     }
+
+                    $force_data_sync = true;
 
                 }
 
@@ -1208,10 +1218,10 @@ class Manager {
 
                 } while($source = next($versions));
 
-            }
+                if($mode === 'up')
+                    $force_data_sync = true;
 
-            if($mode === 'up')
-                $force_data_sync = true;
+            }
 
         }
 
