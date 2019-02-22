@@ -667,4 +667,21 @@ class Result implements \ArrayAccess, \Countable, \Iterator {
 
     }
 
+    /**
+     * Collates a result into a simple key/value array.
+     *
+     * This is useful for generating SELECT lists directly from a resultset.
+     *
+     * @param mixed $index_column The column to use as the array index.
+     * @param mixed $value_column The column to use as the array value.
+     * @param mixed $group_column Optional column name to group items by.
+     *
+     * @return array
+     */
+    public function collate($index_column, $value_column, $group_column = null){
+
+        return array_collate($this->fetchAll(), $index_column, $value_column, $group_column);
+
+    }
+
 }
