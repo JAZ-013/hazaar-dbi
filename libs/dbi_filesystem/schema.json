@@ -190,6 +190,18 @@
                     "parent"
                 ],
                 "unique": false
+            },
+            "hz_file_filename_idx": {
+                "columns": [
+                    "filename"
+                ],
+                "unique": false
+            },
+            "hz_file_md5_idx": {
+                "columns": [
+                    "md5"
+                ],
+                "unique": false
             }
         },
         "hz_file_chunk": {
