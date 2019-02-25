@@ -539,7 +539,7 @@ abstract class BaseDriver implements Driver_Interface {
 
                 foreach($field_map as $alias => $field){
 
-                    $lookup = uniqid();
+                    $lookup = md5(uniqid('dbi_', true));
 
                     self::$select_groups[$lookup] = $alias;
 
