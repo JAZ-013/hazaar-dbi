@@ -589,12 +589,14 @@ abstract class BaseDriver implements Driver_Interface {
             if(!is_numeric($key))
                 continue;
 
-            if(($pos = strrpos($value, '.')) > 0)
-                $value = substr($value, $pos + 1);
-
-            $array[$value] = $value;
-
             unset($array[$key]);
+
+            $key = $value;
+
+            if(($pos = strrpos($key, '.')) > 0)
+                $key = substr($key, $pos + 1);
+
+            $array[$key] = $value;
 
         }
 
