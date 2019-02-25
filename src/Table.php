@@ -259,7 +259,9 @@ class Table {
 
     private function tables(){
 
-        $tables = array($this->alias => $this->name);
+        $alias = ($this->alias) ? $this->alias : $this->name;
+
+        $tables = array($alias => $this->name);
 
         foreach($this->joins as $alias => $join)
             $tables[$alias] = $join['ref'];
