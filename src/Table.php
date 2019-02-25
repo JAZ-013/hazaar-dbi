@@ -183,7 +183,7 @@ class Table {
         if (!is_array($this->fields) || count($this->fields) == 0)
             $sql .= ' *';
         else
-            $sql .= ' ' . $this->adapter->prepareFields($this->fields);
+            $sql .= ' ' . $this->adapter->prepareFields($this->fields, null, $this->tables());
 
         /* FROM */
         $sql .= ' FROM ' . $this->from();
@@ -254,6 +254,17 @@ class Table {
             $sql .= ';';
 
         return $sql;
+
+    }
+
+    private function tables(){
+
+        $tables = array($this->alias => $this->name);
+
+        foreach($this->joins as $alias => $join)
+            $tables[$alias] = $join['ref'];
+
+        return $tables;
 
     }
 

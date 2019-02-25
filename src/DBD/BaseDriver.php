@@ -515,10 +515,13 @@ abstract class BaseDriver implements Driver_Interface {
 
     }
 
-    public function prepareFields($fields, $exclude = array()) {
+    public function prepareFields($fields, $exclude = array(), $tables = array()) {
 
         if(!is_array($fields))
             return $this->field($fields);
+
+        if(!is_array($exclude))
+            $exclude = array();
 
         $field_def = array();
 
@@ -527,7 +530,7 @@ abstract class BaseDriver implements Driver_Interface {
             if(is_string($value) && in_array($value, $exclude))
                 $field_def[] = $value;
             elseif (is_numeric($key))
-                $field_def[] = is_array($value) ? $this->prepareFields($value) : $this->field($value);
+                $field_def[] = is_array($value) ? $this->prepareFields($value, null, $tables) : $this->field($value);
             elseif(is_array($value)){
 
                 $fields = array();
@@ -544,7 +547,23 @@ abstract class BaseDriver implements Driver_Interface {
 
                 }
 
-                $field_def[] = $this->prepareFields($fields, $exclude);
+                $field_def[] = $this->prepareFields($fields, null, $tables);
+
+            }elseif(($pos = strpos($value, '*')) !== false){
+
+                if($pos > 0)
+                    $alias = ake($tables, substr($value, 0, $pos - 1));
+                else{
+
+                    $alias = reset($tables);
+
+                    $value = key($tables) . '.*';
+
+                }
+
+                self::$select_groups[$alias] = $key;
+
+                $field_def[] = $this->field($value);
 
             }else
                 $field_def[] = $this->field($value) . ' AS ' . $this->field($key);
@@ -564,9 +583,14 @@ abstract class BaseDriver implements Driver_Interface {
 
             if(is_array($value))
                 $value = $this->prepareArrayAliases($value);
+            elseif(is_string($value) && substr($value, -1) === '*')
+                continue;
 
             if(!is_numeric($key))
                 continue;
+
+            if(($pos = strrpos($value, '.')) > 0)
+                $value = substr($value, $pos + 1);
 
             $array[$value] = $value;
 
