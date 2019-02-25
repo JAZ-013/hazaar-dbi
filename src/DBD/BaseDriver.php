@@ -97,6 +97,8 @@ abstract class BaseDriver implements Driver_Interface {
      */
     static private $master_cmds = array('INSERT', 'UPDATE', 'DELETE');
 
+    static public $select_groups = array();
+
     public function __construct($config = array()){
 
         $this->schema = ake($config, 'dbname', 'public');
@@ -513,10 +515,13 @@ abstract class BaseDriver implements Driver_Interface {
 
     }
 
-    public function prepareFields($fields, $exclude = array()) {
+    public function prepareFields($fields, $exclude = array(), $tables = array()) {
 
         if(!is_array($fields))
             return $this->field($fields);
+
+        if(!is_array($exclude))
+            $exclude = array();
 
         $field_def = array();
 
@@ -524,16 +529,76 @@ abstract class BaseDriver implements Driver_Interface {
 
             if(is_string($value) && in_array($value, $exclude))
                 $field_def[] = $value;
-            elseif(is_array($value))
-                $field_def[] = $this->prepareFields($value);
             elseif (is_numeric($key))
+                $field_def[] = is_array($value) ? $this->prepareFields($value, null, $tables) : $this->field($value);
+            elseif(is_array($value)){
+
+                $fields = array();
+
+                $field_map = array_to_dot_notation(array($key => $this->prepareArrayAliases($value)));
+
+                foreach($field_map as $alias => $field){
+
+                    $lookup = uniqid();
+
+                    self::$select_groups[$lookup] = $alias;
+
+                    $fields[$lookup] = $field;
+
+                }
+
+                $field_def[] = $this->prepareFields($fields, null, $tables);
+
+            }elseif(($pos = strpos($value, '*')) !== false){
+
+                if($pos > 0)
+                    $alias = ake($tables, substr($value, 0, $pos - 1));
+                else{
+
+                    $alias = reset($tables);
+
+                    $value = key($tables) . '.*';
+
+                }
+
+                self::$select_groups[$alias] = $key;
+
                 $field_def[] = $this->field($value);
-            else
+
+            }else
                 $field_def[] = $this->field($value) . ' AS ' . $this->field($key);
 
         }
 
         return implode(', ', $field_def);
+
+    }
+
+    private function prepareArrayAliases($array){
+
+        if(!is_array($array))
+            return $array;
+
+        foreach($array as $key => &$value){
+
+            if(is_array($value))
+                $value = $this->prepareArrayAliases($value);
+            elseif(is_string($value) && substr($value, -1) === '*')
+                continue;
+
+            if(!is_numeric($key))
+                continue;
+
+            if(($pos = strrpos($value, '.')) > 0)
+                $value = substr($value, $pos + 1);
+
+            $array[$value] = $value;
+
+            unset($array[$key]);
+
+        }
+
+        return $array;
 
     }
 
