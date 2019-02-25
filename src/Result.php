@@ -340,7 +340,7 @@ class Result implements \ArrayAccess, \Countable, \Iterator {
         if (!$record)
             return null;
 
-        if (!(count($this->array_columns) > 0))
+        if (!((count($this->array_columns) + count(DBD\BaseDriver::$select_groups)) > 0))
             return $record;
 
         foreach($this->array_columns as $item){
@@ -380,6 +380,21 @@ class Result implements \ArrayAccess, \Countable, \Iterator {
             $record[$col] = $elements;
 
         }
+
+        $objs = array();
+
+        foreach(DBD\BaseDriver::$select_groups as $alias => $field){
+            
+            if(!array_key_exists($alias, $record))
+                continue;
+
+            $objs[$field] = $record[$alias];
+
+            unset($record[$alias]);
+
+        }
+
+        $record = array_merge($record, array_from_dot_notation($objs));
 
         if($this->encrypt !== false)
             $this->decrypt($record);
