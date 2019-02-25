@@ -532,7 +532,7 @@ abstract class BaseDriver implements Driver_Interface {
 
                 $fields = array();
 
-                $field_map = array_to_dot_notation(array($key => $value));
+                $field_map = array_to_dot_notation(array($key => $this->prepareArrayAliases($value)));
 
                 foreach($field_map as $alias => $field){
 
@@ -552,6 +552,29 @@ abstract class BaseDriver implements Driver_Interface {
         }
 
         return implode(', ', $field_def);
+
+    }
+
+    private function prepareArrayAliases($array){
+
+        if(!is_array($array))
+            return $array;
+
+        foreach($array as $key => &$value){
+
+            if(is_array($value))
+                $value = $this->prepareArrayAliases($value);
+
+            if(!is_numeric($key))
+                continue;
+
+            $array[$value] = $value;
+
+            unset($array[$key]);
+
+        }
+
+        return $array;
 
     }
 
