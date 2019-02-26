@@ -115,9 +115,6 @@ class Adapter {
         if(!$this->connect($dsn, $user, $password))
             throw new Exception\ConnectionFailed($this->config['host']);
 
-        if($this->config->has('timezone'))
-            $this->setTimezone($this->config['timezone']);
-
         if(array_key_exists('encrypt', $this->options) && !array_key_exists('key', $this->options['encrypt'])){
 
             $keyfile = \Hazaar\Application::getInstance()->runtimePath(ake($this->options['encrypt'], 'keyfile', '.db_key'));
@@ -246,6 +243,9 @@ class Adapter {
                 $this->driver->setMasterDBD($master);
 
             }
+
+            if($this->config->has('timezone'))
+                $this->setTimezone($this->config['timezone']);
 
         }
 

@@ -22,7 +22,13 @@ class Pgsql extends BaseDriver {
 
     public function setTimezone($tz){
 
-        return $this->exec("SET TIME ZONE '$tz';");
+        if($this->exec("SET TIME ZONE '$tz';") === false)
+            return false;
+
+        if($this->master instanceof BaseDriver)
+            $this->master->setTimezone($tz);
+
+        return true;
 
     }
 

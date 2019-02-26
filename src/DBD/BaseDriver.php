@@ -20,6 +20,8 @@ interface Driver_Interface {
 
     public function connect($dsn, $username = NULL, $password = NULL, $driver_options = NULL);
 
+    public function setTimezone($tz);
+
     public function repair();
 
     public function beginTransaction();
@@ -88,7 +90,7 @@ abstract class BaseDriver implements Driver_Interface {
      *
      * @var BaseDriver
      */
-    private $master;
+    protected $master;
 
     /**
      * SQL Commands to redirect to the master server connection
@@ -108,6 +110,12 @@ abstract class BaseDriver implements Driver_Interface {
     public function setMasterDBD(BaseDriver $DBD){
 
         $this->master = $DBD;
+
+    }
+
+    public function setTimezone($tz){
+
+        return false;
 
     }
 
@@ -1329,4 +1337,3 @@ abstract class BaseDriver implements Driver_Interface {
     }
 
 }
-
