@@ -397,7 +397,8 @@ class Result implements \ArrayAccess, \Countable, \Iterator {
 
             }
 
-            $alias = $this->meta[$name]['table'];
+            if(!($alias = ake($this->meta[$name], 'table')))
+                continue;
 
             if(array_key_exists($alias, $groups)){
 
