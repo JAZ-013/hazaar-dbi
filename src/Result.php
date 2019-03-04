@@ -254,7 +254,7 @@ class Result implements \ArrayAccess, \Countable, \Iterator {
 
             $this->reset = true;
 
-            if($record = $this->statement->fetch(\PDO::FETCH_ASSOC)){
+            if($record = $this->statement->fetch($fetch_style, $cursor_orientation, $cursor_offset)){
 
                 $this->fix($record);
 
