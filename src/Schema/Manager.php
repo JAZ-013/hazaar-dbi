@@ -1774,6 +1774,8 @@ class Manager {
                         if(!array_key_exists($name, $tableDef))
                             throw new \Exception("Attempting to modify data for non-existent row '$name'!" );
 
+                        if($col === null) continue;
+
                         if(substr($tableDef[$name]['data_type'], 0, 4) === 'json')
                             $col = json_encode($col);
                         elseif(is_array($col))
