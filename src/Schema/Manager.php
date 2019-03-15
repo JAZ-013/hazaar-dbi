@@ -1750,9 +1750,7 @@ class Manager {
                 if(($def = $this->dbi->describeTable($table)) === false)
                     throw new \Exception("Can not insert rows into non-existant table '$table'!");
 
-                $tableDef = array();
-
-                foreach($def as $d) $tableDef[$d['name']] = $d;
+                $tableDef =  array_combine(array_column($def, 'name'), $def);
 
                 $pkey = null;
 
