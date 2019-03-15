@@ -1766,6 +1766,25 @@ class Manager {
 
                 $this->log("Processing " . count($rows) . " records in table '$table'");
 
+                //Quick closure function to fix up the row ready for insert/update
+                $fix_row = function($row, $tableDef){
+
+                    foreach($row as $name => &$col) {
+
+                        if(!array_key_exists($name, $tableDef))
+                            throw new \Exception("Attempting to modify data for non-existent row '$name'!" );
+
+                        if(substr($tableDef[$name]['data_type'], 0, 4) === 'json')
+                            $col = json_encode($col);
+                        elseif(is_array($col))
+                            $col = array('$array' => $col);
+
+                    }
+
+                    return $row;
+
+                };
+
                 foreach($rows as $row){
 
                     $do_diff = false;
@@ -1818,19 +1837,7 @@ class Manager {
 
                         $this->log("Updating record in table '$table' with $pkey={$pkey_value}");
 
-                        foreach($row as $name => &$col) {
-
-                            if(!array_key_exists($name, $tableDef))
-                                throw new \Exception("Attempting to modify data for non-existent row '$name'!" );
-
-                            if(substr($tableDef[$name]['data_type'], 0, 4) === 'json')
-                                $col = json_encode($col);
-                            elseif(is_array($col))
-                                $col = array('$array' => $col);
-
-                        }
-
-                        if(!$this->dbi->update($table, $row, array($pkey => $pkey_value)))
+                        if(!$this->dbi->update($table, $fix_row($row, $tableDef), array($pkey => $pkey_value)))
                             throw new \Exception('Update failed: ' . $this->dbi->errorInfo()[2]);
 
                     }else{
@@ -1839,19 +1846,7 @@ class Manager {
                         if(ake($info, 'updateonly'))
                             continue;
 
-                        foreach($row as $name => &$col) {
-
-                            if(!array_key_exists($name, $tableDef))
-                                throw new \Exception("Attempting to modify data for non-existent row '$name'!" );
-
-                            if(substr($tableDef[$name]['data_type'], 0, 4) === 'json')
-                                $col = json_encode($col);
-                            elseif(is_array($col))
-                                $col = array('$array' => $col);
-
-                        }
-
-                        if(($pkey_value = $this->dbi->insert($table, $row, $pkey)) == false)
+                        if(($pkey_value = $this->dbi->insert($table, $fix_row($row, $tableDef), $pkey)) == false)
                             throw new \Exception('Insert failed: ' . $this->dbi->errorInfo()[2]);
 
                         $this->log("Inserted record into table '$table' with $pkey={$pkey_value}");
