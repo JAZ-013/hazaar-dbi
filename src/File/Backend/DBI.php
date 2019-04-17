@@ -511,7 +511,9 @@ class DBI implements _Interface {
             $data = array(
                 'start_chunk' => $fileInfo['start_chunk'] = $chunk_id,
                 'md5'         => $fileInfo['md5']         = $md5,
-                'modified_on' => $fileInfo['modified_on'] = new \Hazaar\Date
+                'modified_on' => $fileInfo['modified_on'] = new \Hazaar\Date,
+                'length'      => $size,
+                'mime_type'   => $content_type
             );
 
             if(!$this->db->hz_file->update(array('id' => $fileInfo['id']), $data))
