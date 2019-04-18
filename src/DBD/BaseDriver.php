@@ -1291,6 +1291,13 @@ abstract class BaseDriver implements Driver_Interface {
 
     }
 
+    /**
+     * Create a new database function
+     *
+     * @param mixed $name The name of the function to create
+     * @param mixed $spec A function specification.  This is basically the array returned from describeFunction()
+     * @return boolean
+     */
     public function createFunction($name, $spec){
 
         $sql = 'CREATE OR REPLACE FUNCTION ' . $this->field($name) . ' (';
@@ -1372,7 +1379,7 @@ abstract class BaseDriver implements Driver_Interface {
      *
      * @return array
      */
-    public function listTriggers($schema = null){
+    public function listTriggers($table = null, $schema = null){
 
         if($schema === null)
             $schema = $this->schema;
@@ -1380,6 +1387,9 @@ abstract class BaseDriver implements Driver_Interface {
         $sql = 'SELECT DISTINCT trigger_schema AS schema, trigger_name AS name
                     FROM INFORMATION_SCHEMA.triggers
                     WHERE trigger_schema=' . $this->prepareValue($schema);
+
+        if($table !== null)
+            $sql .= ' AND trigger_table=' . $this->prepareValue($table);
 
         if($result = $this->query($sql))
             return $result->fetchAll(\PDO::FETCH_ASSOC);
@@ -1398,7 +1408,7 @@ abstract class BaseDriver implements Driver_Interface {
      *
      * @return array
      */
-    public function describeTriggers($table = null, $schema = null){
+    public function describeTrigger($name, $schema = null){
 
         if($schema === null)
             $schema = $this->schema;
@@ -1407,36 +1417,45 @@ abstract class BaseDriver implements Driver_Interface {
                         trigger_name AS name,
                         event_manipulation AS events,
                         event_object_table AS table,
-                        action_statement AS statement,
+                        action_statement AS content,
                         action_orientation AS orientation,
                         action_timing AS timing
-                    FROM INFORMATION_SCHEMA.triggers WHERE trigger_schema=' . $this->prepareValue($schema);
+                    FROM INFORMATION_SCHEMA.triggers
+                    WHERE trigger_schema=' . $this->prepareValue($schema)
+                    . ' AND trigger_name=' . $this->prepareValue($name);
 
-        if($table !== null)
-            $sql .= ' AND event_object_table=' . $this->prepareValue($table);
 
         if(!($result = $this->query($sql)))
             return null;
 
-        $info = array();
+        $info = $result->fetch(\PDO::FETCH_ASSOC);
 
-        while($row = $result->fetch(\PDO::FETCH_ASSOC)){
+        $info['events'] = array($info['events']);
 
-            if(array_key_exists($row['name'], $info)){
+        while($row = $result->fetch(\PDO::FETCH_ASSOC))
+            $info['events'][] = $row['events'];
 
-                $info[$row['name']]['events'][] = $row['events'];
+        return $info;
 
-            }else{
+    }
 
-                $row['events'] = array($row['events']);
+    /**
+     * Summary of createTrigger
+     * @param mixed $name The name of the trigger
+     * @param mixed $table The table on which the trigger is being created
+     * @param mixed $spec The spec of the trigger.  Basically this is the array returned from describeTriggers()
+     */
+    public function createTrigger($name, $table, $spec = array()){
 
-                $info[$row['name']] = $row;
+        $sql = 'CREATE TRIGGER ' . $this->field($name)
+            . ' ' . ake($spec, 'timing', 'BEFORE')
+            . ' ' . implode(' OR ', ake($spec, 'events', array('INSERT')))
+            . ' ON ' . $this->field($table)
+            . ' FOR EACH ' . ake($spec, 'orientation', 'ROW')
+            . ' ' . ake($spec, 'content', 'EXECUTE');
 
-            }
 
-        }
-
-        return array_values($info);
+        return ($this->exec($sql) !== false);
 
     }
 

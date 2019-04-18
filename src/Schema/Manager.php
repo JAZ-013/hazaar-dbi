@@ -390,6 +390,8 @@ class Manager {
         if($init)
             $changes['down']['raise'] = 'Can not revert initial snapshot';
 
+        $this->log('*** SNAPSHOTTING TABLES ***');
+
         /**
          * Check for any new tables or changes to existing tables.
          * This pretty much looks just for tables to add and
@@ -766,6 +768,8 @@ class Manager {
 
         }
 
+        $this->log('*** SNAPSHOTTING VIEWS ***');
+
         //BEGIN PROCESSING VIEWS
         foreach($this->dbi->listViews() as $view){
 
@@ -809,7 +813,34 @@ class Manager {
 
             }
 
-        } //END PROCESSING VIEWS
+        }
+
+        if(array_key_exists('views', $schema)){
+
+            $missing = array_diff(array_keys($schema['views']), array_keys($current_schema['views']));
+
+            if (count($missing) > 0) {
+
+                foreach($missing as $view) {
+
+                    $this->log("- View '$view' has been removed.");
+
+                    $changes['up']['view']['remove'][] = $view;
+
+                    $changes['down']['view']['create'][] = array(
+                        'name' => $view,
+                        'cols' => $schema['views'][$view]
+                    );
+
+                }
+
+            }
+
+        }
+
+        //END PROCESSING VIEWS
+
+        $this->log('*** SNAPSHOTTING FUNCTIONS ***');
 
         //BEGIN PROCESSING FUNCTIONS
         foreach($this->dbi->listFunctions() as $func){
@@ -876,7 +907,89 @@ class Manager {
 
             }
 
-        } //END PROCESSING FUNCTIONS
+        }
+
+        if(array_key_exists('functions', $schema)){
+
+            $missing = array_diff(array_keys($schema['functions']), array_keys($current_schema['functions']));
+
+            if (count($missing) > 0) {
+
+                foreach($missing as $func) {
+
+                    $this->log("- Function '$func' has been removed.");
+
+                    $changes['up']['function']['remove'][] = $func;
+
+                    $changes['down']['function']['create'][] = array(
+                        'name' => $func,
+                        'cols' => $schema['functions'][$func]
+                    );
+
+                }
+
+            }
+
+        }
+        //END PROCESSING FUNCTIONS
+
+        $this->log('*** SNAPSHOTTING TRIGGERS ***');
+
+        //BEGIN PROCESSING TRIGGERS
+        foreach($this->dbi->listTriggers() as $trigger){
+
+            $name = $trigger['name'];
+
+            $this->log("Processing trigger '$name'.");
+
+            if(!($info = $this->dbi->describeTrigger($trigger['name'], $trigger['schema'])))
+                throw new \Exception("Error getting trigger definition for '$name'.  Does the connected user have the correct permissions?");
+
+            $current_schema['triggers'][$name][] = $info;
+
+            if (array_key_exists('triggers', $schema) && array_key_exists($name, $schema['triggers'])) {
+
+                $this->log("Trigger '$name' already exists.  Checking differences.");
+
+            }else{
+
+                $this->log("+ Trigger '$name' has been created on table '{$info['table']}'.");
+
+                $changes['up']['trigger']['create'][] = $info;
+
+                if (!$init)
+                    $changes['down']['trigger']['remove'][] = array('name' => $name, 'table' => $info['table']);
+
+            }
+
+        }
+
+        if(array_key_exists('triggers', $schema)){
+
+            $missing = array_diff(array_keys($schema['triggers']), array_keys($current_schema['triggers']));
+
+            if (count($missing) > 0) {
+
+                foreach($missing as $trigger) {
+
+                    $this->log("- Trigger '$trigger' has been removed.");
+
+                    $changes['up']['trigger']['remove'][] = array('name' => $trigger, 'table' => $schema['triggers'][$trigger]['table']);
+
+                    $changes['down']['trigger']['create'][] = array(
+                        'name' => $trigger,
+                        'cols' => $schema['triggers'][$trigger]
+                    );
+
+                }
+
+            }
+
+        }
+
+        //END PROCESSING TRIGGERS
+
+        $this->log('*** SNAPSHOT SUMMARY ***');
 
         array_remove_empty($changes);
 
@@ -1484,6 +1597,15 @@ class Manager {
 
                         $this->dbi->createFunction($item['name'], $item);
 
+                    }elseif($type === 'trigger'){
+
+                        $this->log("+ Creating trigger '{$item['name']}' on table '{$item['table']}'.");
+
+                        if ($test)
+                            continue;
+
+                        $this->dbi->createTrigger($item['name'], $item['table'], $item);
+
                     }else
                         $this->log("I don't know how to create a {$type}!");
 
@@ -1529,12 +1651,23 @@ class Manager {
 
                     }elseif($type === 'function'){
 
-                        $this->log("- Removing function '{$item['name']}(" . implode(', ', $item['parameters']) . ').');
+                        $params = ake($item, 'parameters', array());
+
+                        $this->log("- Removing function '{$item['name']}(" . implode(', ', $params) . ').');
 
                         if ($test)
                             continue;
 
-                        $this->dbi->dropFunction($item['name'], $item['parameters']);
+                        $this->dbi->dropFunction($item['name'], $params);
+
+                    }elseif($type === 'trigger'){
+
+                        $this->log("+ Removing trigger '{$item['name']}' from table '{$item['table']}'.");
+
+                        if ($test)
+                            continue;
+
+                        $this->dbi->dropTrigger($item['name'], $item['table']);
 
                     }else
                         $this->log("I don't know how to remove a {$type}!");
