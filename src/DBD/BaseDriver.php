@@ -1195,9 +1195,17 @@ abstract class BaseDriver implements Driver_Interface {
 
     }
 
-    public function listFunctions(){
+    /**
+     * List defined functions
+     *
+     * @return array
+     */
+    public function listFunctions($schema = null){
 
-        $sql = "SELECT r.routine_schema, r.routine_name FROM INFORMATION_SCHEMA.routines r WHERE r.specific_schema='public';";
+        if($schema === null)
+            $schema = $this->getSchemaName();
+
+        $sql = "SELECT r.routine_schema, r.routine_name FROM INFORMATION_SCHEMA.routines r WHERE r.specific_schema=" . $this->prepareValue($schema);
 
         $q = $this->query($sql);
 
@@ -1310,7 +1318,7 @@ abstract class BaseDriver implements Driver_Interface {
     }
 
     /**
-     * TRUNCATE — empty a table or set of tables
+     * TRUNCATE ï¿½ empty a table or set of tables
      *
      * TRUNCATE quickly removes all rows from a set of tables. It has the same effect as an unqualified DELETE on
      * each table, but since it does not actually scan the tables it is faster. Furthermore, it reclaims disk space
