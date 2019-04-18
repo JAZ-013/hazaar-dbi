@@ -1352,4 +1352,97 @@ abstract class BaseDriver implements Driver_Interface {
 
     }
 
+    /**
+     * List defined triggers
+     *
+     * @param mixed $schema Optional: Schema name.  If not supplied the current schema is used.
+     *
+     * @return array
+     */
+    public function listTriggers($schema = null){
+
+        if($schema === null)
+            $schema = $this->getSchemaName();
+
+        $sql = 'SELECT DISTINCT trigger_schema AS schema, trigger_name AS name
+                    FROM INFORMATION_SCHEMA.triggers
+                    WHERE trigger_schema=' . $this->prepareValue($schema);
+
+        if($result = $this->query($sql))
+            return $result->fetchAll(\PDO::FETCH_ASSOC);
+
+        return null;
+
+    }
+
+    /**
+     * Describe a database trigger
+     *
+     * This will return an array as there can be multiple triggers with the same name but with different attributes
+     *
+     * @param mixed $table Optional: The name of the table to describe triggers for
+     * @param mixed $schema Optional: Schema name.  If not supplied the current schema is used.
+     *
+     * @return array
+     */
+    public function describeTriggers($table = null, $schema = null){
+
+        if($schema === null)
+            $schema = $this->getSchemaName();
+
+        $sql = 'SELECT trigger_schema AS schema,
+                        trigger_name AS name,
+                        event_manipulation AS events,
+                        event_object_table AS table,
+                        action_statement AS statement,
+                        action_orientation AS orientation,
+                        action_timing AS timing
+                    FROM INFORMATION_SCHEMA.triggers WHERE trigger_schema=' . $this->prepareValue($schema);
+
+        if($table !== null)
+            $sql .= ' AND event_object_table=' . $this->prepareValue($table);
+
+        if(!($result = $this->query($sql)))
+            return null;
+
+        $info = array();
+
+        while($row = $result->fetch(\PDO::FETCH_ASSOC)){
+
+            if(array_key_exists($row['name'], $info)){
+
+                $info[$row['name']]['events'][] = $row['events'];
+
+            }else{
+
+                $row['events'] = array($row['events']);
+
+                $info[$row['name']] = $row;
+
+            }
+
+        }
+
+        return array_values($info);
+
+    }
+
+    /**
+     * Drop a trigger from a table
+     *
+     * @param mixed $name The name of the trigger to drop
+     * @param mixed $table The name of the table to remove the trigger from
+     * @param mixed $cascade Whether to drop CASCADE
+     * @return boolean
+     */
+    public function dropTrigger($name, $table, $cascade = false){
+
+        $sql = 'DROP TRIGGER ' . $this->field($name) . ' ON ' . $this->field($table);
+
+        $sql .= ' ' . (($cascade === true) ? ' CASCADE' : ' RESTRICT');
+
+        return ($this->exec($sql) !== false);
+
+    }
+
 }
