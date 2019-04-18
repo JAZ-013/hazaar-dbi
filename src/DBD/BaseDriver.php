@@ -1203,7 +1203,7 @@ abstract class BaseDriver implements Driver_Interface {
     public function listFunctions($schema = null){
 
         if($schema === null)
-            $schema = $this->getSchemaName();
+            $schema = $this->schema;
 
         $sql = "SELECT r.routine_schema, r.routine_name FROM INFORMATION_SCHEMA.routines r WHERE r.specific_schema=" . $this->prepareValue($schema);
 
@@ -1228,28 +1228,38 @@ abstract class BaseDriver implements Driver_Interface {
 
     public function describeFunction($name, $schema = null){
 
-        $sql = "SELECT r.specific_name, r.routine_schema, r.routine_name, r.data_type, r.routine_body, r.routine_definition,
-            p.parameter_name, p.data_type, p.parameter_mode, p.ordinal_position
-            FROM INFORMATION_SCHEMA.routines r
-            INNER JOIN INFORMATION_SCHEMA.parameters p ON p.specific_name=r.specific_name";
+        if($schema === null)
+            $schema = $this->schema;
 
-        $sql .= " WHERE r.specific_schema=" . $this->prepareValue($this->schema);
-
-        $sql .= " AND r.routine_name=" . $this->prepareValue($name) ." ORDER BY r.routine_name, p.ordinal_position;";
+        $sql = "SELECT r.specific_name,
+                    r.routine_schema,
+                    r.routine_name,
+                    r.data_type AS return_type,
+                    r.routine_body,
+                    r.routine_definition,
+                    p.parameter_name,
+                    p.data_type,
+                    p.parameter_mode,
+                    p.ordinal_position
+                FROM INFORMATION_SCHEMA.routines r
+                LEFT JOIN INFORMATION_SCHEMA.parameters p ON p.specific_name=r.specific_name
+                WHERE r.routine_schema=" . $this->prepareValue($schema) . "
+                AND r.routine_name=" . $this->prepareValue($name) ."
+                ORDER BY r.routine_name, p.ordinal_position;";
 
         if(!($q = $this->query($sql)))
             throw new \Exception($this->errorInfo()[2]);
 
         $info = array();
 
-        while($row = $q->fetch()){
+        while($row = $q->fetch(\PDO::FETCH_ASSOC)){
 
             if(!array_key_exists($row['specific_name'], $info)){
 
                 $item = array(
                     'schema' => $row['routine_schema'],
                     'name' => $row['routine_name'],
-                    'return_type' => $row['data_type'],
+                    'return_type' => $row['return_type'],
                     'lang' => $row['routine_body'],
                     'content' => trim($row['routine_definition'])
                 );
@@ -1259,6 +1269,9 @@ abstract class BaseDriver implements Driver_Interface {
                 $info[$row['specific_name']] = $item;
 
             }
+
+            if($row['parameter_name'] === null)
+                continue;
 
             $info[$row['specific_name']]['parameters'][] = array(
                 'name' => $row['parameter_name'],
@@ -1362,7 +1375,7 @@ abstract class BaseDriver implements Driver_Interface {
     public function listTriggers($schema = null){
 
         if($schema === null)
-            $schema = $this->getSchemaName();
+            $schema = $this->schema;
 
         $sql = 'SELECT DISTINCT trigger_schema AS schema, trigger_name AS name
                     FROM INFORMATION_SCHEMA.triggers
@@ -1388,7 +1401,7 @@ abstract class BaseDriver implements Driver_Interface {
     public function describeTriggers($table = null, $schema = null){
 
         if($schema === null)
-            $schema = $this->getSchemaName();
+            $schema = $this->schema;
 
         $sql = 'SELECT trigger_schema AS schema,
                         trigger_name AS name,
