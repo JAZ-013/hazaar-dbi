@@ -98,6 +98,8 @@ class Pgsql extends BaseDriver {
 
             if(is_bool($string))
                 return boolstr($string);
+            elseif(is_array($string) && array_key_exists('schema', $string) && array_key_exists('name', $string))
+                $string = $string['schema'] . '.' . $string['name'];
             elseif($string === null)
                 return 'NULL';
             else
