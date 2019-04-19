@@ -1195,9 +1195,17 @@ abstract class BaseDriver implements Driver_Interface {
 
     }
 
-    public function listFunctions(){
+    /**
+     * List defined functions
+     *
+     * @return array
+     */
+    public function listFunctions($schema = null){
 
-        $sql = "SELECT r.routine_schema, r.routine_name FROM INFORMATION_SCHEMA.routines r WHERE r.specific_schema='public';";
+        if($schema === null)
+            $schema = $this->schema;
+
+        $sql = "SELECT r.routine_schema, r.routine_name FROM INFORMATION_SCHEMA.routines r WHERE r.specific_schema=" . $this->prepareValue($schema);
 
         $q = $this->query($sql);
 
@@ -1220,37 +1228,54 @@ abstract class BaseDriver implements Driver_Interface {
 
     public function describeFunction($name, $schema = null){
 
-        $sql = "SELECT r.specific_name, r.routine_schema, r.routine_name, r.data_type, r.routine_body, r.routine_definition,
-            p.parameter_name, p.data_type, p.parameter_mode, p.ordinal_position
-            FROM INFORMATION_SCHEMA.routines r
-            INNER JOIN INFORMATION_SCHEMA.parameters p ON p.specific_name=r.specific_name";
+        if($schema === null)
+            $schema = $this->schema;
 
-        $sql .= " WHERE r.specific_schema=" . $this->prepareValue($this->schema);
-
-        $sql .= " AND r.routine_name=" . $this->prepareValue($name) ." ORDER BY r.routine_name, p.ordinal_position;";
+        $sql = "SELECT r.specific_name,
+                    r.routine_schema,
+                    r.routine_name,
+                    r.data_type AS return_type,
+                    r.routine_body,
+                    r.routine_definition,
+                    r.external_language,
+                    p.parameter_name,
+                    p.data_type,
+                    p.parameter_mode,
+                    p.ordinal_position
+                FROM INFORMATION_SCHEMA.routines r
+                LEFT JOIN INFORMATION_SCHEMA.parameters p ON p.specific_name=r.specific_name
+                WHERE r.routine_schema=" . $this->prepareValue($schema) . "
+                AND r.routine_name=" . $this->prepareValue($name) ."
+                ORDER BY r.routine_name, p.ordinal_position;";
 
         if(!($q = $this->query($sql)))
             throw new \Exception($this->errorInfo()[2]);
 
         $info = array();
 
-        while($row = $q->fetch()){
+        while($row = $q->fetch(\PDO::FETCH_ASSOC)){
 
             if(!array_key_exists($row['specific_name'], $info)){
 
                 $item = array(
                     'schema' => $row['routine_schema'],
                     'name' => $row['routine_name'],
-                    'return_type' => $row['data_type'],
-                    'lang' => $row['routine_body'],
+                    'return_type' => $row['return_type'],
                     'content' => trim($row['routine_definition'])
                 );
 
                 $item['parameters'] = array();
 
+                $item['lang'] = (strtoupper($row['routine_body']) === 'EXTERNAL') 
+                    ? $row['external_language'] 
+                    : $row['routine_body'];
+
                 $info[$row['specific_name']] = $item;
 
             }
+
+            if($row['parameter_name'] === null)
+                continue;
 
             $info[$row['specific_name']]['parameters'][] = array(
                 'name' => $row['parameter_name'],
@@ -1270,6 +1295,13 @@ abstract class BaseDriver implements Driver_Interface {
 
     }
 
+    /**
+     * Create a new database function
+     *
+     * @param mixed $name The name of the function to create
+     * @param mixed $spec A function specification.  This is basically the array returned from describeFunction()
+     * @return boolean
+     */
     public function createFunction($name, $spec){
 
         $sql = 'CREATE OR REPLACE FUNCTION ' . $this->field($name) . ' (';
@@ -1295,9 +1327,17 @@ abstract class BaseDriver implements Driver_Interface {
 
     }
 
+    /**
+     * Remove a function from the database
+     *
+     * @param mixed $name  The name of the function to remove
+     * @param mixed $arg_types The argument list of the function to remove.
+     * @param mixed $cascade Whether to perform a DROP CASCADE
+     * @return boolean
+     */
     public function dropFunction($name, $arg_types = array(), $cascade = false){
 
-        $sql = 'DROP FUNCTION IF EXISTS ' . $this->field($name);
+        $sql = 'DROP FUNCTION ' . $this->field($name);
 
         if($arg_types)
             $sql .= ' (' . (is_array($arg_types) ? implode(', ', $arg_types) : $arg_types) . ')';
@@ -1310,7 +1350,7 @@ abstract class BaseDriver implements Driver_Interface {
     }
 
     /**
-     * TRUNCATE — empty a table or set of tables
+     * TRUNCATE ï¿½ empty a table or set of tables
      *
      * TRUNCATE quickly removes all rows from a set of tables. It has the same effect as an unqualified DELETE on
      * each table, but since it does not actually scan the tables it is faster. Furthermore, it reclaims disk space
@@ -1331,6 +1371,111 @@ abstract class BaseDriver implements Driver_Interface {
         $sql .= ' ' . ($restart_identity ? 'RESTART IDENTITY' : 'CONTINUE IDENTITY');
 
         $sql .=  ' ' . ($cascade ? 'CASCADE' : 'RESTRICT');
+
+        return ($this->exec($sql) !== false);
+
+    }
+
+    /**
+     * List defined triggers
+     *
+     * @param mixed $schema Optional: Schema name.  If not supplied the current schema is used.
+     *
+     * @return array
+     */
+    public function listTriggers($table = null, $schema = null){
+
+        if($schema === null)
+            $schema = $this->schema;
+
+        $sql = 'SELECT DISTINCT trigger_schema AS schema, trigger_name AS name
+                    FROM INFORMATION_SCHEMA.triggers
+                    WHERE trigger_schema=' . $this->prepareValue($schema);
+
+        if($table !== null)
+            $sql .= ' AND trigger_table=' . $this->prepareValue($table);
+
+        if($result = $this->query($sql))
+            return $result->fetchAll(\PDO::FETCH_ASSOC);
+
+        return null;
+
+    }
+
+    /**
+     * Describe a database trigger
+     *
+     * This will return an array as there can be multiple triggers with the same name but with different attributes
+     *
+     * @param mixed $table Optional: The name of the table to describe triggers for
+     * @param mixed $schema Optional: Schema name.  If not supplied the current schema is used.
+     *
+     * @return array
+     */
+    public function describeTrigger($name, $schema = null){
+
+        if($schema === null)
+            $schema = $this->schema;
+
+        $sql = 'SELECT trigger_schema AS schema,
+                        trigger_name AS name,
+                        event_manipulation AS events,
+                        event_object_table AS table,
+                        action_statement AS content,
+                        action_orientation AS orientation,
+                        action_timing AS timing
+                    FROM INFORMATION_SCHEMA.triggers
+                    WHERE trigger_schema=' . $this->prepareValue($schema)
+                    . ' AND trigger_name=' . $this->prepareValue($name);
+
+
+        if(!($result = $this->query($sql)))
+            return null;
+
+        $info = $result->fetch(\PDO::FETCH_ASSOC);
+
+        $info['events'] = array($info['events']);
+
+        while($row = $result->fetch(\PDO::FETCH_ASSOC))
+            $info['events'][] = $row['events'];
+
+        return $info;
+
+    }
+
+    /**
+     * Summary of createTrigger
+     * @param mixed $name The name of the trigger
+     * @param mixed $table The table on which the trigger is being created
+     * @param mixed $spec The spec of the trigger.  Basically this is the array returned from describeTriggers()
+     */
+    public function createTrigger($name, $table, $spec = array()){
+
+        $sql = 'CREATE TRIGGER ' . $this->field($name)
+            . ' ' . ake($spec, 'timing', 'BEFORE')
+            . ' ' . implode(' OR ', ake($spec, 'events', array('INSERT')))
+            . ' ON ' . $this->field($table)
+            . ' FOR EACH ' . ake($spec, 'orientation', 'ROW')
+            . ' ' . ake($spec, 'content', 'EXECUTE');
+
+
+        return ($this->exec($sql) !== false);
+
+    }
+
+    /**
+     * Drop a trigger from a table
+     *
+     * @param mixed $name The name of the trigger to drop
+     * @param mixed $table The name of the table to remove the trigger from
+     * @param mixed $cascade Whether to drop CASCADE
+     * @return boolean
+     */
+    public function dropTrigger($name, $table, $cascade = false){
+
+        $sql = 'DROP TRIGGER ' . $this->field($name) . ' ON ' . $this->field($table);
+
+        $sql .= ' ' . (($cascade === true) ? ' CASCADE' : ' RESTRICT');
 
         return ($this->exec($sql) !== false);
 
