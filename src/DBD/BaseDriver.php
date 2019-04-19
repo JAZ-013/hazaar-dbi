@@ -1237,6 +1237,7 @@ abstract class BaseDriver implements Driver_Interface {
                     r.data_type AS return_type,
                     r.routine_body,
                     r.routine_definition,
+                    r.external_language,
                     p.parameter_name,
                     p.data_type,
                     p.parameter_mode,
@@ -1260,11 +1261,14 @@ abstract class BaseDriver implements Driver_Interface {
                     'schema' => $row['routine_schema'],
                     'name' => $row['routine_name'],
                     'return_type' => $row['return_type'],
-                    'lang' => $row['routine_body'],
                     'content' => trim($row['routine_definition'])
                 );
 
                 $item['parameters'] = array();
+
+                $item['lang'] = (strtoupper($row['routine_body']) === 'EXTERNAL') 
+                    ? $row['external_language'] 
+                    : $row['routine_body'];
 
                 $info[$row['specific_name']] = $item;
 
