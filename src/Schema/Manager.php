@@ -1240,7 +1240,7 @@ class Manager {
 
                     if ($schema['version'] > 0){
 
-                        if($test || $this->createSchema($schema)){
+                        if($this->createSchema($schema, $test)){
 
                             foreach($versions as $ver => $name)
                                 $this->dbi->insert('schema_info', array('version' => $ver));
@@ -1348,7 +1348,8 @@ class Manager {
 
         }
 
-        $this->initDBIFilesystem();
+        if(!$test)
+            $this->initDBIFilesystem();
 
         //Insert data records.  Will only happen in an up migration.
         if($force_data_sync){
@@ -1369,7 +1370,7 @@ class Manager {
      *
      * @param array $schema
      */
-    public function createSchema($schema){
+    public function createSchema($schema, $test = false){
 
         if(!\Hazaar\Map::is_array($schema))
             return false;
@@ -1485,12 +1486,35 @@ class Manager {
 
             }
 
+            /* Create triggers */
+            if($triggers = ake($schema, 'triggers')){
+
+                foreach($triggers as $info){
+
+                    $ret = $this->dbi->createTrigger($info['name'], $info['table'], $info);
+
+                    if(!$ret || $this->dbi->errorCode() > 0)
+                        throw new \Exception("Error creating trigger '{$info['name']} on table '{$info['table']}': "
+                            . $this->dbi->errorInfo()[2]);
+
+                }
+
+            }
+
         }
         catch(\Exception $e){
 
             $this->dbi->rollBack();
 
             throw $e;
+
+        }
+
+        if($test === true){
+
+            $this->dbi->rollBack();
+
+            return false;
 
         }
 
