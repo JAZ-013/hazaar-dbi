@@ -354,10 +354,20 @@ class Manager {
                     'create' => array(),
                     'alter' => array(),
                     'remove' => array()
+                ),
+                'trigger' => array(
+                    'create' => array(),
+                    'alter' => array(),
+                    'remove' => array()
                 )
             ),
             'down' => array(
                 'raise' => array(),
+                'trigger' => array(
+                    'create' => array(),
+                    'alter' => array(),
+                    'remove' => array()
+                ),
                 'function' => array(
                     'create' => array(),
                     'alter' => array(),
@@ -945,7 +955,7 @@ class Manager {
             if(!($info = $this->dbi->describeTrigger($trigger['name'], $trigger['schema'])))
                 throw new \Exception("Error getting trigger definition for '$name'.  Does the connected user have the correct permissions?");
 
-            $current_schema['triggers'][$name][] = $info;
+            $current_schema['triggers'][$name] = $info;
 
             if (array_key_exists('triggers', $schema) && array_key_exists($name, $schema['triggers'])) {
 
@@ -1588,7 +1598,8 @@ class Manager {
 
                         $params = array();
 
-                        foreach($item['parameters'] as $p) $params[] = $p['type'];
+                        if(array_key_exists('parameters', $item))
+                            foreach($item['parameters'] as $p) $params[] = $p['type'];
 
                         $this->log("+ Creating function '{$item['name']}(" . implode(', ', $params) . ').');
 
@@ -1662,7 +1673,7 @@ class Manager {
 
                     }elseif($type === 'trigger'){
 
-                        $this->log("+ Removing trigger '{$item['name']}' from table '{$item['table']}'.");
+                        $this->log("- Removing trigger '{$item['name']}' from table '{$item['table']}'.");
 
                         if ($test)
                             continue;
