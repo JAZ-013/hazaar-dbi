@@ -1266,8 +1266,8 @@ abstract class BaseDriver implements Driver_Interface {
 
                 $item['parameters'] = array();
 
-                $item['lang'] = (strtoupper($row['routine_body']) === 'EXTERNAL') 
-                    ? $row['external_language'] 
+                $item['lang'] = (strtoupper($row['routine_body']) === 'EXTERNAL')
+                    ? $row['external_language']
                     : $row['routine_body'];
 
                 $info[$row['specific_name']] = $item;
@@ -1390,10 +1390,10 @@ abstract class BaseDriver implements Driver_Interface {
 
         $sql = 'SELECT DISTINCT trigger_schema AS schema, trigger_name AS name
                     FROM INFORMATION_SCHEMA.triggers
-                    WHERE trigger_schema=' . $this->prepareValue($schema);
+                    WHERE event_object_schema=' . $this->prepareValue($schema);
 
         if($table !== null)
-            $sql .= ' AND trigger_table=' . $this->prepareValue($table);
+            $sql .= ' AND event_object_table=' . $this->prepareValue($table);
 
         if($result = $this->query($sql))
             return $result->fetchAll(\PDO::FETCH_ASSOC);
