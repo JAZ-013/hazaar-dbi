@@ -275,9 +275,7 @@ class Manager {
 
             $this->log('There was a problem connecting to the database!');
 
-            $this->log($e->getMessage());
-
-            return false;
+            throw $e;
 
         }
 
@@ -1119,7 +1117,7 @@ class Manager {
      *
      * @return boolean Returns true on successful migration. False if no migration was neccessary. Throws an Exception on error.
      */
-    public function migrate($version = null, $force_data_sync = false, $test = false){
+    public function migrate($version = null, $force_data_sync = false, $test = false, $keep_tables = false){
 
         $this->log('Migration process starting');
 
@@ -1128,7 +1126,7 @@ class Manager {
 
         $mode = 'up';
 
-        $current_version = 0;
+        $current_version = null;
 
         $versions = $this->getVersions(true);
 
@@ -1191,7 +1189,7 @@ class Manager {
             if($e->getCode() == 7)
                 throw new \Exception("Database does not exist.");
 
-            throw new \Exception($e->getMessage());
+            throw $e;
 
         }
 
@@ -1243,9 +1241,9 @@ class Manager {
                     return !($value['schema'] === 'public' && in_array($value['name'], $excluded));
                 });
 
-                if(count($tables) > 0){
+                if(count($tables) > 0 && $keep_tables !== true){
 
-                    $this->log("Tables exist in database but no schema info was found!  This should only be run on an empty database!");
+                    throw new \Exception("Tables exist in database but no schema info was found!  This should only be run on an empty database!");
 
                 }else{
 
@@ -1256,7 +1254,7 @@ class Manager {
 
                     if($schema['version'] > 0){
 
-                        if($this->createSchema($schema, $test)){
+                        if($this->createSchema($schema, $test, $keep_tables)){
 
                             foreach($versions as $ver => $name)
                                 $this->dbi->insert('schema_info', array('version' => $ver));
@@ -1347,9 +1345,7 @@ class Manager {
 
                         $this->dbi->rollBack();
 
-                        $this->log($e->getMessage());
-
-                        return false;
+                        throw $e;
 
                     }
 
@@ -1386,7 +1382,7 @@ class Manager {
      *
      * @param array $schema
      */
-    public function createSchema($schema, $test = false){
+    public function createSchema($schema, $test = false, $keep_tables = false){
 
         if(!\Hazaar\Map::is_array($schema))
             return false;
@@ -1399,6 +1395,21 @@ class Manager {
             if($tables = ake($schema, 'tables')){
 
                 foreach($tables as $table => $columns){
+
+                    if($keep_tables === true && $this->dbi->tableExists($table)){
+
+                        $cur_columns = $this->dbi->describeTable($table);
+
+                        $diff = array_diff_assoc_recursive($cur_columns, $columns);
+
+                        if(count($diff) > 0)
+                            throw new \Exception('Table "' . $table . '" already exists but is different.  Bailing out!');
+
+                        $this->log('Table "' . $table . '" already exists and looks current.  Skipping.');
+
+                        continue;
+
+                    }
 
                     $ret = $this->dbi->createTable($table, $columns);
 
@@ -1415,10 +1426,25 @@ class Manager {
                 //Do primary keys first
                 foreach($constraints as $table => $table_constraints){
 
+                    $cur_constraints = $this->dbi->listConstraints($table);
+
                     foreach($table_constraints as $constraint_name => $constraint){
 
                         if($constraint['type'] !== 'PRIMARY KEY')
                             continue;
+
+                        if($keep_tables === true && array_key_exists($constraint_name, $cur_constraints)){
+
+                            $diff = array_diff_assoc_recursive($cur_constraints[$constraint_name], $constraint);
+
+                            if(count($diff) > 0)
+                                throw new \Exception('Constraint "' . $constraint_name . '" already exists but is different.  Bailing out!');
+
+                            $this->log('Constraint "' . $constraint_name . '" already exists and looks current.  Skipping.');
+
+                            continue;
+
+                        }
 
                         $ret = $this->dbi->addConstraint($constraint_name, $constraint);
 
@@ -1432,10 +1458,25 @@ class Manager {
                 //Now do all other constraints
                 foreach($constraints as $table => $table_constraints){
 
+                    $cur_constraints = $this->dbi->listConstraints($table);
+
                     foreach($table_constraints as $constraint_name => $constraint){
 
-                        if($constraint['type'] == 'PRIMARY KEY')
+                        if($constraint['type'] === 'PRIMARY KEY')
                             continue;
+
+                        if($keep_tables === true && array_key_exists($constraint_name, $cur_constraints)){
+
+                            $diff = array_diff_assoc_recursive($cur_constraints[$constraint_name], $constraint);
+
+                            if(count($diff) > 0)
+                                throw new \Exception('Constraint "' . $constraint_name . '" already exists but is different.  Bailing out!');
+
+                            $this->log('Constraint "' . $constraint_name . '" already exists and looks current.  Skipping.');
+
+                            continue;
+
+                        }
 
                         $ret = $this->dbi->addConstraint($constraint_name, $constraint);
 
@@ -1471,6 +1512,21 @@ class Manager {
 
                 foreach($views as $view => $info){
 
+                    if($keep_tables === true && $this->dbi->viewExists($view)){
+
+                        $cur_info = $this->dbi->describeView($view);
+
+                        $diff = array_diff_assoc_recursive($cur_info, $info);
+
+                        if(count($diff) > 0)
+                            throw new \Exception('View "' . $view . '" already exists but is different.  Bailing out!');
+
+                        $this->log('View "' . $view . '" already exists and looks current.  Skipping.');
+
+                        continue;
+
+                    }
+
                     $ret = $this->dbi->createView($view, $info['content']);
 
                     if(!$ret || $this->dbi->errorCode() > 0)
@@ -1505,7 +1561,31 @@ class Manager {
             /* Create triggers */
             if($triggers = ake($schema, 'triggers')){
 
+                $cur_triggers = array();
+
                 foreach($triggers as $info){
+
+                    if($keep_tables === true){
+
+                        if(!array_key_exists($info['table'], $cur_triggers))
+                            $cur_triggers[$info['table']] = array_collate($this->dbi->listTriggers($info['table']), 'name');
+
+                        if(array_key_exists($info['name'], $cur_triggers[$info['table']])){
+
+                            $cur_info = $this->dbi->describeTrigger($info['name']);
+
+                            $diff = array_diff_assoc_recursive($cur_info, $info);
+
+                            if(count($diff) > 0)
+                                throw new \Exception('Trigger "' . $info['name'] . '" already exists but is different.  Bailing out!');
+
+                            $this->log('Trigger "' . $info['name'] . '" already exists and looks current.  Skipping.');
+
+                            continue;
+
+                        }
+
+                    }
 
                     $ret = $this->dbi->createTrigger($info['name'], $info['table'], $info);
 
