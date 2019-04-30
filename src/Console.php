@@ -54,9 +54,28 @@ class Console extends \Hazaar\Console\Module {
             if($version == 'latest')
                 $version = null;
 
-            $result = $this->db->getSchemaManager()->migrate($version, boolify($request->get('sync')), boolify($request->get('testmode', false)));
+            $result = false;
 
-            return array('ok' => $result, 'log' => $this->db->getSchemaManager()->getMigrationLog());
+            try{
+
+                $result = $this->db->getSchemaManager()->migrate(
+                    $version,
+                    boolify($request->get('sync')),
+                    boolify($request->get('testmode', false)),
+                    boolify($request->get('keeptables', false))
+                );
+
+                $log = $this->db->getSchemaManager()->getMigrationLog();
+
+            }catch(\Exception $e){
+
+                $log = $this->db->getSchemaManager()->getMigrationLog();
+
+                $log[] = array('time' => time(), 'msg' => 'ERROR: ' . $e->getMessage());
+
+            }
+
+            return array('ok' => $result, 'log' => $log);
 
         }
 
