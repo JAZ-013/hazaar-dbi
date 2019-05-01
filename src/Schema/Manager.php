@@ -1646,8 +1646,18 @@ class Manager {
 
             if($level1 == 'data'){
 
-                if(!$test)
-                    $this->syncData($data);
+                if(!is_array($data))
+                    $data = array($data);
+
+                $this->log('Processing ' . count($data) . ' data sync items');
+
+                //Sneaky conversion from array to stdClass if needed
+                $data = json_decode(json_encode($data));
+
+                foreach($data as $dataItem)
+                    $this->processDataObject($dataItem);
+
+                $this->log('Finished processing data sync items');
 
                 continue;
 
