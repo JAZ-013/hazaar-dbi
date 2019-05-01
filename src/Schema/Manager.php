@@ -271,7 +271,7 @@ class Manager {
             $this->log("Starting at: " . $result->fetchColumn(0));
 
         }
-        catch(\Exception $e){
+        catch(\Throwable $e){
 
             $this->log('There was a problem connecting to the database!');
 
@@ -1341,7 +1341,7 @@ class Manager {
                         $this->dbi->commit();
 
                     }
-                    catch(\Exception $e){
+                    catch(\Throwable $e){
 
                         $this->dbi->rollBack();
 
@@ -1598,7 +1598,7 @@ class Manager {
             }
 
         }
-        catch(\Exception $e){
+        catch(\Throwable $e){
 
             $this->dbi->rollBack();
 
@@ -2269,7 +2269,7 @@ class Manager {
                 }
 
             }
-            catch(\Exception $e){
+            catch(\Throwable $e){
 
                 $this->log($e->getMessage());
 

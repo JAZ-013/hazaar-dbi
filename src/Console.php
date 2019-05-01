@@ -67,11 +67,11 @@ class Console extends \Hazaar\Console\Module {
 
                 $log = $this->db->getSchemaManager()->getMigrationLog();
 
-            }catch(\Exception $e){
+            }catch(\Throwable $e){
 
                 $log = $this->db->getSchemaManager()->getMigrationLog();
 
-                $log[] = array('time' => time(), 'msg' => 'ERROR: ' . $e->getMessage());
+                $log[] = array('time' => time(), 'msg' => 'ERROR: ' . $e->getMessage() . ' in file ' . $e->getFile() . ' on line #' . $e->getLine() . '.');
 
             }
 
