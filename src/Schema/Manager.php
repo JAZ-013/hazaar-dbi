@@ -148,14 +148,6 @@ class Manager {
 
     }
 
-    private function getColumnDiff($new, $old){
-
-        $this->log("Column diff is not implemented yet!");
-
-        return null;
-
-    }
-
     private function getTableDiffs($new, $old){
 
         $diff = array();
@@ -170,12 +162,26 @@ class Manager {
             /*
              * Check if the column is in the schema and if so, check it for changes
              */
-            if(!$this->colExists($col['name'], $old)){
+            if(($old_column = $this->getColumn($col['name'], $old)) !== null){
+
+                $column_diff = array_diff_assoc($col, $old_column);
+
+                if(count($column_diff) > 0){
+
+                    $this->log("> Column '$col[name]' has changed");
+
+                    $diff['alter'][$col['name']] = $column_diff;
+
+                }
+
+            }else{
 
                 $this->log("+ Column '$col[name]' is new.");
 
                 $diff['add'][$col['name']] = $col;
+
             }
+
         }
 
         $this->log("Looking for removed columns");
@@ -187,7 +193,9 @@ class Manager {
                 $this->log("- Column '$col[name]' has been removed.");
 
                 $diff['drop'][] = $col['name'];
+
             }
+
         }
 
         return $diff;
@@ -434,19 +442,25 @@ class Manager {
 
                     foreach($diff as $diff_mode => $col_diff){
 
-                        $diff_mode = ($diff_mode == 'add') ? 'drop' : 'add';
-
                         foreach($col_diff as $col_name => $col_info){
 
-                            if($diff_mode == 'add'){
+                            if($diff_mode === 'drop'){
 
                                 $info = $this->getColumn($col_info, $schema['tables'][$name]);
 
-                                $changes['down']['table']['alter'][$name][$diff_mode][$col_name] = $info;
+                                $changes['down']['table']['alter'][$name]['add'][$col_name] = $info;
 
-                            }else{
+                            }elseif($diff_mode == 'alter'){
 
-                                $changes['down']['table']['alter'][$name][$diff_mode][] = $col_name;
+                                $info = $this->getColumn($col_name, $schema['tables'][$name]);
+
+                                $inverse_diff = array_intersect_key($info, $col_info);
+
+                                $changes['down']['table']['alter'][$name]['alter'][$col_name] = $inverse_diff;
+
+                            }elseif($diff_mode === 'add'){
+
+                                $changes['down']['table']['alter'][$name]['drop'][] = $col_name;
 
                             }
 
