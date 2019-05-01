@@ -1293,7 +1293,8 @@ class Manager {
                     /**
                      * Break out once we get to the end of versions
                      */
-                    if(($mode == 'up' && ($ver > $version || $ver <= $current_version)) || ($mode == 'down' && ($ver <= $version || $ver > $current_version)))
+                    if(($mode == 'up' && ($ver > $version || $ver <= $current_version))
+                        || ($mode == 'down' && ($ver <= $version || $ver > $current_version)))
                         continue;
 
                     if($mode == 'up'){
@@ -1306,7 +1307,7 @@ class Manager {
 
                     }else{
 
-                        throw new \Exception("Unknown mode!");
+                        throw new \Exception("Unknown migration mode!");
 
                     }
 
@@ -1317,7 +1318,13 @@ class Manager {
 
                         $this->dbi->beginTransaction();
 
-                        $this->replay($current_schema[$mode], $test, ake($current_schema, 'version', 1));
+                        if($this->replay($current_schema[$mode], $test, ake($current_schema, 'version', 1)) !== true){
+
+                            $this->dbi->rollBack();
+
+                            return false;
+
+                        }
 
                         if($mode == 'up'){
 
@@ -1644,33 +1651,58 @@ class Manager {
 
         foreach($schema as $level1 => $data){
 
-            if($level1 == 'data'){
+            switch($level1){
 
-                if(!is_array($data))
-                    $data = array($data);
+                case 'data':
 
-                $this->log('Processing ' . count($data) . ' data sync items');
+                    if(!is_array($data))
+                        $data = array($data);
 
-                //Sneaky conversion from array to stdClass if needed
-                $data = json_decode(json_encode($data));
+                    $this->log('Processing ' . count($data) . ' data sync items');
 
-                foreach($data as $dataItem)
-                    $this->processDataObject($dataItem);
+                    //Sneaky conversion from array to stdClass if needed
+                    $data = json_decode(json_encode($data));
 
-                $this->log('Finished processing data sync items');
+                    foreach($data as $dataItem)
+                        $this->processDataObject($dataItem);
 
-                continue;
+                    $this->log('Finished processing data sync items');
 
-            }
+                    break;
 
-            foreach($data as $level2 => $items){
+                case 'exec':
 
-                if($version === 1)
-                    $this->replayItems($level2, $level1, $items, $test);
-                elseif($version === 2)
-                    $this->replayItems($level1, $level2, $items, $test);
-                else
-                    throw new \Exception('Unsupported schema migration version: ' . $version);
+                    if(!is_array($data))
+                        $data = array($data);
+
+                    foreach($data as $execItem){
+
+                        $this->log('Executing SQL: ' . $execItem);
+
+                        if($this->dbi->exec($execItem) === false){
+
+                            $this->log(ake($this->dbi->errorInfo(), 2));
+
+                            return false;
+
+                        }
+
+                    }
+
+                    break;
+
+                default:
+
+                    foreach($data as $level2 => $items){
+
+                        if($version === 1)
+                            $this->replayItems($level2, $level1, $items, $test);
+                        elseif($version === 2)
+                            $this->replayItems($level1, $level2, $items, $test);
+                        else
+                            throw new \Exception('Unsupported schema migration version: ' . $version);
+
+                    }
 
             }
 
