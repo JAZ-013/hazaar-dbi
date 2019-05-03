@@ -2075,6 +2075,14 @@ class Manager {
 
         if(($table = ake($info, 'table'))){
 
+            if(ake($info, 'truncate') === true){
+
+                $this->log('Truncating table: ' . $table);
+
+                $this->dbi->truncate($table, true, true);
+
+            }
+
             //The 'rows' element is used to synchronise table rows in the database.
             if($rows = ake($info, 'rows')){
 
