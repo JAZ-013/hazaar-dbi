@@ -229,7 +229,10 @@ class Adapter {
 
                 $master_config = clone $this->config;
 
-                $master_config->extend($this->config->master);
+                if(is_string($this->config->master))
+                    $master_config->host = $this->config->master;
+                else
+                    $master_config->extend($this->config->master);
 
                 unset($master_config->master);
 
