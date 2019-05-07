@@ -84,6 +84,10 @@ abstract class BaseDriver implements Driver_Interface {
 
     protected static $execs = 0;
 
+    private $dsn;
+
+    private $last_exec_master = false;
+
     /**
      * Master DBD connection
      *
@@ -150,15 +154,40 @@ abstract class BaseDriver implements Driver_Interface {
 
     }
 
+    public function getDSN(){
+
+        return $this->dsn;
+
+    }
+
     public function getSchemaName(){
 
         return $this->schema;
 
     }
 
-    public function connect($dsn, $username = null, $password = null, $driver_options = null) {
+    public function connect($dsn = null, $username = null, $password = null, $driver_options = null, $lazy_connect = false) {
+
+        if($lazy_connect === true){
+
+            $this->lazy = array($dsn, $username, $password, $driver_options);
+
+            return true;
+
+        }
 
         try{
+
+            if($dsn === null){
+
+                if(!$this->lazy)
+                    throw new \Exception('A DSN is required!');
+
+                list($dsn, $username, $password, $driver_options) = $this->lazy;
+
+            }
+
+            $this->dsn = $dsn;
 
             $this->pdo = new \PDO($dsn, $username, $password, $driver_options);
 
@@ -173,6 +202,12 @@ abstract class BaseDriver implements Driver_Interface {
         }
 
         return true;
+
+    }
+
+    public function connected(){
+
+        return ($this->pdo instanceof \PDO);
 
     }
 
@@ -253,11 +288,17 @@ abstract class BaseDriver implements Driver_Interface {
 
     public function errorCode() {
 
+        if($this->last_exec_master === true)
+            return $this->master->errorCode();
+
         return $this->pdo->errorCode();
 
     }
 
     public function errorInfo() {
+
+        if($this->last_exec_master === true)
+            return $this->master->errorInfo();
 
         return $this->pdo->errorInfo();
 
@@ -273,10 +314,25 @@ abstract class BaseDriver implements Driver_Interface {
 
         $sql = rtrim($sql, '; ') . ';';
 
-        if(!($this->master && in_array($this->getSQLType($sql), BaseDriver::$master_cmds, true)))
-            return $this->pdo->exec($sql);
+        if(($this->master && in_array($this->getSQLType($sql), BaseDriver::$master_cmds, true))){
 
-        return $this->master->exec($sql);
+            if(!$this->master->connected()){
+
+                if(!$this->master->connect())
+                    throw new Exception\ConnectionFailed($this->master->getDSN());
+
+
+            }
+
+            $this->last_exec_master = true;
+
+            return $this->master->exec($sql);
+
+        }
+
+        $this->last_exec_master = false;
+
+        return $this->pdo->exec($sql);
 
     }
 
@@ -284,10 +340,25 @@ abstract class BaseDriver implements Driver_Interface {
 
         $sql = rtrim($sql, '; ') . ';';
 
-        if(!($this->master && in_array($this->getSQLType($sql), BaseDriver::$master_cmds, true)))
-            return $this->pdo->query($sql);
+        if(($this->master && in_array($this->getSQLType($sql), BaseDriver::$master_cmds, true))){
 
-        return $this->master->query($sql);
+            if(!$this->master->connected()){
+
+                if(!$this->master->connect())
+                    throw new Exception\ConnectionFailed($this->master->getDSN());
+
+
+            }
+
+            $this->last_exec_master = true;
+
+            return $this->master->query($sql);
+
+        }
+
+        $this->last_exec_master = false;
+
+        return $this->pdo->query($sql);
 
     }
 

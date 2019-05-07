@@ -234,13 +234,11 @@ class Adapter {
                 else
                     $master_config->extend($this->config->master);
 
-                unset($master_config->master);
-
                 $DBD2 = Adapter::getDriverClass($master_config->driver);
 
                 $master = new $DBD2($master_config);
 
-                if(!$master->connect($DBD2::mkdsn($master_config), $username, $password, $driver_options))
+                if(!$master->connect($DBD2::mkdsn($master_config), $username, $password, $driver_options, true))
                     throw new Exception\ConnectionFailed($dsn);
 
                 $this->driver->setMasterDBD($master);
