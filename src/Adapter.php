@@ -210,7 +210,7 @@ class Adapter {
             if (!class_exists($DBD))
                 throw new Exception\DriverNotFound($driver);
 
-            $this->driver = new $DBD(array_unflatten(substr($dsn, strpos($dsn, ':') + 1)));
+            $this->driver = new $DBD($this->config);
 
             if (!$driver_options)
                 $driver_options = array();
@@ -246,9 +246,6 @@ class Adapter {
                 $this->driver->setMasterDBD($master);
 
             }
-
-            if($this->config->has('timezone'))
-                $this->setTimezone($this->config['timezone']);
 
         }
 

@@ -68,6 +68,8 @@ interface Driver_Interface {
  */
 abstract class BaseDriver implements Driver_Interface {
 
+    protected $config;
+
     static public $dsn_elements = array();
 
     protected $allow_constraints = true;
@@ -101,7 +103,9 @@ abstract class BaseDriver implements Driver_Interface {
 
     static public $select_groups = array();
 
-    public function __construct($config = array()){
+    public function __construct(\Hazaar\Application\Config $config = null){
+
+        $this->config = $config;
 
         $this->schema = ake($config, 'dbname', 'public');
 
@@ -157,6 +161,9 @@ abstract class BaseDriver implements Driver_Interface {
         try{
 
             $this->pdo = new \PDO($dsn, $username, $password, $driver_options);
+
+            if($this->config->has('timezone'))
+                $this->setTimezone($this->config->timezone);
 
         }
         catch(\Exception $e){

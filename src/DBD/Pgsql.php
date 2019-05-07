@@ -12,7 +12,7 @@ class Pgsql extends BaseDriver {
         'password'
     );
 
-    public function __construct($config){
+    public function __construct(\Hazaar\Application\Config $config){
 
         parent::__construct($config);
 
@@ -24,9 +24,6 @@ class Pgsql extends BaseDriver {
 
         if($this->exec("SET TIME ZONE '$tz';") === false)
             return false;
-
-        if($this->master instanceof BaseDriver)
-            $this->master->setTimezone($tz);
 
         return true;
 
