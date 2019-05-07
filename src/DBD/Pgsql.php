@@ -20,6 +20,29 @@ class Pgsql extends BaseDriver {
 
     }
 
+    public function connect($dsn = null, $username = null, $password = null, $driver_options = null, $lazy_connect = false) {
+
+        $ret = parent::connect($dsn, $username, $password, $driver_options, $lazy_connect);
+
+        if($this->config->has('slave') && $this->config->slave === true && !$this->config->has('master')){
+
+            $result = $this->pdo->query('SELECT * FROM pg_catalog.pg_stat_wal_receiver;');
+
+            $stream_data = $result->fetch(\PDO::FETCH_ASSOC);
+
+            if($stream_data['status'] === null)
+                throw new \Exception('DBI connection set as slave, but connected user is not a superuser so can\'t determine the master.');
+            elseif($stream_data['status'] !== 'streaming')
+                throw new \Exception('DBI connection set as slave, but connected host is not in streaming mode.');
+
+            $this->config->master = $stream_data['sender_host'];
+
+        }
+
+        return $ret;
+
+    }
+
     public function setTimezone($tz){
 
         if($this->exec("SET TIME ZONE '$tz';") === false)
