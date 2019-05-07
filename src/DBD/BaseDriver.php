@@ -103,7 +103,15 @@ abstract class BaseDriver implements Driver_Interface {
      *
      * @var mixed
      */
-    static private $master_cmds = array('INSERT', 'UPDATE', 'DELETE');
+    static private $master_cmds = array(
+        'INSERT', 
+        'UPDATE', 
+        'DELETE',
+        'CREATE',
+        'ALTER',
+        'DROP',
+        'TRUNCATE'
+    );
 
     static public $select_groups = array();
 
