@@ -35,7 +35,7 @@ class Pgsql extends BaseDriver {
             elseif($stream_data['status'] !== 'streaming')
                 throw new \Exception('DBI connection set as slave, but connected host is not in streaming mode.');
 
-            $this->config->master = $stream_data['sender_host'];
+            $this->config->master = array('host' => $stream_data['sender_host'], 'port' => $stream_data['sender_port']);
 
         }
 
