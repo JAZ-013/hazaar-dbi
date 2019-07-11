@@ -250,70 +250,60 @@ class Result implements \ArrayAccess, \Countable, \Iterator {
 
     public function fetch($fetch_style = \PDO::FETCH_ASSOC, $cursor_orientation = \PDO::FETCH_ORI_NEXT, $cursor_offset = 0) {
 
-        if ($this->statement instanceof \PDOStatement) {
+        if (!$this->statement instanceof \PDOStatement)
+            return false;
 
-            $this->reset = true;
+        $this->reset = true;
 
-            if($record = $this->statement->fetch($fetch_style, $cursor_orientation, $cursor_offset)){
+        if($record = $this->statement->fetch($fetch_style, $cursor_orientation, $cursor_offset)){
 
-                $this->fix($record);
+            $this->fix($record);
 
-                return $record;
-
-            }
+            return $record;
 
         }
 
-        return false;
+        return null;
 
     }
 
     public function fetchAll($fetch_style = \PDO::FETCH_ASSOC, $fetch_argument = null, $ctor_args = array()) {
 
-        if ($this->statement instanceof \PDOStatement) {
+        if (!$this->statement instanceof \PDOStatement)
+            return false;
 
-            $this->reset = true;
+        $this->reset = true;
 
-            if ($fetch_argument !== null)
-                $results = $this->statement->fetchAll($fetch_style, $fetch_argument, $ctor_args);
-            else
-                $results = $this->statement->fetchAll($fetch_style);
+        if ($fetch_argument !== null)
+            $results = $this->statement->fetchAll($fetch_style, $fetch_argument, $ctor_args);
+        else
+            $results = $this->statement->fetchAll($fetch_style);
 
-            foreach($results as &$record) $this->fix($record);
+        foreach($results as &$record) $this->fix($record);
 
-            return $results;
-
-        }
-
-        return false;
+        return $results;
 
     }
 
     public function fetchColumn($column_number = 0) {
 
-        if ($this->statement instanceof \PDOStatement) {
+        if (!$this->statement instanceof \PDOStatement)
+            return false;
 
-            $this->reset = true;
+        $this->reset = true;
 
-            return $this->statement->fetchColumn($column_number);
-
-        }
-
-        return false;
+        return $this->statement->fetchColumn($column_number);
 
     }
 
     public function fetchObject($class_name = "stdClass", $ctor_args) {
 
-        if ($this->statement instanceof \PDOStatement) {
+        if (!$this->statement instanceof \PDOStatement)
+            return false;
 
-            $this->reset = true;
+        $this->reset = true;
 
-            return $this->statement->fetchObject($class_name, $ctor_args);
-
-        }
-
-        return false;
+        return $this->statement->fetchObject($class_name, $ctor_args);
 
     }
 
@@ -427,14 +417,12 @@ class Result implements \ArrayAccess, \Countable, \Iterator {
 
     public function nextRowset() {
 
-        if ($this->statement instanceof \PDOStatement) {
+        if (!$this->statement instanceof \PDOStatement)
+            return false;
 
-            $this->reset = true;
+        $this->reset = true;
 
-            return $this->statement->nextRowset();
-        }
-
-        return false;
+        return $this->statement->nextRowset();
 
     }
 
@@ -495,37 +483,35 @@ class Result implements \ArrayAccess, \Countable, \Iterator {
 
     public function row($cursor_orientation = \PDO::FETCH_ORI_NEXT, $offset = 0) {
 
-        if ($this->statement instanceof \PDOStatement) {
+        if (!$this->statement instanceof \PDOStatement)
+            return false;
 
-            $this->reset = true;
+        $this->reset = true;
 
-            if($record = $this->statement->fetch(\PDO::FETCH_NAMED, $cursor_orientation, $offset))
-                return new Row($this->adapter, $this->meta, $this->decrypt($record), $this->statement);
+        if($record = $this->statement->fetch(\PDO::FETCH_NAMED, $cursor_orientation, $offset))
+            return new Row($this->adapter, $this->meta, $this->decrypt($record), $this->statement);
 
-        }
-
-        return false;
+        return null;
 
     }
 
     public function rows() {
 
-        if ($this->statement instanceof \PDOStatement) {
+        if (!$this->statement instanceof \PDOStatement)
+            return false;
 
-            $this->reset = true;
+        $this->reset = true;
 
-            if($records = $this->statement->fetchAll(\PDO::FETCH_NAMED)){
+        if($records = $this->statement->fetchAll(\PDO::FETCH_NAMED)){
 
-                foreach($records as &$record)
-                    $record = new Row($this->adapter, $this->meta, $this->decrypt($record), $this->statement);
+            foreach($records as &$record)
+                $record = new Row($this->adapter, $this->meta, $this->decrypt($record), $this->statement);
 
-                return $records;
-
-            }
+            return $records;
 
         }
 
-        return false;
+        return null;
 
     }
 
@@ -625,16 +611,15 @@ class Result implements \ArrayAccess, \Countable, \Iterator {
 
         $this->record = null;
 
-        if ($this->statement instanceof \PDOStatement) {
+        if (!$this->statement instanceof \PDOStatement)
+            return false;
 
-            $this->reset = true;
+        $this->reset = true;
 
-            if($record = $this->statement->fetch(\PDO::FETCH_NAMED, \PDO::FETCH_ORI_NEXT))
-                return $this->record = new Row($this->adapter, $this->meta, $this->decrypt($record), $this->statement);
+        if($record = $this->statement->fetch(\PDO::FETCH_NAMED, \PDO::FETCH_ORI_NEXT))
+            return $this->record = new Row($this->adapter, $this->meta, $this->decrypt($record), $this->statement);
 
-        }
-
-        return false;
+        return null;
 
     }
 
@@ -645,19 +630,18 @@ class Result implements \ArrayAccess, \Countable, \Iterator {
 
         $this->record = null;
 
-        if ($this->statement instanceof \PDOStatement) {
+        if (!$this->statement instanceof \PDOStatement)
+            return false;
 
-            if($this->reset === true)
-                $this->statement->execute();
+        if($this->reset === true)
+            $this->statement->execute();
 
-            $this->reset = false;
+        $this->reset = false;
 
-            if($record = $this->statement->fetch(\PDO::FETCH_NAMED, \PDO::FETCH_ORI_NEXT))
-                return $this->record = new Row($this->adapter, $this->meta, $this->decrypt($record), $this->statement);
+        if($record = $this->statement->fetch(\PDO::FETCH_NAMED, \PDO::FETCH_ORI_NEXT))
+            return $this->record = new Row($this->adapter, $this->meta, $this->decrypt($record), $this->statement);
 
-        }
-
-        return false;
+        return null;
 
     }
 
