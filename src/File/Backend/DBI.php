@@ -12,6 +12,12 @@ class DBI implements _Interface {
 
     private $rootObject;
 
+    static public function label(){
+
+        return 'Hazaar DBI Virtual Filesystem';
+
+    }
+
     public function __construct($options = array()) {
 
         $defaults = array(
