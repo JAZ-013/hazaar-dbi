@@ -63,7 +63,7 @@ class DBI implements _Interface {
             );
 
             if(!($this->rootObject['id'] = $this->db->hz_file->insert($this->rootObject, 'id')))
-                throw new \Exception('Unable to create DBI filesystem root object: ' . $this->db->errorInfo()[2]);
+                throw new \Hazaar\Exception('Unable to create DBI filesystem root object: ' . $this->db->errorInfo()[2]);
 
             /*
              * If we are recreating the ROOT document then everything is either
@@ -341,7 +341,7 @@ class DBI implements _Interface {
             return false;
 
         if(!($parent =& $this->info($this->dirname($path))))
-            throw new \Exception('Unable to determine parent of path: ' . $path);
+            throw new \Hazaar\Exception('Unable to determine parent of path: ' . $path);
 
         $info = array(
             'kind'         => 'dir',
@@ -372,7 +372,7 @@ class DBI implements _Interface {
             return false;
 
         if(!($parent =& $this->info($this->dirname($path))))
-            throw new \Exception('Unable to determine parent of path: ' . $path);
+            throw new \Hazaar\Exception('Unable to determine parent of path: ' . $path);
 
         if(!$this->db->hz_file->delete(array('id' => $info['id'])))
             return false;
@@ -455,7 +455,7 @@ class DBI implements _Interface {
     public function write($path, $bytes, $content_type, $overwrite = false) {
 
         if(!($parent =& $this->info($this->dirname($path))))
-            throw new \Exception('Unable to determine parent of path: ' . $path);
+            throw new \Hazaar\Exception('Unable to determine parent of path: ' . $path);
 
         if(!$parent)
             return false;
@@ -569,7 +569,7 @@ class DBI implements _Interface {
         $sql .= ' SELECT id FROM chunk_chain;';
 
         if(!($result = $this->db->query($sql)))
-            throw new \Exception($this->db->errorInfo()[2]);
+            throw new \Hazaar\Exception($this->db->errorInfo()[2]);
 
         return $this->db->hz_file_chunk->delete(array('id' => array('$in' => array_column($result->fetchAll(), 'id'))));
 
@@ -587,7 +587,7 @@ class DBI implements _Interface {
             return false;
 
         if(!($dstParent =& $this->info($this->dirname($dst))))
-            throw new \Exception('Unable to determine parent of path: ' . $dst);
+            throw new \Hazaar\Exception('Unable to determine parent of path: ' . $dst);
 
         if($dstParent) {
 
@@ -597,7 +597,7 @@ class DBI implements _Interface {
         } else {
 
             if(!($dstParent =& $this->info($this->dirname($dst))))
-                throw new \Exception('Unable to determine parent of path: ' . $dst);
+                throw new \Hazaar\Exception('Unable to determine parent of path: ' . $dst);
 
         }
 
@@ -630,7 +630,7 @@ class DBI implements _Interface {
             return false;
 
         if(!($dstParent =& $this->info($this->dirname($dst))))
-            throw new \Exception('Unable to determine parent of path: ' . $dst);
+            throw new \Hazaar\Exception('Unable to determine parent of path: ' . $dst);
 
         if($dstParent) {
 
@@ -640,7 +640,7 @@ class DBI implements _Interface {
         } else {
 
             if(!($dstParent =& $this->info($this->dirname($dst))))
-                throw new \Exception('Unable to determine parent of path: ' . $dst);
+                throw new \Hazaar\Exception('Unable to determine parent of path: ' . $dst);
 
         }
 
@@ -673,14 +673,14 @@ class DBI implements _Interface {
             return false;
 
         if(!($srcParent =& $this->info($this->dirname($src))))
-            throw new \Exception('Unable to determine parent of path: ' . $src);
+            throw new \Hazaar\Exception('Unable to determine parent of path: ' . $src);
 
         $data = array(
             'modified_on' => new \Hazaar\Date()
         );
 
         if(!($dstParent =& $this->info($this->dirname($dst))))
-            throw new \Exception('Unable to determine parent of path: ' . $dst);
+            throw new \Hazaar\Exception('Unable to determine parent of path: ' . $dst);
 
         if($srcParent['id'] === $dstParent['id']) { //We are renaming the file.
 
@@ -704,7 +704,7 @@ class DBI implements _Interface {
         }
 
         if(!$this->db->hz_file->update(array('id' => $source['id']), $data))
-            throw new \Exception($this->db->errorInfo()[2]);
+            throw new \Hazaar\Exception($this->db->errorInfo()[2]);
 
         return true;
 

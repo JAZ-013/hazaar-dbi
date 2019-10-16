@@ -576,13 +576,13 @@ class Result implements \ArrayAccess, \Countable, \Iterator {
 
     public function offsetSet($offset, $value) {
 
-        throw new \Exception('Updating a value in a database result is not supported!');
+        throw new \Hazaar\Exception('Updating a value in a database result is not supported!');
 
     }
 
     public function offsetUnset($offset) {
 
-        throw new \Exception('Unsetting a value in a database result is not supported!');
+        throw new \Hazaar\Exception('Unsetting a value in a database result is not supported!');
 
     }
 
@@ -680,7 +680,7 @@ class Result implements \ArrayAccess, \Countable, \Iterator {
             list($checkbit, $value) = preg_split('/(?<=.{' . strlen($checkstring) . '})/', openssl_decrypt($parts[1], $cipher, $key, OPENSSL_RAW_DATA, $parts[0]), 2);
 
             if($checkbit !== $checkstring)
-                throw new \Exception('Field decryption failed: ' . $key);
+                throw new \Hazaar\Exception('Field decryption failed: ' . $key);
 
         }
 

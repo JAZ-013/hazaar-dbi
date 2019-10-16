@@ -418,7 +418,7 @@ abstract class BaseDriver implements Driver_Interface {
                     case 'bt':
 
                         if(($count = count($value)) !== 2)
-                            throw new \Exception('DBD: $bt operator requires array argument with exactly 2 elements. ' . $count . ' given.');
+                            throw new \Hazaar\Exception('DBD: $bt operator requires array argument with exactly 2 elements. ' . $count . ' given.');
 
                         $parts[] = 'BETWEEN ' . $this->prepareValue(array_values($value)[0])
                             . ' AND ' . $this->prepareValue(array_values($value)[1]);
@@ -798,7 +798,7 @@ abstract class BaseDriver implements Driver_Interface {
                 if (is_numeric($name)) {
 
                     if (!array_key_exists('name', $info))
-                        throw new \Exception('Error creating new table.  Name is a number which is not allowed!');
+                        throw new \Hazaar\Exception('Error creating new table.  Name is a number which is not allowed!');
 
                     $name = $info['name'];
 
@@ -844,7 +844,7 @@ abstract class BaseDriver implements Driver_Interface {
         $affected = $this->exec($sql);
 
         if ($affected === FALSE)
-            throw new \Exception('Could not create table. ' . $this->errorInfo()[2]);
+            throw new \Hazaar\Exception('Could not create table. ' . $this->errorInfo()[2]);
 
         return TRUE;
 
@@ -911,7 +911,7 @@ abstract class BaseDriver implements Driver_Interface {
             list($to_schema, $to_name) = explode('.', $to_name);
 
             if ($to_schema != $from_schema)
-                throw new \Exception('You can not rename tables between schemas!');
+                throw new \Hazaar\Exception('You can not rename tables between schemas!');
 
         }
 
@@ -1249,7 +1249,7 @@ abstract class BaseDriver implements Driver_Interface {
                 ORDER BY r.routine_name, p.ordinal_position;";
 
         if(!($q = $this->query($sql)))
-            throw new \Exception($this->errorInfo()[2]);
+            throw new \Hazaar\Exception($this->errorInfo()[2]);
 
         $info = array();
 

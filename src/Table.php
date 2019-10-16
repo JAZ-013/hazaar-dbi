@@ -632,13 +632,13 @@ class Table {
 
     public function offsetSet($offset, $value) {
 
-        throw new \Exception('Updating a value in a database result is not currently implemented!');
+        throw new \Hazaar\Exception('Updating a value in a database result is not currently implemented!');
 
     }
 
     public function offsetUnset($offset) {
 
-        throw new \Exception('Unsetting a value in a database result is not currently implemented!');
+        throw new \Hazaar\Exception('Unsetting a value in a database result is not currently implemented!');
 
     }
 

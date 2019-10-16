@@ -72,7 +72,7 @@ final class Row extends \Hazaar\Model\Strict {
     public function update(){
 
         if(!$this->statement instanceof \PDOStatement)
-            throw new \Exception('Unable to perform updates without the original PDO statement!');
+            throw new \Hazaar\Exception('Unable to perform updates without the original PDO statement!');
 
         $changes = array();
 
@@ -82,7 +82,7 @@ final class Row extends \Hazaar\Model\Strict {
                 continue;
 
             if(!array_key_exists('table', $def))
-                throw new \Exception('Unable to update ' . $key . ' with unknown table');
+                throw new \Hazaar\Exception('Unable to update ' . $key . ' with unknown table');
 
             //$changes[$def['table']][] = $key . '=' . $this->adapter->prepareValue($this->get($key), $key, $this->fields[$key]['native_type']);
 
@@ -118,7 +118,7 @@ final class Row extends \Hazaar\Model\Strict {
         $tables = array();
 
         if(!preg_match('/FROM\s+"?(\w+)"?(\s+"?(\w+)"?)?/', $this->statement->queryString, $matches))
-            throw new \Exception('Can\'t figure out which table we\'re updating!');
+            throw new \Hazaar\Exception('Can\'t figure out which table we\'re updating!');
 
         //Find the primary key for the primary table so we know which row we are updating
         foreach($this->adapter->listPrimaryKeys($matches[1]) as $data){
@@ -138,7 +138,7 @@ final class Row extends \Hazaar\Model\Strict {
         }
 
         if(!count($tables) > 0)
-            throw new \Exception('Missing primary key in selection!');
+            throw new \Hazaar\Exception('Missing primary key in selection!');
 
         //Check and process joins
         if(preg_match_all('/JOIN\s+"?(\w+)"?(\s"?(\w+)"?)?\s+ON\s+("?[\w\.]+"?)\s?([\!=<>])\s?("?[\w\.]+"?)/i', $this->statement->queryString, $matches)){

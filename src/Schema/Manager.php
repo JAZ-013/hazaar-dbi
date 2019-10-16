@@ -254,7 +254,7 @@ class Manager {
         $version = $this->getVersion();
 
         if($latest_version > $version)
-            throw new \Exception('Snapshoting a database that is not at the latest schema version is not supported.');
+            throw new \Hazaar\Exception('Snapshoting a database that is not at the latest schema version is not supported.');
 
         $this->dbi->beginTransaction();
 
@@ -263,7 +263,7 @@ class Manager {
         if(!is_dir($db_dir)){
 
             if(file_exists($db_dir))
-                throw new \Exception('Unable to create database migration directory.  It exists but is not a directory!');
+                throw new \Hazaar\Exception('Unable to create database migration directory.  It exists but is not a directory!');
 
             mkdir($db_dir);
 
@@ -274,7 +274,7 @@ class Manager {
             $result = $this->dbi->query('SELECT CURRENT_TIMESTAMP');
 
             if(!$result instanceof \Hazaar\DBI\Result)
-                throw new \Exception('No rows returned!');
+                throw new \Hazaar\Exception('No rows returned!');
 
             $this->log("Starting at: " . $result->fetchColumn(0));
 
@@ -423,7 +423,7 @@ class Manager {
             $this->log("Processing table '$name'.");
 
             if(!($cols = $this->dbi->describeTable($name, 'ordinal_position')))
-                throw new \Exception("Error getting table definition for table '$name'.  Does the connected user have the correct permissions?");
+                throw new \Hazaar\Exception("Error getting table definition for table '$name'.  Does the connected user have the correct permissions?");
 
             $current_schema['tables'][$name] = $cols;
 
@@ -800,7 +800,7 @@ class Manager {
             $this->log("Processing view '$name'.");
 
             if(!($info = $this->dbi->describeView($name)))
-                throw new \Exception("Error getting view definition for view '$name'.  Does the connected user have the correct permissions?");
+                throw new \Hazaar\Exception("Error getting view definition for view '$name'.  Does the connected user have the correct permissions?");
 
             $current_schema['views'][$name] = $info;
 
@@ -872,7 +872,7 @@ class Manager {
             $this->log("Processing function '$name'.");
 
             if(!($infos = $this->dbi->describeFunction($name)))
-                throw new \Exception("Error getting function definition for functions '$name'.  Does the connected user have the correct permissions?");
+                throw new \Hazaar\Exception("Error getting function definition for functions '$name'.  Does the connected user have the correct permissions?");
 
             foreach($infos as $info){
 
@@ -965,7 +965,7 @@ class Manager {
             $this->log("Processing trigger '$name'.");
 
             if(!($info = $this->dbi->describeTrigger($trigger['name'], $trigger['schema'])))
-                throw new \Exception("Error getting trigger definition for '$name'.  Does the connected user have the correct permissions?");
+                throw new \Hazaar\Exception("Error getting trigger definition for '$name'.  Does the connected user have the correct permissions?");
 
             $current_schema['triggers'][$name] = $info;
 
@@ -1147,10 +1147,10 @@ class Manager {
         $file = new \Hazaar\File($this->schema_file);
 
         if(!$file->exists())
-            throw new \Exception("This application has no schema file.  Database schema is not being managed.");
+            throw new \Hazaar\Exception("This application has no schema file.  Database schema is not being managed.");
 
         if(!($schema = json_decode($file->get_contents(), true)))
-            throw new \Exception("Unable to parse the migration file.  Bad JSON?");
+            throw new \Hazaar\Exception("Unable to parse the migration file.  Bad JSON?");
 
         if(!array_key_exists('version', $schema))
             $schema['version'] = 1;
@@ -1164,7 +1164,7 @@ class Manager {
              * Make sure the requested version exists
              */
             if(!array_key_exists($version, $versions))
-                throw new \Exception("Unable to find migration version '$version'.");
+                throw new \Hazaar\Exception("Unable to find migration version '$version'.");
 
         }else{
 
@@ -1201,7 +1201,7 @@ class Manager {
         catch(\PDOException $e){
 
             if($e->getCode() == 7)
-                throw new \Exception("Database does not exist.");
+                throw new \Hazaar\Exception("Database does not exist.");
 
             throw $e;
 
@@ -1257,7 +1257,7 @@ class Manager {
 
                 if(count($tables) > 0 && $keep_tables !== true){
 
-                    throw new \Exception("Tables exist in database but no schema info was found!  This should only be run on an empty database!");
+                    throw new \Hazaar\Exception("Tables exist in database but no schema info was found!  This should only be run on an empty database!");
 
                 }else{
 
@@ -1284,7 +1284,7 @@ class Manager {
             }else{
 
                 if(!array_key_exists($current_version, $versions))
-                    throw new \Exception("Your current database version has no migration source.");
+                    throw new \Hazaar\Exception("Your current database version has no migration source.");
 
                 $this->log("Migrating from version '$current_version' to '$version'.");
 
@@ -1321,12 +1321,12 @@ class Manager {
 
                     }else{
 
-                        throw new \Exception("Unknown migration mode!");
+                        throw new \Hazaar\Exception("Unknown migration mode!");
 
                     }
 
                     if(!($current_schema = json_decode($source->get_contents(), true)))
-                        throw new \Exception("Unable to parse the migration file.  Bad JSON?");
+                        throw new \Hazaar\Exception("Unable to parse the migration file.  Bad JSON?");
 
                     try{
 
@@ -1357,7 +1357,7 @@ class Manager {
                         }
 
                         if($this->dbi->errorCode() > 0)
-                            throw new \Exception($this->dbi->errorInfo()[2]);
+                            throw new \Hazaar\Exception($this->dbi->errorInfo()[2]);
 
                         $this->dbi->commit();
 
@@ -1424,7 +1424,7 @@ class Manager {
                         $diff = array_diff_assoc_recursive($cur_columns, $columns);
 
                         if(count($diff) > 0)
-                            throw new \Exception('Table "' . $table . '" already exists but is different.  Bailing out!');
+                            throw new \Hazaar\Exception('Table "' . $table . '" already exists but is different.  Bailing out!');
 
                         $this->log('Table "' . $table . '" already exists and looks current.  Skipping.');
 
@@ -1435,7 +1435,7 @@ class Manager {
                     $ret = $this->dbi->createTable($table, $columns);
 
                     if(!$ret || $this->dbi->errorCode() > 0)
-                        throw new \Exception('Error creating table ' . $table . ': ' . $this->dbi->errorInfo()[2]);
+                        throw new \Hazaar\Exception('Error creating table ' . $table . ': ' . $this->dbi->errorInfo()[2]);
 
                 }
 
@@ -1459,7 +1459,7 @@ class Manager {
                             $diff = array_diff_assoc_recursive($cur_constraints[$constraint_name], $constraint);
 
                             if(count($diff) > 0)
-                                throw new \Exception('Constraint "' . $constraint_name . '" already exists but is different.  Bailing out!');
+                                throw new \Hazaar\Exception('Constraint "' . $constraint_name . '" already exists but is different.  Bailing out!');
 
                             $this->log('Constraint "' . $constraint_name . '" already exists and looks current.  Skipping.');
 
@@ -1470,7 +1470,7 @@ class Manager {
                         $ret = $this->dbi->addConstraint($constraint_name, $constraint);
 
                         if(!$ret || $this->dbi->errorCode() > 0)
-                            throw new \Exception('Error creating constraint ' . $constraint_name . ': ' . $this->dbi->errorInfo()[2]);
+                            throw new \Hazaar\Exception('Error creating constraint ' . $constraint_name . ': ' . $this->dbi->errorInfo()[2]);
 
                     }
 
@@ -1491,7 +1491,7 @@ class Manager {
                             $diff = array_diff_assoc_recursive($cur_constraints[$constraint_name], $constraint);
 
                             if(count($diff) > 0)
-                                throw new \Exception('Constraint "' . $constraint_name . '" already exists but is different.  Bailing out!');
+                                throw new \Hazaar\Exception('Constraint "' . $constraint_name . '" already exists but is different.  Bailing out!');
 
                             $this->log('Constraint "' . $constraint_name . '" already exists and looks current.  Skipping.');
 
@@ -1502,7 +1502,7 @@ class Manager {
                         $ret = $this->dbi->addConstraint($constraint_name, $constraint);
 
                         if(!$ret || $this->dbi->errorCode() > 0)
-                            throw new \Exception('Error creating constraint ' . $constraint_name . ': ' . $this->dbi->errorInfo()[2]);
+                            throw new \Hazaar\Exception('Error creating constraint ' . $constraint_name . ': ' . $this->dbi->errorInfo()[2]);
 
                     }
 
@@ -1520,7 +1520,7 @@ class Manager {
                         $ret = $this->dbi->createIndex($index_name, $table, $index_info);
 
                         if(!$ret || $this->dbi->errorCode() > 0)
-                            throw new \Exception('Error creating index ' . $index_name . ': ' . $this->dbi->errorInfo()[2]);
+                            throw new \Hazaar\Exception('Error creating index ' . $index_name . ': ' . $this->dbi->errorInfo()[2]);
 
                     }
 
@@ -1540,7 +1540,7 @@ class Manager {
                         $diff = array_diff_assoc_recursive($cur_info, $info);
 
                         if(count($diff) > 0)
-                            throw new \Exception('View "' . $view . '" already exists but is different.  Bailing out!');
+                            throw new \Hazaar\Exception('View "' . $view . '" already exists but is different.  Bailing out!');
 
                         $this->log('View "' . $view . '" already exists and looks current.  Skipping.');
 
@@ -1551,7 +1551,7 @@ class Manager {
                     $ret = $this->dbi->createView($view, $info['content']);
 
                     if(!$ret || $this->dbi->errorCode() > 0)
-                        throw new \Exception('Error creating view ' . $view . ': ' . $this->dbi->errorInfo()[2]);
+                        throw new \Hazaar\Exception('Error creating view ' . $view . ': ' . $this->dbi->errorInfo()[2]);
 
                 }
 
@@ -1571,7 +1571,7 @@ class Manager {
                         $ret = $this->dbi->createFunction($info['name'], $info);
 
                         if(!$ret || $this->dbi->errorCode() > 0)
-                            throw new \Exception('Error creating function ' . $info['name'] . '(' . implode(', ', $params) . '): ' . $this->dbi->errorInfo()[2]);
+                            throw new \Hazaar\Exception('Error creating function ' . $info['name'] . '(' . implode(', ', $params) . '): ' . $this->dbi->errorInfo()[2]);
 
                     }
 
@@ -1598,7 +1598,7 @@ class Manager {
                             $diff = array_diff_assoc_recursive($cur_info, $info);
 
                             if(count($diff) > 0)
-                                throw new \Exception('Trigger "' . $info['name'] . '" already exists but is different.  Bailing out!');
+                                throw new \Hazaar\Exception('Trigger "' . $info['name'] . '" already exists but is different.  Bailing out!');
 
                             $this->log('Trigger "' . $info['name'] . '" already exists and looks current.  Skipping.');
 
@@ -1611,7 +1611,7 @@ class Manager {
                     $ret = $this->dbi->createTrigger($info['name'], $info['table'], $info);
 
                     if(!$ret || $this->dbi->errorCode() > 0)
-                        throw new \Exception("Error creating trigger '{$info['name']} on table '{$info['table']}': "
+                        throw new \Hazaar\Exception("Error creating trigger '{$info['name']} on table '{$info['table']}': "
                             . $this->dbi->errorInfo()[2]);
 
                 }
@@ -1644,10 +1644,10 @@ class Manager {
     public function createSchemaFromFile($filename){
 
         if(!$filename = realpath($filename))
-            throw new \Exception('Schema file not found!', 404);
+            throw new \Hazaar\Exception('Schema file not found!', 404);
 
         if(!($schema = json_decode(file_get_contents($filename), true)))
-            throw new \Exception('Schema file contents is not a valid schema!');
+            throw new \Hazaar\Exception('Schema file contents is not a valid schema!');
 
         return $this->createSchema($schema);
 
@@ -1714,7 +1714,7 @@ class Manager {
                         elseif($version === 2)
                             $this->replayItems($level1, $level2, $items, $test);
                         else
-                            throw new \Exception('Unsupported schema migration version: ' . $version);
+                            throw new \Hazaar\Exception('Unsupported schema migration version: ' . $version);
 
                     }
 
@@ -1901,7 +1901,7 @@ class Manager {
                                 }
 
                                 if($this->dbi->errorCode() > 0)
-                                    throw new \Exception($this->dbi->errorInfo()[2]);
+                                    throw new \Hazaar\Exception($this->dbi->errorInfo()[2]);
 
                             }
 
@@ -1915,7 +1915,7 @@ class Manager {
                         $this->dbi->dropView($item_name);
 
                         if($this->dbi->errorCode() > 0)
-                            throw new \Exception($this->dbi->errorInfo()[2]);
+                            throw new \Hazaar\Exception($this->dbi->errorInfo()[2]);
 
                         $this->dbi->createView($item_name, $item['content']);
 
@@ -1974,7 +1974,7 @@ class Manager {
             }
 
             if($this->dbi->errorCode() > 0)
-                throw new \Exception($this->dbi->errorInfo()[2]);
+                throw new \Hazaar\Exception($this->dbi->errorInfo()[2]);
 
         }
 
@@ -2046,7 +2046,7 @@ class Manager {
         $this->log('Loading data from file: ' . $file);
 
         if(!($data = json_decode($file->get_contents())))
-            throw new \Exception("Unable to parse the DBI data file.  Bad JSON in $file");
+            throw new \Hazaar\Exception("Unable to parse the DBI data file.  Bad JSON in $file");
 
         if($child_element)
             $data = ake($data, $child_element);
@@ -2068,7 +2068,7 @@ class Manager {
     private function processDataObject($info){
 
         if(!$info instanceof \stdClass)
-            throw new \Exception('Got non-object while processing data object!');
+            throw new \Hazaar\Exception('Got non-object while processing data object!');
 
         if($message = ake($info, 'message'))
             $this->log($message);
@@ -2087,7 +2087,7 @@ class Manager {
             if($rows = ake($info, 'rows')){
 
                 if(($def = $this->dbi->describeTable($table)) === false)
-                    throw new \Exception("Can not insert rows into non-existant table '$table'!");
+                    throw new \Hazaar\Exception("Can not insert rows into non-existant table '$table'!");
 
                 $tableDef =  array_combine(array_column($def, 'name'), $def);
 
@@ -2099,7 +2099,7 @@ class Manager {
 
                 }else{
 
-                    throw new \Exception("Can not migrate data on table '$table' without primary key!");
+                    throw new \Hazaar\Exception("Can not migrate data on table '$table' without primary key!");
 
                 }
 
@@ -2111,7 +2111,7 @@ class Manager {
                     foreach($row as $name => &$col){
 
                         if(!array_key_exists($name, $tableDef))
-                            throw new \Exception("Attempting to modify data for non-existent row '$name'!" );
+                            throw new \Hazaar\Exception("Attempting to modify data for non-existent row '$name'!" );
 
                         if($col === null) continue;
 
@@ -2179,7 +2179,7 @@ class Manager {
                         $this->log("Updating record in table '$table' with $pkey={$pkey_value}");
 
                         if(!$this->dbi->update($table, $fix_row($row, $tableDef), array($pkey => $pkey_value)))
-                            throw new \Exception('Update failed: ' . $this->dbi->errorInfo()[2]);
+                            throw new \Hazaar\Exception('Update failed: ' . $this->dbi->errorInfo()[2]);
 
                     }else{
 
@@ -2188,7 +2188,7 @@ class Manager {
                             continue;
 
                         if(($pkey_value = $this->dbi->insert($table, $fix_row($row, $tableDef), $pkey)) == false)
-                            throw new \Exception('Insert failed: ' . $this->dbi->errorInfo()[2]);
+                            throw new \Hazaar\Exception('Insert failed: ' . $this->dbi->errorInfo()[2]);
 
                         $this->log("Inserted record into table '$table' with $pkey={$pkey_value}");
 
@@ -2204,12 +2204,12 @@ class Manager {
                 foreach($updates as $update){
 
                     if(!($where = ake($update, 'where')) && ake($update, 'all', false) !== true)
-                        throw new \Exception("Can not update rows in a table without a 'where' element or setting 'all=true'.");
+                        throw new \Hazaar\Exception("Can not update rows in a table without a 'where' element or setting 'all=true'.");
 
                     $affected = $this->dbi->table($table)->update($where, ake($update, 'set'));
 
                     if($affected === false)
-                        throw new \Exception('Update failed: ' . $this->dbi->errorInfo()[2]);
+                        throw new \Hazaar\Exception('Update failed: ' . $this->dbi->errorInfo()[2]);
 
                     $this->log("Updated $affected rows");
 
@@ -2229,14 +2229,14 @@ class Manager {
                     }else{
 
                         if(!($where = ake($delete, 'where')))
-                            throw new \Exception("Can not delete rows from a table without a 'where' element or setting 'all=true'.");
+                            throw new \Hazaar\Exception("Can not delete rows from a table without a 'where' element or setting 'all=true'.");
 
                         $affected = $this->dbi->table($table)->delete($where);
 
                     }
 
                     if($affected === false)
-                        throw new \Exception('Delete failed: ' . $this->dbi->errorInfo()[2]);
+                        throw new \Hazaar\Exception('Delete failed: ' . $this->dbi->errorInfo()[2]);
 
                     $this->log("Deleted $affected rows");
 
@@ -2302,7 +2302,7 @@ class Manager {
                     continue;
 
                 if($settings['initialise'] !== true)
-                    throw new \Exception($name . ' requires initialisation but initialise is disabled!');
+                    throw new \Hazaar\Exception($name . ' requires initialisation but initialise is disabled!');
 
                 $schema = realpath(__DIR__ . str_repeat(DIRECTORY_SEPARATOR . '..', 2)
                     . DIRECTORY_SEPARATOR . 'libs'
@@ -2314,7 +2314,7 @@ class Manager {
                 $this->log('Initialising DBI filesystem: ' . $name);
 
                 if(!$manager->createSchemaFromFile($schema))
-                    throw new \Exception('Unable to configure DBI filesystem schema!');
+                    throw new \Hazaar\Exception('Unable to configure DBI filesystem schema!');
 
                 //Look for the old tables and if they exists, do an upgrade!
                 if($fs_db->tableExists('file') && $fs_db->tableExists('file_chunk')){

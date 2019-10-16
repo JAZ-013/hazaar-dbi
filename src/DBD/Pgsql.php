@@ -233,7 +233,7 @@ class Pgsql extends BaseDriver {
         $sql .= "\nGROUP BY s.nspname, t.relname, i.relname, ix.indisunique ORDER BY t.relname, i.relname;";
 
         if(!($result = $this->query($sql)))
-            throw new \Exception('Index list failed. ' . $this->errorInfo()[2]);
+            throw new \Hazaar\Exception('Index list failed. ' . $this->errorInfo()[2]);
 
         $indexes = array();
 

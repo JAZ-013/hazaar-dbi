@@ -408,7 +408,7 @@ class Mysql extends BaseDriver {
         $sql .= "\nGROUP BY 1,2;";
 
         if(!($result = $this->query($sql)))
-            throw new \Exception('Index list failed. ' . $this->errorInfo()[2]);
+            throw new \Hazaar\Exception('Index list failed. ' . $this->errorInfo()[2]);
 
         $indexes = array();
 

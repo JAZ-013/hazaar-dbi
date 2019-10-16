@@ -120,7 +120,7 @@ class Adapter {
             $keyfile = \Hazaar\Application::getInstance()->runtimePath(ake($this->options['encrypt'], 'keyfile', '.db_key'));
 
             if(!file_exists($keyfile))
-                throw new \Exception('DBI keyfile is missing.  Database encryption will not work!');
+                throw new \Hazaar\Exception('DBI keyfile is missing.  Database encryption will not work!');
 
             $this->options['encrypt']['key'] = trim(file_get_contents($keyfile));
 
@@ -373,7 +373,7 @@ class Adapter {
         $statement = $this->driver->prepare($sql);
 
         if(!$statement instanceof \PDOStatement)
-            throw new \Exception('Driver did not return PDOStatement during prepare!');
+            throw new \Hazaar\Exception('Driver did not return PDOStatement during prepare!');
 
         if ($name)
             $this->statements[$name] = $statement;
@@ -457,7 +457,7 @@ class Adapter {
                 continue;
 
             if(!is_string($value))
-                throw new \Exception('Trying to encrypt non-string field: ' . $key);
+                throw new \Hazaar\Exception('Trying to encrypt non-string field: ' . $key);
 
             $iv = openssl_random_pseudo_bytes(openssl_cipher_iv_length($cipher));
 
