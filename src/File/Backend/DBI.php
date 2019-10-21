@@ -286,6 +286,22 @@ class DBI implements _Interface {
 
     }
 
+    public function touch($path){
+
+        if(!($info = $this->info($path)))
+            return false;
+
+        $data = array(
+            'modified_on' => new \Hazaar\Date,
+        );
+
+        if(!$this->db->hz_file->update(array('id' => $info['id']), $data))
+            return false;
+
+        return true;
+
+    }
+
     //Returns the file modification time
     public function fileatime($path) {
 
