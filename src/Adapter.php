@@ -13,30 +13,30 @@ namespace Hazaar\DBI;
  * @brief Relational Database Interface
  *
  * @detail The DB Adapter module provides classes for access to relational database via
- * "PDO":http://www.php.net/manual/en/book.pdo.php (PHP Data Object) drivers and classes. This
+ * [PDO](http://www.php.net/manual/en/book.pdo.php) (PHP Data Object) drivers and classes. This
  * approach allows developers to use these classes to access a range of different database servers.
  *
  * PDO has supporting drivers for:
  *
- * * "PostgreSQL":http://www.postgresql.org
- * * "MySQL":http://www.mysql.com
- * * "SQLite":http://www.sqlite.org
- * * "MS SQL Server":http://www.microsoft.com/sqlserver
- * * "Oracle":http://www.oracle.com
- * * "IBM Informix":http://www.ibm.com/software/data/informix
- * * "Interbase":http://www.embarcadero.com/products/interbase
+ * * [PostgreSQL](http://www.postgresql.org)
+ * * [MySQL](http://www.mysql.com)
+ * * [SQLite](http://www.sqlite.org)
+ * * [MS SQL Server](http://www.microsoft.com/sqlserver)
+ * * [Oracle](http://www.oracle.com)
+ * * [IBM Informix](http://www.ibm.com/software/data/informix)
+ * * [Interbase](http://www.embarcadero.com/products/interbase)
  *
  * Access to database functions is all done using a common class structure.
  *
  * h2. Example Usage
  *
- * <code>
+ * ```php
  * $db = new Hazaar\DBI\Adapter();
  * $result = $this->execute('SELECT * FROM users');
  * while($row = $result->fetch()){
  * //Do things with $row here
  * }
- * </code>
+ * ```
  */
 class Adapter {
 

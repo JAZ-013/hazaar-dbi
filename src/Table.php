@@ -19,13 +19,13 @@ namespace Hazaar\DBI;
  *
  * h2. Example Usage
  *
- * <code>
+ * ```php
  * $db = new Hazaar\DBI();
  * $result = $db->users->find(array('uname' => 'myusername'))->join('images', array('image' => array('$ref' => 'images.id')));
  * while($row = $result->fetch()){
  * //Do things with $row here
  * }
- * </code>
+ * ```
  */
 class Table {
 
