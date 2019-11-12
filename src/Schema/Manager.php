@@ -1739,7 +1739,7 @@ class Manager {
                         $this->log("+ Creating table '$item[name]'.");
 
                         if($test)
-                            continue;
+                            break;
 
                         $this->dbi->createTable($item['name'], $item['cols']);
 
@@ -1748,7 +1748,7 @@ class Manager {
                         $this->log("+ Creating index '$item[name]' on table '$item[table]'.");
 
                         if($test)
-                            continue;
+                            break;
 
                         $this->dbi->createIndex($item['name'], $item['table'], array('columns' => $item['columns'], 'unique' => $item['unique']));
 
@@ -1757,7 +1757,7 @@ class Manager {
                         $this->log("+ Creating constraint '$item[name]' on table '$item[table]'.");
 
                         if($test)
-                            continue;
+                            break;
 
                         $this->dbi->addConstraint($item['name'], $item);
 
@@ -1766,7 +1766,7 @@ class Manager {
                         $this->log("+ Creating view '$item[name]'.");
 
                         if($test)
-                            continue;
+                            break;
 
                         $this->dbi->createView($item['name'], $item['content']);
 
@@ -1780,7 +1780,7 @@ class Manager {
                         $this->log("+ Creating function '{$item['name']}(" . implode(', ', $params) . ').');
 
                         if($test)
-                            continue;
+                            break;
 
                         $this->dbi->createFunction($item['name'], $item);
 
@@ -1789,7 +1789,7 @@ class Manager {
                         $this->log("+ Creating trigger '{$item['name']}' on table '{$item['table']}'.");
 
                         if($test)
-                            continue;
+                            break;
 
                         $this->dbi->createTrigger($item['name'], $item['table'], $item);
 
@@ -1805,7 +1805,7 @@ class Manager {
                         $this->log("- Removing table '$item'.");
 
                         if($test)
-                            continue;
+                            break;
 
                         $this->dbi->dropTable($item, true);
 
@@ -1814,7 +1814,7 @@ class Manager {
                         $this->log("- Removing constraint '$item[name]' from table '$item[table]'.");
 
                         if($test)
-                            continue;
+                            break;
 
                         $this->dbi->dropConstraint($item['name'], $item['table'], true);
 
@@ -1823,7 +1823,7 @@ class Manager {
                         $this->log("- Removing index '$item'.");
 
                         if($test)
-                            continue;
+                            break;
 
                         $this->dbi->dropIndex($item);
 
@@ -1832,7 +1832,7 @@ class Manager {
                         $this->log("- Removing view '$item'.");
 
                         if($test)
-                            continue;
+                            break;
 
                         $this->dbi->dropView($item, true);
 
@@ -1843,7 +1843,7 @@ class Manager {
                         $this->log("- Removing function '{$item['name']}(" . implode(', ', $params) . ').');
 
                         if($test)
-                            continue;
+                            break;
 
                         $this->dbi->dropFunction($item['name'], $params);
 
@@ -1852,7 +1852,7 @@ class Manager {
                         $this->log("- Removing trigger '{$item['name']}' from table '{$item['table']}'.");
 
                         if($test)
-                            continue;
+                            break;
 
                         $this->dbi->dropTrigger($item['name'], $item['table']);
 
@@ -1876,7 +1876,7 @@ class Manager {
                                     $this->log("+ Adding column '$col[name]'.");
 
                                     if($test)
-                                        continue;
+                                        break;
 
                                     $this->dbi->addColumn($item_name, $col);
 
@@ -1885,7 +1885,7 @@ class Manager {
                                     $this->log("> Altering column '$col_name'.");
 
                                     if($test)
-                                        continue;
+                                        break;
 
                                     $this->dbi->alterColumn($item_name, $col_name, $col);
 
@@ -1894,7 +1894,7 @@ class Manager {
                                     $this->log("- Dropping column '$col'.");
 
                                     if($test)
-                                        continue;
+                                        break;
 
                                     $this->dbi->dropColumn($item_name, $col);
 
@@ -1910,7 +1910,7 @@ class Manager {
                     }elseif($type === 'view'){
 
                         if($test)
-                            continue;
+                            break;
 
                         $this->dbi->dropView($item_name);
 
@@ -1928,7 +1928,7 @@ class Manager {
                         $this->log("+ Replacing function '{$item['name']}(" . implode(', ', $params) . ').');
 
                         if($test)
-                            continue;
+                            break;
 
                         $this->dbi->createFunction($item['name'], $item);
 
@@ -1937,7 +1937,7 @@ class Manager {
                         $this->log("+ Replacing trigger '{$item['name']}' on table '{$item['table']}'.");
 
                         if($test)
-                            continue;
+                            break;
 
                         $this->dbi->dropTrigger($item['name'], $item['table']);
 
@@ -1956,7 +1956,7 @@ class Manager {
                     $this->log("> Renaming $type item: $item[from] => $item[to]");
 
                     if($test)
-                        continue;
+                        break;
 
                     if($type == 'table')
                         $this->dbi->renameTable($item['from'], $item['to']);
