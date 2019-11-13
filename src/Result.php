@@ -84,9 +84,6 @@ class Result implements \ArrayAccess, \Countable, \Iterator {
 
             $meta = $this->statement->getColumnMeta($i);
 
-            if(array_key_exists($meta['name'], $this->meta))
-                continue;
-
             $def = array('native_type' => $meta['native_type']);
 
             if(array_key_exists('table', $meta))
@@ -115,9 +112,18 @@ class Result implements \ArrayAccess, \Countable, \Iterator {
 
             }
 
-            $meta = $this->statement->getColumnMeta($i);
+            if(array_key_exists($meta['name'], $this->meta)){
 
-            $this->meta[$meta['name']] = $def;
+                if(!is_array($this->meta[$meta['name']]))
+                    $this->meta[$meta['name']] = array($this->meta[$meta['name']]);
+
+                $this->meta[$meta['name']][] = (object)$def;
+
+            }else{
+
+                $this->meta[$meta['name']] = (object)$def;
+
+            }
 
         }
 
@@ -387,10 +393,37 @@ class Result implements \ArrayAccess, \Countable, \Iterator {
 
             }
 
-            if(!($alias = ake($this->meta[$name], 'table')))
-                continue;
+            $aliases = array();
 
-            if(array_key_exists($alias, $groups)){
+            $meta = null;
+
+            if(is_array($this->meta[$name])){
+
+                $meta = array();
+
+                foreach($this->meta[$name] as $col){
+
+                    $meta[] = $col;
+
+                    $aliases[] = ake($col, 'table');
+
+                }
+
+            }else{
+
+                $meta = $this->meta[$name];
+
+                if(!($alias = ake($meta, 'table')))
+                    continue;
+
+                $aliases[] = $alias;
+
+            }
+
+            foreach($aliases as $idx => $alias){
+
+                if(!array_key_exists($alias, $groups))
+                    continue;
 
                 while(array_key_exists($alias, $groups) && $groups[$alias] !== $alias)
                     $alias = $groups[$alias];
@@ -398,7 +431,7 @@ class Result implements \ArrayAccess, \Countable, \Iterator {
                 if(!isset($objs[$alias]))
                     $objs[$alias] = array();
 
-                $objs[$alias][$name] = $value;
+                $objs[$alias][$name] = (is_array($value) && is_array($meta)) ? $value[$idx] : $value;
 
                 unset($record[$name]);
 
