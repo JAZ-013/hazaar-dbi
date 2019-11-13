@@ -586,7 +586,7 @@ class Table {
     public function fetch($cursor_orientation = \PDO::FETCH_ORI_NEXT, $offset = 0) {
 
         if ($result = $this->execute())
-            return $result->fetch(\PDO::FETCH_ASSOC, $cursor_orientation, $offset);
+            return $result->fetch((is_assoc($this->fields) ? \PDO::FETCH_NAMED : \PDO::FETCH_ASSOC), $cursor_orientation, $offset);
 
         return FALSE;
 
@@ -595,7 +595,7 @@ class Table {
     public function fetchAll($fetch_argument = null, $ctor_args = array()) {
 
         if ($result = $this->execute())
-            return $result->fetchAll(\PDO::FETCH_ASSOC, $fetch_argument, $ctor_args);
+            return $result->fetchAll((is_assoc($this->fields) ? \PDO::FETCH_NAMED : \PDO::FETCH_ASSOC), $fetch_argument, $ctor_args);
 
         return FALSE;
 

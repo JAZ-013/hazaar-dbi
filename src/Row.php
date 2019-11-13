@@ -57,9 +57,9 @@ final class Row extends \Hazaar\Model\Strict {
 
         foreach($this->fields as &$def){
 
-            $def['changed'] = false;
+            $def->changed = false;
 
-            $def['update'] = array('post' => function($value, $key){
+            $def->update = array('post' => function($value, $key){
                 $this->fields[$key]['changed'] = ($this->values[$key] !== $value);
             });
 
