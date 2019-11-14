@@ -6,7 +6,7 @@ class Console extends \Hazaar\Console\Module {
 
     private $db;
 
-    public function init(){
+    public function load(){
 
         $this->addMenuGroup('Databases', 'database');
 
@@ -45,9 +45,9 @@ class Console extends \Hazaar\Console\Module {
 
     }
 
-    public function migrate($request){
+    public function migrate(){
 
-        if($request->isPOST()){
+        if($this->request->isPOST()){
 
             $version = $this->request->get('version', 'latest');
 
@@ -60,9 +60,9 @@ class Console extends \Hazaar\Console\Module {
 
                 $result = $this->db->getSchemaManager()->migrate(
                     $version,
-                    boolify($request->get('sync')),
-                    boolify($request->get('testmode', false)),
-                    boolify($request->get('keeptables', false))
+                    boolify($this->request->get('sync')),
+                    boolify($this->request->get('testmode', false)),
+                    boolify($this->request->get('keeptables', false))
                 );
 
                 $log = $this->db->getSchemaManager()->getMigrationLog();
@@ -92,11 +92,11 @@ class Console extends \Hazaar\Console\Module {
 
     }
 
-    public function snapshot($request){
+    public function snapshot(){
 
-        if($request->isPOST()){
+        if($this->request->isPOST()){
 
-            $result = $this->db->getSchemaManager()->snapshot($request->get('comment'), boolify($request->get('testmode', false)));
+            $result = $this->db->getSchemaManager()->snapshot($this->request->get('comment'), boolify($this->request->get('testmode', false)));
 
             return array('ok' => $result, 'log' => $this->db->getSchemaManager()->getMigrationLog());
 
@@ -106,9 +106,9 @@ class Console extends \Hazaar\Console\Module {
 
     }
 
-    public function sync($request){
+    public function sync(){
 
-        if($request->isPOST()){
+        if($this->request->isPOST()){
 
             $result = $this->db->getSchemaManager()->syncData();
 
