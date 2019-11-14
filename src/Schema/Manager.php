@@ -734,7 +734,7 @@ class Manager {
         /**
          * Now compare the create and remove changes to see if a table is actually being renamed
          */
-        if(isset($changes['up']['table']['create']) && isset($changes['up']['table']['remove'])){
+        if($init !== true && isset($changes['up']['table']['create']) && isset($changes['up']['table']['remove'])){
 
             $this->log('Looking for renamed tables.');
 
