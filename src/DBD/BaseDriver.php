@@ -634,7 +634,7 @@ abstract class BaseDriver implements Driver_Interface {
 
             $value = $this->quote(json_encode($value));
 
-        } else if (!is_int($value) && substr($value, 0, 1) != ':') {
+        } else if (!is_int($value) && (substr($value, 0, 1) !== ':' || substr($value, 1, 1) === ':')){
 
             $value = $this->quote((string) $value);
 
