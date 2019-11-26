@@ -320,10 +320,14 @@ class Table {
 
         if ($this->result === null) {
 
+            DBD\BaseDriver::$select_groups = array();
+
             $sql = $this->toString();
 
             if (!($this->result = $this->adapter->query($sql)))
                 throw $this->adapter->errorException();
+
+            $this->result->setSelectGroups(DBD\BaseDriver::$select_groups);
 
         }
 
