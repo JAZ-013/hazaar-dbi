@@ -60,6 +60,8 @@ class Result implements \ArrayAccess, \Countable, \Iterator {
 
     private $encrypt = false;
 
+    private $select_groups = array();
+    
     function __construct(\Hazaar\DBI\Adapter $adapter, \PDOStatement $statement, $options = array()) {
 
         $this->adapter = $adapter;
@@ -70,6 +72,13 @@ class Result implements \ArrayAccess, \Countable, \Iterator {
             $this->encrypt =  ake($options, 'encrypt', false);
 
         $this->processStatement($statement);
+
+    }
+
+    public function setSelectGroups($select_groups){
+
+        if(\is_array($select_groups))
+            $this->select_groups = $select_groups;
 
     }
 
@@ -336,7 +345,7 @@ class Result implements \ArrayAccess, \Countable, \Iterator {
         if (!$record)
             return null;
 
-        if (!((count($this->array_columns) + count(DBD\BaseDriver::$select_groups)) > 0))
+        if (!((count($this->array_columns) + count($this->select_groups)) > 0))
             return $record;
 
         foreach($this->array_columns as $item){
@@ -379,13 +388,11 @@ class Result implements \ArrayAccess, \Countable, \Iterator {
 
         $objs = array();
 
-        $groups =  DBD\BaseDriver::$select_groups;
-
         foreach($record as $name => $value){
 
-            if(array_key_exists($name, $groups)){
+            if(array_key_exists($name, $this->select_groups)){
 
-                $objs[$groups[$name]] = $value;
+                $objs[$this->select_groups[$name]] = $value;
 
                 unset($record[$name]);
 
@@ -422,11 +429,11 @@ class Result implements \ArrayAccess, \Countable, \Iterator {
 
             foreach($aliases as $idx => $alias){
 
-                if(!array_key_exists($alias, $groups))
+                if(!array_key_exists($alias, $this->select_groups))
                     continue;
 
-                while(array_key_exists($alias, $groups) && $groups[$alias] !== $alias)
-                    $alias = $groups[$alias];
+                while(array_key_exists($alias, $this->select_groups) && $this->select_groups[$alias] !== $alias)
+                    $alias = $this->select_groups[$alias];
 
                 if(!isset($objs[$alias]))
                     $objs[$alias] = array();
