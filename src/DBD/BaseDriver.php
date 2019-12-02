@@ -459,6 +459,12 @@ abstract class BaseDriver implements Driver_Interface {
 
                         break;
 
+                    case 'json':
+
+                        $parts[] = $this->prepareValue(json_encode($value, JSON_UNESCAPED_UNICODE));
+
+                        break;
+
                     case 'push':
 
                         if(!is_array($value))
