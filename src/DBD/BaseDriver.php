@@ -339,6 +339,7 @@ abstract class BaseDriver implements Driver_Interface {
                         break;
 
                     case 'or':
+
                         $parts[] = $this->prepareCriteria($value, 'OR');
 
                         break;
@@ -348,7 +349,7 @@ abstract class BaseDriver implements Driver_Interface {
                         if(is_null($value))
                             $parts[] = 'IS NOT NULL';
                         else
-                            $parts[] = '!= ' . $this->prepareValue($value);
+                            $parts[] = (is_boolean($value) ? 'IS NOT ' : '!= ') . $this->prepareValue($value);
 
                         break;
 
@@ -359,6 +360,7 @@ abstract class BaseDriver implements Driver_Interface {
                         break;
 
                     case  'ref' :
+
                         $parts[] = $tissue . ' ' . $value;
 
                         break;
@@ -478,6 +480,7 @@ abstract class BaseDriver implements Driver_Interface {
                         break;
 
                     default :
+
                         $parts[] = ' ' . $tissue . ' ' . $this->prepareCriteria($value, strtoupper(substr($key, 1)));
 
                         break;
@@ -507,8 +510,8 @@ abstract class BaseDriver implements Driver_Interface {
                     if($parent_ref && strpos($key, '.') === FALSE)
                         $key = $parent_ref . '.' . $key;
 
-                    if(is_null($value))
-                        $joiner = 'IS' . (($tissue == '!=') ? 'NOT' : NULL);
+                    if(is_null($value) || is_boolean($value))
+                        $joiner = 'IS' . (($tissue === '!=') ? 'NOT' : NULL);
                     else
                         $joiner = $tissue;
 
