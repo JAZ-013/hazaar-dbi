@@ -673,7 +673,7 @@ abstract class BaseDriver implements Driver_Interface {
         if($fields instanceof \Hazaar\Map)
             $fields = $fields->toArray();
         elseif($fields instanceof \Hazaar\Model\Strict)
-            $fields = $fields->toArray(false, null, false);
+            $fields = $fields->toArray(false, null, true, false, true);
         elseif($fields instanceof \stdClass)
             $fields = (array)$fields;
 
