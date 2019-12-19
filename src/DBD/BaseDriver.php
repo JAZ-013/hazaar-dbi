@@ -544,6 +544,9 @@ abstract class BaseDriver implements Driver_Interface {
 
         foreach($fields as $key => $value) {
 
+            if($value instanceof \Hazaar\DBI\Table)
+                $value = (($value->limit() === 1) ? '(' : 'array(') . $value . ')';
+
             if(is_string($value) && in_array($value, $exclude))
                 $field_def[] = $value;
             elseif (is_numeric($key))

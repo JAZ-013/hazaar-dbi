@@ -497,8 +497,11 @@ class Table {
 
     }
 
-    public function limit($limit = 1) {
+    public function limit($limit = null) {
 
+        if($limit === null)
+            return $this->limit;
+            
         $this->limit = $limit;
 
         return $this;
