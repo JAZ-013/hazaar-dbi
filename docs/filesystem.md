@@ -10,19 +10,6 @@ To use a database to store files the correct tables must exist.  Below are simpl
 ### PostgreSQL
 
 ```sql
-CREATE TABLE public.file_chunk
-(
-    id serial NOT NULL,
-    file_id integer NOT NULL,
-    n integer NOT NULL,
-    data bytea,
-    PRIMARY KEY (id),
-    FOREIGN KEY (file_id)
-        REFERENCES public.file (id) MATCH SIMPLE
-        ON UPDATE NO ACTION
-        ON DELETE NO ACTION
-);
-
 CREATE TABLE public.file
 (
     id serial NOT NULL,
@@ -39,6 +26,19 @@ CREATE TABLE public.file
     mode text,
     metadata json,
     PRIMARY KEY (id)
+);
+
+CREATE TABLE public.file_chunk
+(
+    id serial NOT NULL,
+    file_id integer NOT NULL,
+    n integer NOT NULL,
+    data bytea,
+    PRIMARY KEY (id),
+    FOREIGN KEY (file_id)
+        REFERENCES public.file (id) MATCH SIMPLE
+        ON UPDATE NO ACTION
+        ON DELETE NO ACTION
 );
 ```
 
