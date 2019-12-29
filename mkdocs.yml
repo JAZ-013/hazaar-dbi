@@ -2,5 +2,6 @@ site_name: Hazaar DBI
 docs_dir: docs
 pages:
   - Welcome: index.md
+  - DBI Filesystem: filesystem.md
 markdown_extensions:
     - admonition
