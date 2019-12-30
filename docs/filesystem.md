@@ -10,11 +10,29 @@ To use a database to store files the correct tables must exist.  Below are simpl
 ### PostgreSQL
 
 ```sql
-CREATE TABLE public.file
+CREATE TABLE public.hz_file_chunk
+(
+    id serial NOT NULL,
+    parent integer,
+    n integer NOT NULL,
+    data bytea NOT NULL,
+    PRIMARY KEY (id),
+    FOREIGN KEY (parent)
+        REFERENCES public.hz_file_chunk (id) MATCH SIMPLE
+        ON UPDATE NO ACTION
+        ON DELETE NO ACTION
+);
+
+CREATE INDEX hz_file_chunk_parent_idx
+    ON public.hz_file_chunk USING btree
+    (parent ASC NULLS LAST);
+
+CREATE TABLE public.hz_file
 (
     id serial NOT NULL,
     kind text,
-    parents integer[],
+    parent integer,
+    start_chunk integer,
     filename text,
     created_on timestamp without time zone,
     modified_on timestamp without time zone,
@@ -25,21 +43,16 @@ CREATE TABLE public.file
     "group" text,
     mode text,
     metadata json,
-    PRIMARY KEY (id)
-);
-
-CREATE TABLE public.file_chunk
-(
-    id serial NOT NULL,
-    file_id integer NOT NULL,
-    n integer NOT NULL,
-    data bytea,
     PRIMARY KEY (id),
-    FOREIGN KEY (file_id)
-        REFERENCES public.file (id) MATCH SIMPLE
+    FOREIGN KEY (start_chunk)
+        REFERENCES public.hz_file_chunk (id) MATCH SIMPLE
         ON UPDATE NO ACTION
         ON DELETE NO ACTION
 );
+
+CREATE INDEX hz_file_parent_idx
+    ON public.hz_file USING btree
+    (parent ASC NULLS LAST);
 ```
 
 ## Media Configuration
