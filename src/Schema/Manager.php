@@ -2140,7 +2140,18 @@ class Manager {
 
                         $do_diff = true;
 
-                    }else{ //Otherwise, look for the record in it's entirity and only insert if it doesn't exist.
+                    //Otherwise, if there are search keys specified, base the search criteria on that
+                    }elseif(property_exists($info, 'keys')){
+
+                        $criteria = array();
+                        
+                        foreach($info->keys as $key)
+                            $criteria[trim($key)] = ake($row, $key); 
+
+                        $do_diff = true;
+
+                    //Otherwise, look for the record in it's entirity and only insert if it doesn't exist.
+                    }else{ 
 
                         $criteria = (array)$row;
 
@@ -2149,10 +2160,7 @@ class Manager {
                     if($current = $this->dbi->table($table)->findOne($criteria)){
 
                         //If this is an insert only row then move on because this row exists
-                        if(ake($info, 'insertonly'))
-                            continue;
-
-                        if(!$do_diff)
+                        if(ake($info, 'insertonly') || $do_diff !== true)
                             continue;
 
                         //If nothing has been added to the row, look for child arrays/objects to backwards analyse
@@ -2174,7 +2182,7 @@ class Manager {
 
                         }
 
-                        $pkey_value = ake($row, $pkey);
+                        $pkey_value = ake($current, $pkey);
 
                         $this->log("Updating record in table '$table' with $pkey={$pkey_value}");
 
