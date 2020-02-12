@@ -1677,8 +1677,10 @@ class Manager {
                     //Sneaky conversion from array to stdClass if needed
                     $data = json_decode(json_encode($data));
 
+                    $records = array();
+
                     foreach($data as $dataItem)
-                        $this->processDataObject($dataItem);
+                        $this->processDataObject($dataItem, $records);
 
                     $this->log('Finished processing data sync items');
 
@@ -2002,8 +2004,10 @@ class Manager {
 
         try{
 
+            $records = array();
+
             foreach($data_schema as $info)
-                $this->processDataObject($info);
+                $this->processDataObject($info, $records);
 
             if($test)
                 $this->dbi->rollBack();
@@ -2065,7 +2069,7 @@ class Manager {
 
     }
 
-    private function processDataObject($info){
+    private function processDataObject($info, &$records = null){
 
         if(!$info instanceof \stdClass)
             throw new \Hazaar\Exception('Got non-object while processing data object!');
@@ -2105,28 +2109,69 @@ class Manager {
 
                 $this->log("Processing " . count($rows) . " records in table '$table'");
 
-                //Quick closure function to fix up the row ready for insert/update
-                $fix_row = function($row, $tableDef){
-
-                    foreach($row as $name => &$col){
-
-                        if(!array_key_exists($name, $tableDef))
-                            throw new \Hazaar\Exception("Attempting to modify data for non-existent row '$name'!" );
-
-                        if($col === null) continue;
-
-                        if(substr($tableDef[$name]['data_type'], 0, 4) === 'json')
-                            $col = json_encode($col);
-                        elseif(is_array($col))
-                            $col = array('$array' => $col);
-
-                    }
-
-                    return $row;
-
-                };
+                if(!\array_key_exists($table, $records)) 
+                        $records[$table] = array();
 
                 foreach($rows as $row){
+
+                    /**
+                     * Process any macros that have been defined in record fields
+                     */
+                    foreach($row as $column_name => &$field){
+
+                        if(!preg_match('/^\:\:(\w+)\((\w+)\)\:([\w=,]+)$/', $field, $matches))
+                            continue;
+
+                        $macro = (object)['found' => false, 'value' => null];
+
+                        $criteria = array();
+
+                        $parts = explode(',', $matches[3]);
+
+                        foreach($parts as $part){
+
+                            list($key, $value) = explode('=', $part, 2);
+
+                            $criteria[$key]  = is_numeric($value) ? intval($value) : $value;
+
+                        }
+
+                        //Lookup already queried data records
+                        if(array_key_exists($matches[1], $records)){
+
+                            foreach($records[$matches[1]] as $record){
+
+                                if(count(\array_diff_assoc($criteria, (array)$record)) > 0)
+                                    continue;
+
+                                $macro->value = ake($record, $matches[2]);
+                                  
+                                $macro->found = true;
+
+                                break;
+
+                            }
+
+                        }else{ //Fallback SQL query
+
+                            $sql = "SELECT $matches[2] AS value FROM $matches[1] WHERE " . implode(' AND ', $criteria) . ' LIMIT 1';
+
+                            if(($match = $this->dbi->table($matches[1])->limit(1)->find($criteria, array('value' => $matches[2]))->fetch()) !== false){
+
+                                $macro->found = true;
+
+                                $macro->value = ake($match, 'value');
+
+                            }
+
+                        }
+
+                        if($macro->found !== true)
+                            throw new \Exception("Macro for column '$column_name' did not find a value. \"$field\"");
+
+                        $field = $macro->value;
+
+                    }
 
                     $do_diff = false;
 
@@ -2160,8 +2205,13 @@ class Manager {
                     if($current = $this->dbi->table($table)->findOne($criteria)){
 
                         //If this is an insert only row then move on because this row exists
-                        if(ake($info, 'insertonly') || $do_diff !== true)
+                        if(ake($info, 'insertonly') || $do_diff !== true){
+
+                            $records[$table][] = $current;
+
                             continue;
+
+                        }
 
                         //If nothing has been added to the row, look for child arrays/objects to backwards analyse
                         if(count(array_diff_assoc_recursive($row, $current)) === 0){
@@ -2177,8 +2227,13 @@ class Manager {
 
                             }
 
-                            if($changes === 0)
+                            if($changes === 0){
+
+                                $records[$table][] = $current;
+
                                 continue;
+
+                            }
 
                         }
 
@@ -2186,7 +2241,7 @@ class Manager {
 
                         $this->log("Updating record in table '$table' with $pkey={$pkey_value}");
 
-                        if(!$this->dbi->update($table, $fix_row($row, $tableDef), array($pkey => $pkey_value)))
+                        if(!$this->dbi->update($table, $this->fix_row($row, $tableDef), array($pkey => $pkey_value)))
                             throw new \Hazaar\Exception('Update failed: ' . $this->dbi->errorInfo()[2]);
 
                     }else{
@@ -2195,12 +2250,16 @@ class Manager {
                         if(ake($info, 'updateonly'))
                             continue;
 
-                        if(($pkey_value = $this->dbi->insert($table, $fix_row($row, $tableDef), $pkey)) == false)
+                        if(($pkey_value = $this->dbi->insert($table, $this->fix_row($row, $tableDef), $pkey)) == false)
                             throw new \Hazaar\Exception('Insert failed: ' . $this->dbi->errorInfo()[2]);
+
+                        $row->$pkey = $pkey_value;
 
                         $this->log("Inserted record into table '$table' with $pkey={$pkey_value}");
 
                     }
+
+                    $records[$table][] = $row;
 
                 }
 
@@ -2253,6 +2312,27 @@ class Manager {
             }
 
         }
+
+    }
+
+    //Quick closure function to fix up the row ready for insert/update
+    private function fix_row(&$row, $tableDef){
+
+        foreach($row as $name => &$col){
+
+            if(!array_key_exists($name, $tableDef))
+                throw new \Hazaar\Exception("Attempting to modify data for non-existent row '$name'!" );
+
+            if($col === null) continue;
+
+            if(substr($tableDef[$name]['data_type'], 0, 4) === 'json')
+                $col = json_encode($col);
+            elseif(is_array($col))
+                $col = array('$array' => $col);
+
+        }
+
+        return $row;
 
     }
 
