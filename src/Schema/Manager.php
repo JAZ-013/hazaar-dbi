@@ -2128,6 +2128,32 @@ class Manager {
 
                 foreach($rows as $row){
 
+                    /**
+                     * Process any macros that have been defined in record fields
+                     */
+                    foreach($row as &$field){
+
+                        if(!preg_match('/^\:\:(\w+)\((\w+)\)\:([\w=,]+)$/', $field, $matches))
+                            continue;
+
+                        $criteria = array();
+
+                        $parts = explode(',', $matches[3]);
+
+                        foreach($parts as $part){
+
+                            list($key, $value) = explode('=', $part, 2);
+
+                            $criteria[] = $key . ' = ' . (is_numeric($value) ? $value : "'$value'");
+
+                        }
+
+                        $sql = "SELECT $matches[2] AS value FROM $matches[1] WHERE " . implode(' AND ', $criteria) . ' LIMIT 1';
+
+                        $field = ake($this->dbi->query($sql)->fetch(), 'value');
+
+                    }
+
                     $do_diff = false;
 
                     /**
