@@ -2119,7 +2119,7 @@ class Manager {
                      */
                     foreach($row as $column_name => &$field){
 
-                        if(!preg_match('/^\:\:(\w+)\((\w+)\)\:([\w=,]+)$/', $field, $matches))
+                        if(!(is_string($field) && preg_match('/^\:\:(\w+)\((\w+)\)\:([\w=,]+)$/', $field, $matches)))
                             continue;
 
                         $macro = (object)['found' => false, 'value' => null];
