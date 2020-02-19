@@ -2202,53 +2202,41 @@ class Manager {
 
                     }
 
-                    if($current = $this->dbi->table($table)->findOne($criteria)){
+                    //If this is an insert only row then move on because this row exists
+                    if($current = $this->dbi->table($table)->findOneRow($criteria)){
 
-                        //If this is an insert only row then move on because this row exists
-                        if(ake($info, 'insertonly') || $do_diff !== true){
+                        if(!(ake($info, 'insertonly') || $do_diff !== true)){
 
-                            $records[$table][] = $current;
+                            //If nothing has been added to the row, look for child arrays/objects to backwards analyse
+                            if(($changes = count(array_diff_assoc_recursive($row, $current))) === 0){
 
-                            continue;
+                                foreach($row as $name => &$col){
 
-                        }
+                                    if(!(is_array($col) || $col instanceof \stdClass))
+                                        continue;
 
-                        //If nothing has been added to the row, look for child arrays/objects to backwards analyse
-                        if(count(array_diff_assoc_recursive($row, $current)) === 0){
+                                    $changes += count(array_diff_assoc_recursive(ake($current, $name), $col));
 
-                            $changes = 0;
-
-                            foreach($row as $name => &$col){
-
-                                if(!(is_array($col) || $col instanceof \stdClass))
-                                    continue;
-
-                                $changes += count(array_diff_assoc_recursive(ake($current, $name), $col));
+                                }
 
                             }
 
-                            if($changes === 0){
+                            if($changes > 0){
 
-                                $records[$table][] = $current;
+                                $pkey_value = ake($current, $pkey);
 
-                                continue;
+                                $this->log("Updating record in table '$table' with $pkey={$pkey_value}");
+
+                                if(!$this->dbi->update($table, $this->fix_row($row, $tableDef), array($pkey => $pkey_value)))
+                                    throw new \Hazaar\Exception('Update failed: ' . $this->dbi->errorInfo()[2]);
+
+                                $current->extend($row);
 
                             }
 
                         }
 
-                        $pkey_value = ake($current, $pkey);
-
-                        $this->log("Updating record in table '$table' with $pkey={$pkey_value}");
-
-                        if(!$this->dbi->update($table, $this->fix_row($row, $tableDef), array($pkey => $pkey_value)))
-                            throw new \Hazaar\Exception('Update failed: ' . $this->dbi->errorInfo()[2]);
-
-                    }else{
-
-                        //If this is an update only row then move on because this row does not exist
-                        if(ake($info, 'updateonly'))
-                            continue;
+                    }elseif(ake($info, 'updateonly') !== true){ //If this is an update only row then move on because this row does not exist
 
                         if(($pkey_value = $this->dbi->insert($table, $this->fix_row($row, $tableDef), $pkey)) == false)
                             throw new \Hazaar\Exception('Insert failed: ' . $this->dbi->errorInfo()[2]);
@@ -2257,9 +2245,11 @@ class Manager {
 
                         $this->log("Inserted record into table '$table' with $pkey={$pkey_value}");
 
+                        $current->extend($row);
+
                     }
 
-                    $records[$table][] = $row;
+                    $records[$table][] = $current->toArray();
 
                 }
 
