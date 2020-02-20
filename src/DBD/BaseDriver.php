@@ -730,14 +730,34 @@ abstract class BaseDriver implements Driver_Interface {
 
         if($fields instanceof \Hazaar\Map)
             $fields = $fields->toArray();
-        elseif($fields instanceof \Hazaar\Model\Strict)
-            $fields = $fields->toArray(false, null, array('update' => false, 'dbi' => false, 'hide' => true));
-        elseif($fields instanceof \stdClass)
+        elseif($fields instanceof \Hazaar\Model\Strict){
+
+            $data = $fields->toArray(false, null, array('update' => false, 'dbi' => false, 'hide' => true));
+
+            //Convert any arrays into JSON defs if needed
+            foreach($data as $key => &$value){
+
+                if(!is_array($value)) continue;
+
+                $def = $fields->getDefinition($key);
+
+                $type = ake($def, 'type');
+
+                if($type === 'model' || ($type === 'array' && array_key_exists('items', $def)))
+                    $value = array('$json' => $value);
+                elseif($type === 'array')
+                    $value = array('$array' => $value);
+
+            }
+
+            $fields = $data;
+
+        }elseif($fields instanceof \stdClass)
             $fields = (array)$fields;
 
         $field_def = array();
 
-        foreach($fields as $key => $value)
+        foreach($fields as $key => &$value)
             $field_def[] = $this->field($key) . ' = ' . $this->prepareValue($value, $key);
 
         if (count($field_def) == 0)
