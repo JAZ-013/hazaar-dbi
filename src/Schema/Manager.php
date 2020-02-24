@@ -2236,6 +2236,8 @@ class Manager {
 
                         }
 
+                        $current = $current->toArray();
+
                     }elseif(ake($info, 'updateonly') !== true){ //If this is an update only row then move on because this row does not exist
 
                         if(($pkey_value = $this->dbi->insert($table, $this->fix_row($row, $tableDef), $pkey)) == false)
@@ -2245,11 +2247,11 @@ class Manager {
 
                         $this->log("Inserted record into table '$table' with $pkey={$pkey_value}");
 
-                        $current->extend($row);
+                        $current = (array)$row;
 
                     }
 
-                    $records[$table][] = $current->toArray();
+                    $records[$table][] = $current;
 
                 }
 
