@@ -20,6 +20,10 @@ interface Driver_Interface {
 
     public function connect($dsn, $username = NULL, $password = NULL, $driver_options = NULL);
 
+    public function setTimezone($tz);
+
+    public function repair();
+
     public function beginTransaction();
 
     public function commit();
@@ -49,7 +53,7 @@ interface Driver_Interface {
 
     public function prepare($sql);
 
-    public function insert($table, $fields, $returning = 'id');
+    public function insert($table, $fields, $returning = null);
 
     public function update($table, $fields, $criteria = array());
 
@@ -63,6 +67,8 @@ interface Driver_Interface {
  * @brief Relational Database Driver - Base Class
  */
 abstract class BaseDriver implements Driver_Interface {
+
+    static public $dsn_elements = array();
 
     protected $allow_constraints = true;
 
@@ -84,7 +90,7 @@ abstract class BaseDriver implements Driver_Interface {
      *
      * @var BaseDriver
      */
-    private $master;
+    protected $master;
 
     /**
      * SQL Commands to redirect to the master server connection
@@ -92,6 +98,8 @@ abstract class BaseDriver implements Driver_Interface {
      * @var mixed
      */
     static private $master_cmds = array('INSERT', 'UPDATE', 'DELETE');
+
+    static public $select_groups = array();
 
     public function __construct($config = array()){
 
@@ -102,6 +110,12 @@ abstract class BaseDriver implements Driver_Interface {
     public function setMasterDBD(BaseDriver $DBD){
 
         $this->master = $DBD;
+
+    }
+
+    public function setTimezone($tz){
+
+        return false;
 
     }
 
@@ -121,15 +135,14 @@ abstract class BaseDriver implements Driver_Interface {
 
         $options = $config->toArray();
 
-        if(array_key_exists('driver', $options))
-            unset($options['driver']);
+        $DBD = 'Hazaar\\DBI\\DBD\\' . ucfirst($config->driver);
 
-        if(array_key_exists('master', $options))
-            unset($options['master']);
+        if(!class_exists($DBD))
+            return false;
 
-        $dsn = $config->driver . ':' . array_flatten($options, '=', ';');
+        $options = array_intersect_key($options, array_combine($DBD::$dsn_elements, $DBD::$dsn_elements));
 
-        return $dsn;
+        return $config->driver . ':' . array_flatten($options, '=', ';');
 
     }
 
@@ -141,7 +154,22 @@ abstract class BaseDriver implements Driver_Interface {
 
     public function connect($dsn, $username = null, $password = null, $driver_options = null) {
 
-        $this->pdo = new \PDO($dsn, $username, $password, $driver_options);
+        try{
+
+            $this->pdo = new \PDO($dsn, $username, $password, $driver_options);
+
+        }
+        catch(\Exception $e){
+
+            return false;
+
+        }
+
+        return true;
+
+    }
+
+    public function repair(){
 
         return true;
 
@@ -236,6 +264,8 @@ abstract class BaseDriver implements Driver_Interface {
 
     public function exec($sql){
 
+        $sql = rtrim($sql, '; ') . ';';
+
         if(!($this->master && in_array($this->getSQLType($sql), BaseDriver::$master_cmds, true)))
             return $this->pdo->exec($sql);
 
@@ -244,6 +274,8 @@ abstract class BaseDriver implements Driver_Interface {
     }
 
     public function query($sql){
+
+        $sql = rtrim($sql, '; ') . ';';
 
         if(!($this->master && in_array($this->getSQLType($sql), BaseDriver::$master_cmds, true)))
             return $this->pdo->query($sql);
@@ -307,21 +339,28 @@ abstract class BaseDriver implements Driver_Interface {
                         break;
 
                     case 'or':
+
                         $parts[] = $this->prepareCriteria($value, 'OR');
 
                         break;
 
                     case 'ne':
-                    case 'not' :
 
                         if(is_null($value))
                             $parts[] = 'IS NOT NULL';
                         else
-                            $parts[] = '!= ' . $this->prepareValue($value);
+                            $parts[] = (is_boolean($value) ? 'IS NOT ' : '!= ') . $this->prepareValue($value);
+
+                        break;
+
+                    case 'not' :
+
+                        $parts[] = 'NOT (' . $this->prepareCriteria($value) . ')';
 
                         break;
 
                     case  'ref' :
+
                         $parts[] = $tissue . ' ' . $value;
 
                         break;
@@ -381,7 +420,7 @@ abstract class BaseDriver implements Driver_Interface {
                     case 'bt':
 
                         if(($count = count($value)) !== 2)
-                            throw new \Exception('DBD: $bt operator requires array argument with exactly 2 elements. ' . $count . ' given.');
+                            throw new \Hazaar\Exception('DBD: $bt operator requires array argument with exactly 2 elements. ' . $count . ' given.');
 
                         $parts[] = 'BETWEEN ' . $this->prepareValue(array_values($value)[0])
                             . ' AND ' . $this->prepareValue(array_values($value)[1]);
@@ -422,6 +461,12 @@ abstract class BaseDriver implements Driver_Interface {
 
                         break;
 
+                    case 'json':
+
+                        $parts[] = $this->prepareValue(json_encode($value, JSON_UNESCAPED_UNICODE));
+
+                        break;
+
                     case 'push':
 
                         if(!is_array($value))
@@ -435,6 +480,7 @@ abstract class BaseDriver implements Driver_Interface {
                         break;
 
                     default :
+
                         $parts[] = ' ' . $tissue . ' ' . $this->prepareCriteria($value, strtoupper(substr($key, 1)));
 
                         break;
@@ -464,8 +510,8 @@ abstract class BaseDriver implements Driver_Interface {
                     if($parent_ref && strpos($key, '.') === FALSE)
                         $key = $parent_ref . '.' . $key;
 
-                    if(is_null($value))
-                        $joiner = 'IS ' . (($tissue == '!=') ? 'NOT ' : NULL);
+                    if(is_null($value) || is_boolean($value))
+                        $joiner = 'IS' . (($tissue === '!=') ? 'NOT' : NULL);
                     else
                         $joiner = $tissue;
 
@@ -486,20 +532,95 @@ abstract class BaseDriver implements Driver_Interface {
 
     }
 
-    public function prepareFields($fields) {
+    public function prepareFields($fields, $exclude = array(), $tables = array()) {
+
+        if(!is_array($fields))
+            return $this->field($fields);
+
+        if(!is_array($exclude))
+            $exclude = array();
 
         $field_def = array();
 
         foreach($fields as $key => $value) {
 
-            if (is_numeric($key))
+            if($value instanceof \Hazaar\DBI\Table)
+                $value = (($value->limit() === 1) ? '(' : 'array(') . $value . ')';
+
+            if(is_string($value) && in_array($value, $exclude))
+                $field_def[] = $value;
+            elseif (is_numeric($key))
+                $field_def[] = is_array($value) ? $this->prepareFields($value, null, $tables) : $this->field($value);
+            elseif(is_array($value)){
+
+                $fields = array();
+
+                $field_map = array_to_dot_notation(array($key => $this->prepareArrayAliases($value)));
+
+                foreach($field_map as $alias => $field){
+
+                    $lookup = md5(uniqid('dbi_', true));
+
+                    self::$select_groups[$lookup] = $alias;
+
+                    $fields[$lookup] = $field;
+
+                }
+
+                $field_def[] = $this->prepareFields($fields, null, $tables);
+
+            }elseif(($pos = strpos($value, '*')) !== false){
+
+                if($pos > 0)
+                    $alias = ake($tables, substr($value, 0, $pos - 1));
+                else{
+
+                    $alias = reset($tables);
+
+                    $value = key($tables) . '.*';
+
+                }
+
+                self::$select_groups[$alias] = $key;
+
                 $field_def[] = $this->field($value);
-            else
+
+            }else
                 $field_def[] = $this->field($value) . ' AS ' . $this->field($key);
 
         }
 
         return implode(', ', $field_def);
+
+    }
+
+    private function prepareArrayAliases($array){
+
+        if(!is_array($array))
+            return $array;
+
+        foreach($array as $key => &$value){
+
+            if(is_array($value))
+                $value = $this->prepareArrayAliases($value);
+            elseif(is_string($value) && substr($value, -1) === '*')
+                continue;
+
+            if(!is_numeric($key))
+                continue;
+
+            unset($array[$key]);
+
+            $key = $value;
+
+            if(($pos = strrpos($key, '.')) > 0)
+                $key = substr($key, $pos + 1);
+
+            $array[$key] = $value;
+
+        }
+
+        return $array;
 
     }
 
@@ -525,7 +646,7 @@ abstract class BaseDriver implements Driver_Interface {
 
             $value = $this->quote(json_encode($value));
 
-        } else if (!is_int($value) && $value[0] != ':') {
+        } else if (!is_int($value) && (substr($value, 0, 1) !== ':' || substr($value, 1, 1) === ':')){
 
             $value = $this->quote((string) $value);
 
@@ -550,45 +671,51 @@ abstract class BaseDriver implements Driver_Interface {
 
     }
 
-    public function insert($table, $fields, $returning = TRUE) {
+    public function insert($table, $fields, $returning = null) {
 
         if($fields instanceof \Hazaar\Map)
             $fields = $fields->toArray();
         elseif($fields instanceof \Hazaar\Model\Strict)
-            $fields = $fields->toArray(false, null, false);
+            $fields = $fields->toArray(false, null, array('insert' => false, 'dbi' => false, 'hide' => true));
         elseif($fields instanceof \stdClass)
             $fields = (array)$fields;
 
-        $field_def = array_keys($fields);
+        $sql = 'INSERT INTO ' . $this->field($table);
 
-        foreach($field_def as &$field)
-            $field = $this->field($field);
+        if($fields instanceof \Hazaar\DBI\Table){
 
-        $value_def = array_values($fields);
+            $sql .= ' ' . (string)$fields;
 
-        foreach($value_def as $key => &$value)
-            $value = $this->prepareValue($value, $field_def[$key]);
+        }else{
 
-        $sql = 'INSERT INTO ' . $this->field($table) . ' ( ' . implode(', ', $field_def) . ' ) VALUES ( ' . implode(', ', $value_def) . ' )';
+            $field_def = array_keys($fields);
+
+            foreach($field_def as &$field)
+                $field = $this->field($field);
+
+            $value_def = array_values($fields);
+
+            foreach($value_def as $key => &$value)
+                $value = $this->prepareValue($value, null, $field_def[$key]);
+
+            $sql .= ' ( ' . implode(', ', $field_def) . ' ) VALUES ( ' . implode(', ', $value_def) . ' )';
+
+        }
 
         $return_value = FALSE;
 
         if ($returning === NULL || $returning === FALSE) {
 
-            $sql .= ';';
-
             $return_value = $this->exec($sql);
 
         } elseif ($returning === TRUE) {
-
-            $sql .= ';';
 
             if ($result = $this->query($sql))
                 $return_value = (int) $this->lastinsertid();
 
         } elseif (is_string($returning)) {
 
-            $sql .= ' RETURNING ' . $returning . ';';
+            $sql .= ' RETURNING ' . $returning;
 
             if ($result = $this->query($sql))
                 $return_value = $result->fetchColumn(0);
@@ -599,37 +726,65 @@ abstract class BaseDriver implements Driver_Interface {
 
     }
 
-    public function update($table, $fields, $criteria = array()) {
+    public function update($table, $fields, $criteria = array(), $from = array()) {
 
         if($fields instanceof \Hazaar\Map)
             $fields = $fields->toArray();
-        elseif($fields instanceof \Hazaar\Model\Strict)
-            $fields = $fields->toArray(false, null, false);
-        elseif($fields instanceof \stdClass)
+        elseif($fields instanceof \Hazaar\Model\Strict){
+
+            $data = $fields->toArray(false, null, array('update' => false, 'dbi' => false, 'hide' => true));
+
+            //Convert any arrays into JSON defs if needed
+            foreach($data as $key => &$value){
+
+                if(!is_array($value)) continue;
+
+                $def = $fields->getDefinition($key);
+
+                $type = ake($def, 'type');
+
+                if($type === 'model' || ($type === 'array' && array_key_exists('items', $def)))
+                    $value = array('$json' => $value);
+                elseif($type === 'array')
+                    $value = array('$array' => $value);
+
+            }
+
+            $fields = $data;
+
+        }elseif($fields instanceof \stdClass)
             $fields = (array)$fields;
 
         $field_def = array();
 
-        foreach($fields as $key => $value)
+        foreach($fields as $key => &$value)
             $field_def[] = $this->field($key) . ' = ' . $this->prepareValue($value, $key);
 
         if (count($field_def) == 0)
             throw new Exception\NoUpdate();
 
-        $sql = 'UPDATE ' . $this->field($table) . ' SET ' . implode(', ', $field_def);
+        $table = (is_array($table) && isset($table[0])) ? $this->field($table[0]) . ' AS ' . $table[1] : $this->field($table);
 
-        if (count($criteria) > 0)
+        $sql = 'UPDATE ' . $table . ' SET ' . implode(', ', $field_def);
+
+        if(is_array($from) && count($from) > 0)
+            $sql .= ' FROM ' . implode(', ', $from);
+
+        if(is_array($criteria) && count($criteria) > 0)
             $sql .= ' WHERE ' . $this->prepareCriteria($criteria);
-
-        $sql .= ';';
 
         return $this->exec($sql);
 
     }
 
-    public function delete($table, $criteria) {
+    public function delete($table, $criteria, $from = array()) {
 
-        $sql = 'DELETE FROM ' . $this->field($table) . ' WHERE ' . $this->prepareCriteria($criteria) . ';';
+        $sql = 'DELETE FROM ' . $this->field($table);
+
+        if(is_array($from) && count($from) > 0)
+            $sql .= ' USING ' . implode(', ', $from);
+
+        $sql .= ' WHERE ' . $this->prepareCriteria($criteria);
 
         return $this->exec($sql);
 
@@ -637,9 +792,7 @@ abstract class BaseDriver implements Driver_Interface {
 
     public function deleteAll($table) {
 
-        $sql = 'DELETE FROM ' . $this->field($table) . ';';
-
-        return $this->exec($sql);
+        return $this->exec('DELETE FROM ' . $this->field($table));
 
     }
 
@@ -677,7 +830,7 @@ abstract class BaseDriver implements Driver_Interface {
                 if (is_numeric($name)) {
 
                     if (!array_key_exists('name', $info))
-                        throw new \Exception('Error creating new table.  Name is a number which is not allowed!');
+                        throw new \Hazaar\Exception('Error creating new table.  Name is a number which is not allowed!');
 
                     $name = $info['name'];
 
@@ -723,7 +876,7 @@ abstract class BaseDriver implements Driver_Interface {
         $affected = $this->exec($sql);
 
         if ($affected === FALSE)
-            throw new \Exception('Could not create table. ' . $this->errorInfo()[2]);
+            throw new \Hazaar\Exception('Could not create table. ' . $this->errorInfo()[2]);
 
         return TRUE;
 
@@ -790,7 +943,7 @@ abstract class BaseDriver implements Driver_Interface {
             list($to_schema, $to_name) = explode('.', $to_name);
 
             if ($to_schema != $from_schema)
-                throw new \Exception('You can not rename tables between schemas!');
+                throw new \Hazaar\Exception('You can not rename tables between schemas!');
 
         }
 
@@ -833,8 +986,6 @@ abstract class BaseDriver implements Driver_Interface {
 
         if (array_key_exists('default', $column_spec) && $column_spec['default'] !== null)
             $sql .= ' DEFAULT ' . $column_spec['default'];
-
-        $sql .= ';';
 
         $affected = $this->exec($sql);
 
@@ -916,8 +1067,6 @@ abstract class BaseDriver implements Driver_Interface {
         if ($this->schema)
             $sql .= " AND sequence_schema = '$this->schema'";
 
-        $sql .= ';';
-
         $result = $this->query($sql);
 
         return $result->fetchAll(\PDO::FETCH_ASSOC);
@@ -950,8 +1099,6 @@ abstract class BaseDriver implements Driver_Interface {
         if (array_key_exists('using', $idx_info) && $idx_info['using'])
             $sql .= ' USING ' . $idx_info['using'];
 
-        $sql .= ';';
-
         $affected = $this->exec($sql);
 
         if ($affected === false)
@@ -963,7 +1110,7 @@ abstract class BaseDriver implements Driver_Interface {
 
     public function dropIndex($name) {
 
-        $sql = $this->exec('DROP INDEX ' . $this->field($name));
+        $sql = 'DROP INDEX ' . $this->field($name);
 
         $affected = $this->exec($sql);
 
@@ -1027,8 +1174,6 @@ abstract class BaseDriver implements Driver_Interface {
         if (array_key_exists('references', $info))
             $sql .= " REFERENCES " . $this->field($info['references']['table']) . " (" . $this->field($info['references']['column']) . ") ON UPDATE $info[update_rule] ON DELETE $info[delete_rule]";
 
-        $sql .= ';';
-
         $affected = $this->exec($sql);
 
         if ($affected === FALSE)
@@ -1040,7 +1185,7 @@ abstract class BaseDriver implements Driver_Interface {
 
     public function dropConstraint($name, $table, $cascade = false) {
 
-        $sql = "ALTER TABLE " . $this->field($table) . " DROP CONSTRAINT " . $this->field($name) . ($cascade?' CASCADE':'') . ';';
+        $sql = "ALTER TABLE " . $this->field($table) . " DROP CONSTRAINT " . $this->field($name) . ($cascade?' CASCADE':'');
 
         $affected = $this->exec($sql);
 
@@ -1065,7 +1210,7 @@ abstract class BaseDriver implements Driver_Interface {
 
     public function createView($name, $content){
 
-        $sql = 'CREATE OR REPLACE VIEW ' . $this->field($name) . ' AS ' . rtrim($content, ' ;') . ';';
+        $sql = 'CREATE OR REPLACE VIEW ' . $this->field($name) . ' AS ' . rtrim($content, ' ;');
 
         return ($this->exec($sql) !== false);
 
@@ -1078,15 +1223,21 @@ abstract class BaseDriver implements Driver_Interface {
         if($cascade === true)
             $sql .= ' CASCADE';
 
-        $sql .= ';';
-
         return ($this->exec($sql) !== false);
 
     }
 
-    public function listFunctions(){
+    /**
+     * List defined functions
+     *
+     * @return array
+     */
+    public function listFunctions($schema = null){
 
-        $sql = "SELECT r.routine_schema, r.routine_name FROM INFORMATION_SCHEMA.routines r WHERE r.specific_schema='public';";
+        if($schema === null)
+            $schema = $this->schema;
+
+        $sql = "SELECT r.routine_schema, r.routine_name FROM INFORMATION_SCHEMA.routines r WHERE r.specific_schema=" . $this->prepareValue($schema);
 
         $q = $this->query($sql);
 
@@ -1109,37 +1260,54 @@ abstract class BaseDriver implements Driver_Interface {
 
     public function describeFunction($name, $schema = null){
 
-        $sql = "SELECT r.specific_name, r.routine_schema, r.routine_name, r.data_type, r.routine_body, r.routine_definition,
-            p.parameter_name, p.data_type, p.parameter_mode, p.ordinal_position
-            FROM INFORMATION_SCHEMA.routines r
-            INNER JOIN INFORMATION_SCHEMA.parameters p ON p.specific_name=r.specific_name";
+        if($schema === null)
+            $schema = $this->schema;
 
-        $sql .= " WHERE r.specific_schema=" . $this->prepareValue($this->schema);
-
-        $sql .= " AND r.routine_name=" . $this->prepareValue($name) ." ORDER BY r.routine_name, p.ordinal_position;";
+        $sql = "SELECT r.specific_name,
+                    r.routine_schema,
+                    r.routine_name,
+                    r.data_type AS return_type,
+                    r.routine_body,
+                    r.routine_definition,
+                    r.external_language,
+                    p.parameter_name,
+                    p.data_type,
+                    p.parameter_mode,
+                    p.ordinal_position
+                FROM INFORMATION_SCHEMA.routines r
+                LEFT JOIN INFORMATION_SCHEMA.parameters p ON p.specific_name=r.specific_name
+                WHERE r.routine_schema=" . $this->prepareValue($schema) . "
+                AND r.routine_name=" . $this->prepareValue($name) ."
+                ORDER BY r.routine_name, p.ordinal_position;";
 
         if(!($q = $this->query($sql)))
-            throw new \Exception($this->errorInfo()[2]);
+            throw new \Hazaar\Exception($this->errorInfo()[2]);
 
         $info = array();
 
-        while($row = $q->fetch()){
+        while($row = $q->fetch(\PDO::FETCH_ASSOC)){
 
             if(!array_key_exists($row['specific_name'], $info)){
 
                 $item = array(
                     'schema' => $row['routine_schema'],
                     'name' => $row['routine_name'],
-                    'return_type' => $row['data_type'],
-                    'lang' => $row['routine_body'],
+                    'return_type' => $row['return_type'],
                     'content' => trim($row['routine_definition'])
                 );
 
                 $item['parameters'] = array();
 
+                $item['lang'] = (strtoupper($row['routine_body']) === 'EXTERNAL')
+                    ? $row['external_language']
+                    : $row['routine_body'];
+
                 $info[$row['specific_name']] = $item;
 
             }
+
+            if($row['parameter_name'] === null)
+                continue;
 
             $info[$row['specific_name']]['parameters'][] = array(
                 'name' => $row['parameter_name'],
@@ -1159,6 +1327,13 @@ abstract class BaseDriver implements Driver_Interface {
 
     }
 
+    /**
+     * Create a new database function
+     *
+     * @param mixed $name The name of the function to create
+     * @param mixed $spec A function specification.  This is basically the array returned from describeFunction()
+     * @return boolean
+     */
     public function createFunction($name, $spec){
 
         $sql = 'CREATE OR REPLACE FUNCTION ' . $this->field($name) . ' (';
@@ -1184,9 +1359,17 @@ abstract class BaseDriver implements Driver_Interface {
 
     }
 
+    /**
+     * Remove a function from the database
+     *
+     * @param mixed $name  The name of the function to remove
+     * @param mixed $arg_types The argument list of the function to remove.
+     * @param mixed $cascade Whether to perform a DROP CASCADE
+     * @return boolean
+     */
     public function dropFunction($name, $arg_types = array(), $cascade = false){
 
-        $sql = 'DROP FUNCTION IF EXISTS ' . $this->field($name);
+        $sql = 'DROP FUNCTION ' . $this->field($name);
 
         if($arg_types)
             $sql .= ' (' . (is_array($arg_types) ? implode(', ', $arg_types) : $arg_types) . ')';
@@ -1194,11 +1377,140 @@ abstract class BaseDriver implements Driver_Interface {
         if($cascade === true)
             $sql .= ' CASCADE';
 
-        $sql .= ';';
+        return ($this->exec($sql) !== false);
+
+    }
+
+    /**
+     * TRUNCATE � empty a table or set of tables
+     *
+     * TRUNCATE quickly removes all rows from a set of tables. It has the same effect as an unqualified DELETE on
+     * each table, but since it does not actually scan the tables it is faster. Furthermore, it reclaims disk space
+     * immediately, rather than requiring a subsequent VACUUM operation. This is most useful on large tables.
+     *
+     * @param mixed $table_name         The name of the table(s) to truncate.  Multiple tables are supported.
+     * @param mixed $only               Only the named table is truncated. If FALSE, the table and all its descendant tables (if any) are truncated.
+     * @param mixed $restart_identity   Automatically restart sequences owned by columns of the truncated table(s).  The default is to no restart.
+     * @param mixed $cascade            If TRUE, automatically truncate all tables that have foreign-key references to any of the named tables, or
+     *                                  to any tables added to the group due to CASCADE.  If FALSE, Refuse to truncate if any of the tables have
+     *                                  foreign-key references from tables that are not listed in the command. FALSE is the default.
+     * @return boolean
+     */
+    public function truncate($table_name, $only = false, $restart_identity = false, $cascade = false){
+
+        $sql = 'TRUNCATE TABLE ' . ($only ? 'ONLY ' : '') . $this->prepareFields($table_name);
+
+        $sql .= ' ' . ($restart_identity ? 'RESTART IDENTITY' : 'CONTINUE IDENTITY');
+
+        $sql .=  ' ' . ($cascade ? 'CASCADE' : 'RESTRICT');
+
+        return ($this->exec($sql) !== false);
+
+    }
+
+    /**
+     * List defined triggers
+     *
+     * @param mixed $schema Optional: Schema name.  If not supplied the current schema is used.
+     *
+     * @return array
+     */
+    public function listTriggers($table = null, $schema = null){
+
+        if($schema === null)
+            $schema = $this->schema;
+
+        $sql = 'SELECT DISTINCT trigger_schema AS schema, trigger_name AS name
+                    FROM INFORMATION_SCHEMA.triggers
+                    WHERE event_object_schema=' . $this->prepareValue($schema);
+
+        if($table !== null)
+            $sql .= ' AND event_object_table=' . $this->prepareValue($table);
+
+        if($result = $this->query($sql))
+            return $result->fetchAll(\PDO::FETCH_ASSOC);
+
+        return null;
+
+    }
+
+    /**
+     * Describe a database trigger
+     *
+     * This will return an array as there can be multiple triggers with the same name but with different attributes
+     *
+     * @param mixed $table Optional: The name of the table to describe triggers for
+     * @param mixed $schema Optional: Schema name.  If not supplied the current schema is used.
+     *
+     * @return array
+     */
+    public function describeTrigger($name, $schema = null){
+
+        if($schema === null)
+            $schema = $this->schema;
+
+        $sql = 'SELECT trigger_schema AS schema,
+                        trigger_name AS name,
+                        event_manipulation AS events,
+                        event_object_table AS table,
+                        action_statement AS content,
+                        action_orientation AS orientation,
+                        action_timing AS timing
+                    FROM INFORMATION_SCHEMA.triggers
+                    WHERE trigger_schema=' . $this->prepareValue($schema)
+                    . ' AND trigger_name=' . $this->prepareValue($name);
+
+
+        if(!($result = $this->query($sql)))
+            return null;
+
+        $info = $result->fetch(\PDO::FETCH_ASSOC);
+
+        $info['events'] = array($info['events']);
+
+        while($row = $result->fetch(\PDO::FETCH_ASSOC))
+            $info['events'][] = $row['events'];
+
+        return $info;
+
+    }
+
+    /**
+     * Summary of createTrigger
+     * @param mixed $name The name of the trigger
+     * @param mixed $table The table on which the trigger is being created
+     * @param mixed $spec The spec of the trigger.  Basically this is the array returned from describeTriggers()
+     */
+    public function createTrigger($name, $table, $spec = array()){
+
+        $sql = 'CREATE TRIGGER ' . $this->field($name)
+            . ' ' . ake($spec, 'timing', 'BEFORE')
+            . ' ' . implode(' OR ', ake($spec, 'events', array('INSERT')))
+            . ' ON ' . $this->field($table)
+            . ' FOR EACH ' . ake($spec, 'orientation', 'ROW')
+            . ' ' . ake($spec, 'content', 'EXECUTE');
+
+
+        return ($this->exec($sql) !== false);
+
+    }
+
+    /**
+     * Drop a trigger from a table
+     *
+     * @param mixed $name The name of the trigger to drop
+     * @param mixed $table The name of the table to remove the trigger from
+     * @param mixed $cascade Whether to drop CASCADE
+     * @return boolean
+     */
+    public function dropTrigger($name, $table, $cascade = false){
+
+        $sql = 'DROP TRIGGER ' . $this->field($name) . ' ON ' . $this->field($table);
+
+        $sql .= ' ' . (($cascade === true) ? ' CASCADE' : ' RESTRICT');
 
         return ($this->exec($sql) !== false);
 
     }
 
 }
-

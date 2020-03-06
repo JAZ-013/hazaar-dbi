@@ -4,9 +4,9 @@ namespace Hazaar\DBI\Exception;
 
 class ConnectionFailed extends \Hazaar\Exception {
 
-    function __construct() {
+    function __construct($server) {
 
-        parent::__construct("Failed to connect to database.");
+        parent::__construct("Database connection failed.  Error connecting to server: " . $server);
 
     }
 

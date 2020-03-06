@@ -1,0 +1,216 @@
+{
+    "tables": {
+        "hz_file_chunk": [
+            {
+                "name": "id",
+                "ordinal_position": 1,
+                "default": null,
+                "not_null": true,
+                "data_type": "serial",
+                "length": null
+            },
+            {
+                "name": "parent",
+                "ordinal_position": 2,
+                "default": null,
+                "not_null": false,
+                "data_type": "integer",
+                "length": null
+            },
+            {
+                "name": "n",
+                "ordinal_position": 3,
+                "default": null,
+                "not_null": true,
+                "data_type": "integer",
+                "length": null
+            },
+            {
+                "name": "data",
+                "ordinal_position": 4,
+                "default": null,
+                "not_null": true,
+                "data_type": "bytea",
+                "length": null
+            }
+        ],
+        "hz_file": [
+            {
+                "name": "id",
+                "ordinal_position": 1,
+                "default": null,
+                "not_null": true,
+                "data_type": "serial",
+                "length": null
+            },
+            {
+                "name": "kind",
+                "ordinal_position": 2,
+                "default": null,
+                "not_null": false,
+                "data_type": "text",
+                "length": null
+            },
+            {
+                "name": "parent",
+                "ordinal_position": 3,
+                "default": null,
+                "not_null": false,
+                "data_type": "integer",
+                "length": null
+            },
+            {
+                "name": "start_chunk",
+                "ordinal_position": 4,
+                "default": null,
+                "not_null": false,
+                "data_type": "integer",
+                "length": null
+            },
+            {
+                "name": "filename",
+                "ordinal_position": 5,
+                "default": null,
+                "not_null": false,
+                "data_type": "text",
+                "length": null
+            },
+            {
+                "name": "created_on",
+                "ordinal_position": 6,
+                "default": null,
+                "not_null": false,
+                "data_type": "timestamp",
+                "length": null
+            },
+            {
+                "name": "modified_on",
+                "ordinal_position": 7,
+                "default": null,
+                "not_null": false,
+                "data_type": "timestamp",
+                "length": null
+            },
+            {
+                "name": "length",
+                "ordinal_position": 8,
+                "default": null,
+                "not_null": false,
+                "data_type": "integer",
+                "length": null
+            },
+            {
+                "name": "mime_type",
+                "ordinal_position": 9,
+                "default": null,
+                "not_null": false,
+                "data_type": "text",
+                "length": null
+            },
+            {
+                "name": "md5",
+                "ordinal_position": 10,
+                "default": null,
+                "not_null": false,
+                "data_type": "text",
+                "length": null
+            },
+            {
+                "name": "owner",
+                "ordinal_position": 11,
+                "default": null,
+                "not_null": false,
+                "data_type": "text",
+                "length": null
+            },
+            {
+                "name": "group",
+                "ordinal_position": 12,
+                "default": null,
+                "not_null": false,
+                "data_type": "text",
+                "length": null
+            },
+            {
+                "name": "mode",
+                "ordinal_position": 13,
+                "default": null,
+                "not_null": false,
+                "data_type": "text",
+                "length": null
+            },
+            {
+                "name": "metadata",
+                "ordinal_position": 14,
+                "default": null,
+                "not_null": false,
+                "data_type": "json",
+                "length": null
+            }
+        ]
+    },
+    "constraints": {
+        "hz_file_chunk": {
+            "hz_file_chunk_pkey": {
+                "table": "hz_file_chunk",
+                "column": "id",
+                "type": "PRIMARY KEY"
+            },
+            "hz_file_chunk_file_id_fkey": {
+                "table": "hz_file_chunk",
+                "column": "parent",
+                "type": "FOREIGN KEY",
+                "references": {
+                    "table": "hz_file_chunk",
+                    "column": "id"
+                }
+            }
+        },
+        "hz_file": {
+            "hz_file_pkey": {
+                "table": "hz_file",
+                "column": "id",
+                "type": "PRIMARY KEY"
+            },
+            "hz_file_start_chunk_fkey": {
+                "table": "hz_file",
+                "column": "start_chunk",
+                "type": "FOREIGN KEY",
+                "references": {
+                    "table": "hz_file_chunk",
+                    "column": "id"
+                }
+            }
+        }
+    },
+    "indexes": {
+        "hz_file": {
+            "hz_file_parent_idx": {
+                "columns": [
+                    "parent"
+                ],
+                "unique": false
+            },
+            "hz_file_filename_idx": {
+                "columns": [
+                    "filename"
+                ],
+                "unique": false
+            },
+            "hz_file_md5_idx": {
+                "columns": [
+                    "md5"
+                ],
+                "unique": false
+            }
+        },
+        "hz_file_chunk": {
+            "hz_file_chunk_parent_idx": {
+                "columns": [
+                    "parent"
+                ],
+                "unique": false
+            }
+        }
+    }
+}

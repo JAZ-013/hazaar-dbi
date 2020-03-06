@@ -12,16 +12,31 @@ class DBI implements _Interface {
 
     private $rootObject;
 
+    static public function label(){
+
+        return 'Hazaar DBI Virtual Filesystem';
+
+    }
+
     public function __construct($options = array()) {
 
+        $defaults = array(
+            'dbi' => \Hazaar\DBI\Adapter::getDefaultConfig(),
+            'initialise' => true,
+            'chunkSize' => 4194304
+        );
+
         if($options instanceof \Hazaar\Map)
-            $options->enhance(\Hazaar\DBI\Adapter::getDefaultConfig());
+            $options->enhance($defaults);
         else
-            $options = new \Hazaar\Map(\Hazaar\DBI\Adapter::getDefaultConfig(), $options);
+            $options = new \Hazaar\Map($defaults, $options);
 
         $this->options = $options;
 
-        $this->db = new \Hazaar\DBI\Adapter($this->options);
+        if(is_string($this->options['chunkSize']))
+            $this->options['chunkSize'] = intval(bytes_str($this->options['chunkSize']));
+
+        $this->db = new \Hazaar\DBI\Adapter($this->options['dbi']);
 
         $this->loadRootObject();
 
@@ -35,11 +50,11 @@ class DBI implements _Interface {
 
     public function loadRootObject() {
 
-        if(! ($row = $this->db->file->findOne(array('parents' => null)))) {
+        if(!($this->rootObject = $this->db->hz_file->findOne(array('parent' => null)))) {
 
-            $root = array(
+            $this->rootObject = array(
                 'kind'         => 'dir',
-                'parents'      => null,
+                'parent'       => null,
                 'filename'     => 'ROOT',
                 'created_on'   => new \Hazaar\Date(),
                 'modified_on'  => null,
@@ -47,10 +62,8 @@ class DBI implements _Interface {
                 'mime_type'    => 'directory'
             );
 
-            if(!($root['id'] = $this->db->file->insert($root, 'id')))
-                throw new \Exception('Unable to create DBI filesystem root object: ' . $this->db->errorInfo()[2]);
-
-            $this->rootObject = $root;
+            if(!($this->rootObject['id'] = $this->db->hz_file->insert($this->rootObject, 'id')))
+                throw new \Hazaar\Exception('Unable to create DBI filesystem root object: ' . $this->db->errorInfo()[2]);
 
             /*
              * If we are recreating the ROOT document then everything is either
@@ -60,11 +73,7 @@ class DBI implements _Interface {
              * b) Screwed - In which case this should make everything work again.
              *
              */
-            $this->fsck();
-
-        }else{
-
-            $this->rootObject = $row->toArray();
+            $this->fsck(true);
 
         }
 
@@ -83,12 +92,12 @@ class DBI implements _Interface {
         if(!is_array($parent))
             return false;
 
-        $q = $this->db->query('SELECT * FROM "file" WHERE filename IS NOT NULL AND ' . $parent['id'] . ' = ANY(parents);');
+        $q = $this->db->hz_file->find(array('parent' => $parent['id']));
 
         $parent['items'] = array();
 
-        while($object = $q->row())
-            $parent['items'][$object['filename']] = $object->toArray();
+        while($object = $q->fetch())
+            $parent['items'][$object['filename']] = $object;
 
         return true;
 
@@ -136,47 +145,35 @@ class DBI implements _Interface {
 
     }
 
-    public function fsck() {
+    public function fsck($skip_root_reload = false) {
 
-        $c = $this->db->file->find(array(), array('id', 'filename', 'parents'));
+        $c = $this->db->hz_file->find(array(), array('id', 'filename', 'parent'));
 
-        while($file = $c->row()) {
+        while($file = $c->fetch()) {
 
-            $update = array();
-
-            if(! is_array($file['parents']))
+            if(!$file['parent'])
                 continue;
 
             /*
-             * Make sure an objects parents exist!
-             *
-             * NOTE: This is allowed to be slow as it is never usually executed.
+             * Make sure an objects parent exist!
              */
-            foreach($file['parents'] as $index => $parentID) {
-
-                if(!$this->db->file->exists(array('id' => $parentID)))
-                    $update[] = $index;
-
-            }
-
-            if(count($update) > 0) {
-
-                foreach($update as $index)
-                    unset($file['parents'][$index]);
-
-                /*
-                 * Fix up any parentless objects
-                 */
-                if(count($file['parents']) == 0)
-                    $file['parents'] = array($this->rootObject['id']);
-
-                $this->db->file->update(array('id' => $file['id']), array('parents' => array('$array' => $file['parents'])));
-
-            }
+            if(!$this->db->hz_file->exists(array('id' => $file['parent'])))
+                $this->db->hz_file->update(array('id' => $file['id']), array('parent' => $this->rootObject['id']));
 
         }
 
-        $this->loadRootObject();
+        //Remove headless chunks
+        $select = $this->db->hz_file_chunk('fc')
+            ->leftjoin('hz_file', array('f.start_chunk' => array('$ref' => 'fc.id')), 'f')
+            ->find(array('f.id' => null, 'fc.parent' => null), 'fc.id');
+
+        while($row = $select->fetch())
+            $this->clean_chunk($row['id']);
+
+        if($skip_root_reload !== true)
+            $this->loadRootObject();
+
+        $this->db->repair();
 
         return true;
 
@@ -184,19 +181,19 @@ class DBI implements _Interface {
 
     public function scandir($path, $regex_filter = null, $show_hidden = false) {
 
-        if(! ($parent = $this->info($path)))
+        if(!($parent =& $this->info($path)))
             return false;
 
-        if(! array_key_exists('items', $parent))
+        if(!array_key_exists('items', $parent))
             $this->loadObjects($parent);
 
         $list = array();
 
-        foreach($parent['items'] as $filename => $file) {
+        foreach($parent['items'] as $file) {
 
             $fullpath = $path . $file['filename'];
 
-            if($regex_filter && ! preg_match($regex_filter, $fullpath))
+            if($regex_filter && !preg_match($regex_filter, $fullpath))
                 continue;
 
             $list[] = $file['filename'];
@@ -289,6 +286,22 @@ class DBI implements _Interface {
 
     }
 
+    public function touch($path){
+
+        if(!($info = $this->info($path)))
+            return false;
+
+        $data = array(
+            'modified_on' => new \Hazaar\Date,
+        );
+
+        if(!$this->db->hz_file->update(array('id' => $info['id']), $data))
+            return false;
+
+        return true;
+
+    }
+
     //Returns the file modification time
     public function fileatime($path) {
 
@@ -298,7 +311,7 @@ class DBI implements _Interface {
 
     public function filesize($path) {
 
-        if(! ($info = $this->info($path)))
+        if(!($info = $this->info($path)))
             return false;
 
         return ake($info, 'length', 0);
@@ -307,7 +320,7 @@ class DBI implements _Interface {
 
     public function fileperms($path) {
 
-        if(! ($info = $this->info($path)))
+        if(!($info = $this->info($path)))
             return false;
 
         return ake($info, 'mode');
@@ -344,18 +357,18 @@ class DBI implements _Interface {
             return false;
 
         if(!($parent =& $this->info($this->dirname($path))))
-            throw new \Exception('Unable to determine parent of path: ' . $path);
+            throw new \Hazaar\Exception('Unable to determine parent of path: ' . $path);
 
         $info = array(
             'kind'         => 'dir',
-            'parents'      => array('$array' => $parent['id']),
+            'parent'       => $parent['id'],
             'filename'     => basename($path),
             'length'       => 0,
             'created_on'   => new \Hazaar\Date(),
             'modified_on'  => null
         );
 
-        if(!($id = $this->db->file->insert($info, 'id')) > 0)
+        if(!($id = $this->db->hz_file->insert($info, 'id')) > 0)
             return false;
 
         $info['id'] = $id;
@@ -371,37 +384,19 @@ class DBI implements _Interface {
 
     public function unlink($path) {
 
-        if($info = $this->info($path)) {
+        if(!($info = $this->info($path)))
+            return false;
 
-            if(!($parent =& $this->info($this->dirname($path))))
-                throw new \Exception('Unable to determine parent of path: ' . $path);
+        if(!($parent =& $this->info($this->dirname($path))))
+            throw new \Hazaar\Exception('Unable to determine parent of path: ' . $path);
 
-            if(count($info['parents']) > 1){
+        if(!$this->db->hz_file->delete(array('id' => $info['id'])))
+            return false;
 
-                if(($key = array_search($parent['id'], $info['parents'])) !== null){
+        unset($parent['items'][$info['filename']]);
 
-                    unset($info['parents'][$key]);
-
-                    $this->db->file->update(array('id' => $info['id']), array('parents' => array('$array' => $info['parents'])));
-
-                }
-
-            }else{
-
-                if($info['kind'] != 'dir')
-                    $this->db->file_chunk->delete(array('file_id' => $info['id']));
-
-                if($this->db->file->delete(array('id' => $info['id']))){
-
-                    unset($parent['items'][$info['filename']]);
-
-                    return true;
-
-                }
-
-            }
-
-        }
+        if($info['kind'] !== 'dir')
+            $this->clean_chunk($info['start_chunk']);
 
         return true;
 
@@ -453,97 +448,146 @@ class DBI implements _Interface {
 
     public function read($path) {
 
-        if(! ($item = $this->info($path)))
+        if(!($item = $this->info($path)))
             return false;
 
-        if(! ($file = $this->db->file_chunk->findOne(array('file_id' => $item['id']))))
-            return false;
+        $sql = 'WITH RECURSIVE chunk_chain(id, parent, data) AS (SELECT id, parent, data FROM hz_file_chunk WHERE id = ' . $item['start_chunk'];
 
-        return stream_get_contents($file['data']);
+        $sql .= ' UNION ALL SELECT fc.id, fc.parent, fc.data FROM chunk_chain cc INNER JOIN hz_file_chunk AS fc ON fc.parent = cc.id)';
+
+        $sql .= ' SELECT data FROM chunk_chain;';
+
+        $result = $this->db->query($sql);
+
+        $bytes = '';
+
+        while($chunk = $result->fetch())
+            $bytes .= stream_get_contents($chunk['data']);
+
+        return $bytes;
 
     }
 
     public function write($path, $bytes, $content_type, $overwrite = false) {
 
         if(!($parent =& $this->info($this->dirname($path))))
-            throw new \Exception('Unable to determine parent of path: ' . $path);
+            throw new \Hazaar\Exception('Unable to determine parent of path: ' . $path);
 
-        if(! $parent)
+        if(!$parent)
             return false;
+
+        $size = strlen($bytes);
 
         $md5 = md5($bytes);
 
-        if($info = $this->db->file->findOne(array('md5' => $md5))) {
+        if($info = $this->db->hz_file->findOne(array('md5' => $md5))) {
 
-            if(in_array($parent['id'], $info['parents']))
-                return false;
-
-            $data = array(
-                'modified_on' => new \Hazaar\Date(),
-                'parents' => array('$push' => $parent['id'])
-            );
-
-            if($this->db->file->update(array('id' => $info['id']), $data)){
-
-                if(!array_key_exists('items', $parent))
-                    $parent['items'] = array();
-
-                $parent['items'][$info['filename']] = $info;
-
-                return true;
-
-            }
+            $chunk_id = $info['start_chunk'];
 
         } else {
 
-            $size = strlen($bytes);
+            $chunk_size = $this->options['chunkSize'];
 
-            $fileInfo = array(
-                'kind'         => 'file',
-                'parents'      => array('$array' => $parent['id']),
-                'filename'     => basename($path),
-                'created_on'   => new \Hazaar\Date(),
-                'modified_on'  => null,
-                'length'       => $size,
-                'mime_type'    => $content_type,
-                'md5'          => $md5
-            );
+            $stmt = $this->db->prepare('INSERT INTO hz_file_chunk (parent, n, data) VALUES (?, ?, ?) RETURNING id;');
 
-            if($id = $this->db->file->insert($fileInfo, 'id')) {
+            $chunks = intval(ceil($size / $chunk_size));
 
-                $stmt = $this->db->prepare('INSERT INTO file_chunk (file_id, n, data) VALUES (?, ?, ?);');
+            $last_chunk_id = null;
 
-                $stmt->bindParam(1, $id);
+            for($n = 0; $n < $chunks; $n++){
 
-                $n = 0;
+                $stmt->bindParam(1, $last_chunk_id);
 
                 $stmt->bindParam(2, $n); //Support for multiple chunks will come later at some point
 
-                $stmt->bindParam(3, $bytes, \PDO::PARAM_LOB);
+                if($size > $chunk_size){
 
-                //Insert the data chunk.  If this fails then remote the file.  We do this without a transaction due to the potential size.
-                if(!$stmt->execute()){
+                    $chunk = substr($bytes, $n * $chunk_size, $chunk_size);
 
-                    $this->db->file->delete(array('id' => $id));
+                    $stmt->bindParam(3, $chunk, \PDO::PARAM_LOB);
 
-                    throw new \Exception($this->db->errorInfo()[2]);
+                }else{
+
+                    $stmt->bindParam(3, $bytes, \PDO::PARAM_LOB);
 
                 }
 
-                $fileInfo['id'] = $id;
+                if(!($last_chunk_id = $stmt->execute()) > 0)
+                    throw $this->db->errorException('Write failed!');
 
-                if(!array_key_exists('items', $parent))
-                    $parent['items'] = array();
+                settype($last_chunk_id, 'integer');
 
-                $parent['items'][$fileInfo['filename']] = $fileInfo;
-
-                return true;
+                if(intval($n) === 0)
+                    $chunk_id = $last_chunk_id;
 
             }
 
         }
 
-        return false;
+        if($fileInfo =& $this->info($path)){
+
+            //If it's the same chunk, just bomb out because we are not updating anything
+            if(($old_chunk = $fileInfo['start_chunk']) === $chunk_id)
+                return false;
+
+            $data = array(
+                'start_chunk' => $fileInfo['start_chunk'] = $chunk_id,
+                'md5'         => $fileInfo['md5']         = $md5,
+                'modified_on' => $fileInfo['modified_on'] = new \Hazaar\Date,
+                'length'      => $size,
+                'mime_type'   => $content_type
+            );
+
+            if(!$this->db->hz_file->update(array('id' => $fileInfo['id']), $data))
+                return false;
+
+            $this->clean_chunk($old_chunk);
+
+        }else{
+
+            $fileInfo = array(
+                'kind'         => 'file',
+                'parent'       => $parent['id'],
+                'start_chunk'  => $chunk_id,
+                'filename'     => basename($path),
+                'created_on'   => new \Hazaar\Date(),
+                'modified_on'  => new \Hazaar\Date(),
+                'length'       => $size,
+                'mime_type'    => $content_type,
+                'md5'          => $md5
+            );
+
+            if(!($id = $this->db->hz_file->insert($fileInfo, 'id')))
+                throw $this->db->errorException();
+
+            $fileInfo['id'] = $id;
+
+            if(!array_key_exists('items', $parent))
+                $parent['items'] = array();
+
+            $parent['items'][$fileInfo['filename']] = $fileInfo;
+
+        }
+
+        return true;
+
+    }
+
+    private function clean_chunk($start_chunk_id){
+
+        if($this->db->hz_file->find(array('start_chunk' => $start_chunk_id))->count() !== 0)
+            return false;
+
+        $sql = 'WITH RECURSIVE chunk_chain(id, parent) AS (SELECT id, parent FROM hz_file_chunk WHERE id = ' . $start_chunk_id;
+
+        $sql .= ' UNION ALL SELECT fc.id, fc.parent FROM chunk_chain cc INNER JOIN hz_file_chunk AS fc ON fc.parent = cc.id)';
+
+        $sql .= ' SELECT id FROM chunk_chain;';
+
+        if(!($result = $this->db->query($sql)))
+            throw new \Hazaar\Exception($this->db->errorInfo()[2]);
+
+        return $this->db->hz_file_chunk->delete(array('id' => array('$in' => array_column($result->fetchAll(), 'id'))));
 
     }
 
@@ -555,11 +599,11 @@ class DBI implements _Interface {
 
     public function copy($src, $dst, $recursive = false) {
 
-        if(! ($source = $this->info($src)))
+        if(!($source = $this->info($src)))
             return false;
 
         if(!($dstParent =& $this->info($this->dirname($dst))))
-            throw new \Exception('Unable to determine parent of path: ' . $dst);
+            throw new \Hazaar\Exception('Unable to determine parent of path: ' . $dst);
 
         if($dstParent) {
 
@@ -569,27 +613,28 @@ class DBI implements _Interface {
         } else {
 
             if(!($dstParent =& $this->info($this->dirname($dst))))
-                throw new \Exception('Unable to determine parent of path: ' . $dst);
+                throw new \Hazaar\Exception('Unable to determine parent of path: ' . $dst);
 
         }
 
-        if(! $dstParent)
+        if(!$dstParent)
             return false;
 
-        $data = array(
-            'modified_on' => new \Hazaar\Date()
-        );
+        $target = $source;
 
-        if(!in_array($dstParent['id'], $source['parents']))
-            $data['parents'] = array('$push' => $dstParent['id']);
+        unset($target['id']);
 
-        if(!$this->db->file->update(array('id' => $source['id']), $data))
+        $target['modified_on'] = new \Hazaar\Date();
+
+        $target['parent'] = $dstParent['id'];
+
+        if(!$this->db->hz_file->insert($target))
             return false;
 
-        if(! array_key_exists('items', $dstParent))
+        if(!array_key_exists('items', $dstParent))
             $dstParent['items'] = array();
 
-        $dstParent['items'][$source['filename']] = $source;
+        $dstParent['items'][$target['filename']] = $target;
 
         return true;
 
@@ -597,11 +642,11 @@ class DBI implements _Interface {
 
     public function link($src, $dst) {
 
-        if(! ($source = $this->info($src)))
+        if(!($source = $this->info($src)))
             return false;
 
         if(!($dstParent =& $this->info($this->dirname($dst))))
-            throw new \Exception('Unable to determine parent of path: ' . $dst);
+            throw new \Hazaar\Exception('Unable to determine parent of path: ' . $dst);
 
         if($dstParent) {
 
@@ -611,24 +656,22 @@ class DBI implements _Interface {
         } else {
 
             if(!($dstParent =& $this->info($this->dirname($dst))))
-                throw new \Exception('Unable to determine parent of path: ' . $dst);
+                throw new \Hazaar\Exception('Unable to determine parent of path: ' . $dst);
 
         }
 
-        if(! $dstParent)
+        if(!$dstParent)
             return false;
 
         $data = array(
-            'modified_on' => new \MongoDate
+            'modified_on' => new \MongoDate,
+            'parent' => $dstParent['id']
         );
 
-        if(! in_array($dstParent['id'], $source['parents']))
-            $data['parents'] = array('$push' => $dstParent['id']);
-
-        if(!$this->db->file->update(array('id' => $source['id']), $data))
+        if(!$this->db->hz_file->update(array('id' => $source['id']), $data))
             return false;
 
-        if(! array_key_exists('items', $dstParent))
+        if(!array_key_exists('items', $dstParent))
             $dstParent['items'] = array();
 
         $dstParent['items'][$source['filename']] = $source;
@@ -642,27 +685,27 @@ class DBI implements _Interface {
         if(substr($dst, 0, strlen($src)) == $src)
             return false;
 
-        if(! ($source = $this->info($src)))
+        if(!($source = $this->info($src)))
             return false;
 
         if(!($srcParent =& $this->info($this->dirname($src))))
-            throw new \Exception('Unable to determine parent of path: ' . $src);
+            throw new \Hazaar\Exception('Unable to determine parent of path: ' . $src);
 
         $data = array(
             'modified_on' => new \Hazaar\Date()
         );
 
         if(!($dstParent =& $this->info($this->dirname($dst))))
-            throw new \Exception('Unable to determine parent of path: ' . $dst);
+            throw new \Hazaar\Exception('Unable to determine parent of path: ' . $dst);
 
         if($srcParent['id'] === $dstParent['id']) { //We are renaming the file.
 
-            $dstParent['filename'] = $data['filename'] = basename($dst);
+            $data['filename'] = basename($dst);
 
             //Update the parents items array key with the new name.
             $basename = basename($src);
 
-            $dstParent['items'][basename($dst)] = $dstParent['items'][$basename];
+            $dstParent['items'][$data['filename']] = $dstParent['items'][$basename];
 
             unset($dstParent['items'][$basename]);
 
@@ -672,22 +715,12 @@ class DBI implements _Interface {
             if($dstParent['kind'] !== 'dir')
                 return false;
 
-            //Double check the source parent exists and remove it from the parents array
-            if(($key = array_search($srcParent['id'], $source['parents'])) !== null)
-                unset($source['parents'][$key]);
-
-            if(!in_array($dstParent['id'], $source['parents'])){
-
-                array_push($source['parents'], $dstParent['id']);
-
-                $data['parents'] = array('$array' => $source['parents']);
-
-            }
+            $data['parent'] = $dstParent['id'];
 
         }
 
-        if(!$this->db->file->update(array('id' => $source['id']), $data))
-            throw new \Exception($this->db->errorInfo()[2]);
+        if(!$this->db->hz_file->update(array('id' => $source['id']), $data))
+            throw new \Hazaar\Exception($this->db->errorInfo()[2]);
 
         return true;
 
@@ -695,14 +728,14 @@ class DBI implements _Interface {
 
     public function chmod($path, $mode) {
 
-        if(! is_int($mode))
+        if(!is_int($mode))
             return false;
 
         if($target =& $this->info($path)) {
 
             $target['mode'] = $mode;
 
-            return $this->db->file->update(array('id' => $target['id']), array('mode' => $mode));
+            return $this->db->hz_file->update(array('id' => $target['id']), array('mode' => $mode));
 
         }
 
@@ -716,7 +749,7 @@ class DBI implements _Interface {
 
             $target['owner'] = $user;
 
-            return $this->db->file->update(array('id' => $target['id']), array('owner' => $user));
+            return $this->db->hz_file->update(array('id' => $target['id']), array('owner' => $user));
 
         }
 
@@ -730,7 +763,7 @@ class DBI implements _Interface {
 
             $target['group'] = $group;
 
-            return $this->collection->update(array('id' => $target['id']), array('group' => $group));
+            return $this->db->hz_file->update(array('id' => $target['id']), array('group' => $group));
 
         }
 
@@ -741,7 +774,7 @@ class DBI implements _Interface {
     public function set_meta($path, $values) {
 
         if($target =& $this->info($path))
-            return $this->db->file->update(array('id' => $target['id']), array('metadata' => json_encode($values)));
+            return $this->db->hz_file->update(array('id' => $target['id']), array('metadata' => json_encode($values)));
 
         if($parent =& $this->info($this->dirname($path))) {
 
@@ -757,7 +790,7 @@ class DBI implements _Interface {
 
     public function get_meta($path, $key = null) {
 
-        if(! ($info = $this->info($path)))
+        if(!($info = $this->info($path)))
             return false;
 
         if(array_key_exists('metadata', $info)) {
@@ -780,6 +813,47 @@ class DBI implements _Interface {
     }
 
     public function direct_uri($path) {
+
+        return false;
+
+    }
+
+    private function resolveFullPaths($array_if_file_ids){
+
+        $sql = 'WITH RECURSIVE fullpath (id, parent, fullpath) AS (
+	        SELECT f.id as file_id, f.parent, f.filename
+	        FROM hz_file f
+	        WHERE f.parent IS NOT NULL
+	        UNION ALL
+	        SELECT fp.id, f.parent, f.filename FROM hz_file f
+	        INNER JOIN fullpath fp ON fp.parent = f.id
+	        WHERE f.parent IS NOT NULL
+        )
+        SELECT id, \'/\' || string_agg(fullpath, \'/\' ORDER BY parent ASC) as fullpath
+        FROM fullpath
+        WHERE id IN (' . implode(', ', $array_if_file_ids) . ')
+        GROUP BY id';
+
+        if($result = $this->db->query($sql))
+            return array_column($result->fetchAll(), 'fullpath');
+
+        return false;
+
+    }
+
+    public function find($search = NULL, $path = '/', $case_insensitive = false){
+
+        $list = array();
+
+        $result = $this->db->hz_file->find(array(array(
+            'filename' => array(($case_insensitive ? '$ilike' : '$like') => '%' . $search . '%')
+        )));
+
+        while($file = $result->fetch())
+            $list[] = $file['id'];
+
+        if(count($list) > 0)
+            return $this->resolveFullPaths($list);
 
         return false;
 

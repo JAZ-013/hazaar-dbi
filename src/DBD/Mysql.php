@@ -4,6 +4,14 @@ namespace Hazaar\DBI\DBD;
 
 class Mysql extends BaseDriver {
 
+    static public $dsn_elements = array(
+        'host',
+        'port',
+        'dbname',
+        'unix_socket',
+        'charset'
+    );
+
     protected $quote_special = '`';
 
     protected $reserved_words = array(
@@ -279,6 +287,12 @@ class Mysql extends BaseDriver {
 
     }
 
+    public function setTimezone($tz){
+
+        return $this->exec("SET time_zone = '$tz';");
+
+    }
+
     public function quote($string) {
 
         if ($string instanceof \Hazaar\Date)
@@ -394,7 +408,7 @@ class Mysql extends BaseDriver {
         $sql .= "\nGROUP BY 1,2;";
 
         if(!($result = $this->query($sql)))
-            throw new \Exception('Index list failed. ' . $this->errorInfo()[2]);
+            throw new \Hazaar\Exception('Index list failed. ' . $this->errorInfo()[2]);
 
         $indexes = array();
 

@@ -19,13 +19,13 @@ namespace Hazaar\DBI;
  *
  * h2. Example Usage
  *
- * <code>
+ * ```php
  * $db = new Hazaar\DBI();
  * $result = $db->users->find(array('uname' => 'myusername'))->join('images', array('image' => array('$ref' => 'images.id')));
  * while($row = $result->fetch()){
  * //Do things with $row here
  * }
- * </code>
+ * ```
  */
 class Table {
 
@@ -43,9 +43,11 @@ class Table {
 
     private $having = array();
 
+    private $window = array();
+
     private $joins = array();
 
-    private $order;
+    private $order = array();
 
     private $limit;
 
@@ -54,10 +56,6 @@ class Table {
     private $result;
 
     private $options;
-
-    private $encrypt = false;
-
-    static private $default_checkstring = '!!';
 
     function __construct(Adapter $adapter, $name, $alias = NULL, $options = null) {
 
@@ -68,8 +66,6 @@ class Table {
         $this->alias = $alias;
 
         $this->options = $options;
-
-        $this->encrypt =  ake($this->options, 'encrypt');
 
     }
 
@@ -117,6 +113,26 @@ class Table {
     public function findOne($criteria = array(), $fields = array(), $order = NULL) {
 
         if ($result = $this->find($criteria, $fields, $order, 1))
+            return $result->fetch();
+
+        return FALSE;
+
+    }
+
+    /**
+     * Find a single row using the provided criteria, fields and order and return is as an array.
+     *
+     * @param mixed $criteria The search criteria.
+     *
+     * @param mixed $fields A field definition array.
+     *
+     * @param mixed $order A valid order definition
+     *
+     * @return mixed
+     */
+    public function findOneRow($criteria = array(), $fields = array(), $order = NULL) {
+
+        if ($result = $this->find($criteria, $fields, $order, 1))
             return $result->row();
 
         return FALSE;
@@ -141,7 +157,7 @@ class Table {
             $sql = 'SELECT EXISTS (' . $this->toString(false) . ');';
 
         if (!($result = $this->adapter->query($sql)))
-            throw new \Exception($this->adapter->errorInfo()[2]);
+            throw $this->adapter->errorException();
 
         return boolify($result->fetchColumn(0));
 
@@ -160,15 +176,16 @@ class Table {
      *
      * @return string
      */
-    public function toString($terminate_with_colon = TRUE) {
+    public function toString($terminate_with_colon = FALSE) {
 
         $sql = 'SELECT';
 
         if (!is_array($this->fields) || count($this->fields) == 0)
             $sql .= ' *';
         else
-            $sql .= ' ' . $this->adapter->prepareFields($this->fields);
+            $sql .= ' ' . $this->adapter->prepareFields($this->fields, null, $this->tables());
 
+        /* FROM */
         $sql .= ' FROM ' . $this->from();
 
         if (count($this->joins) > 0) {
@@ -184,16 +201,86 @@ class Table {
             }
         }
 
+        /* WHERE */
         if(is_array($this->criteria) && count($this->criteria) > 0)
             $sql .= ' WHERE ' . $this->adapter->prepareCriteria($this->criteria);
 
-        if ($this->order) {
+        /* GROUP BY */
+        if(count($this->group) > 0)
+            $sql .= ' GROUP BY ' . $this->adapter->prepareFields($this->group);
 
-            $sql .= ' ORDER BY ';
+        /* HAVING */
+        if (count($this->having) > 0)
+            $sql .= ' HAVING ' . $this->adapter->prepareCriteria($this->having);
 
-            $order = array();
+        /* WINDOW */
+        if(count($this->window) > 0){
 
-            foreach($this->order as $field => $mode) {
+            $items = array();
+
+            foreach($this->window as $name => $info){
+
+                $item = 'PARTITION BY ' . $this->adapter->prepareFields((array)$info['as']);
+
+                if($info['order'])
+                    $item .= ' ORDER BY ' . $this->prepareOrder($info['order']);
+
+                $items[] = $name . ' AS ( ' . $item . ' )';
+
+            }
+
+            $sql .= ' WINDOW ' . implode(', ', $items);
+
+        }
+
+        /* ORDER BY */
+        if (count($this->order) > 0)
+            $sql .= ' ORDER BY ' . $this->prepareOrder($this->order);
+
+        /* LIMIT */
+        if ($this->limit !== NULL)
+            $sql .= ' LIMIT ' . (string) (int) $this->limit;
+
+        /* OFFSET */
+        if ($this->offset !== NULL)
+            $sql .= ' OFFSET ' . (string) (int) $this->offset;
+
+        /* FETCH */
+
+        /* FOR */
+
+
+        if ($terminate_with_colon)
+            $sql .= ';';
+
+        return $sql;
+
+    }
+
+    private function tables(){
+
+        $alias = ($this->alias) ? $this->alias : $this->name;
+
+        $tables = array($alias => $this->name);
+
+        foreach($this->joins as $alias => $join)
+            $tables[$alias] = $join['ref'];
+
+        return $tables;
+
+    }
+
+    private function prepareOrder($order_definition){
+
+        $order = array();
+
+        if(is_string($order_definition)){
+
+            $order[] = $order_definition;
+
+        }elseif(is_array($order_definition)){
+
+            foreach($order_definition as $field => $mode) {
 
                 if (is_array($mode)) {
 
@@ -214,27 +301,12 @@ class Table {
                     $dir .= ' NULLS LAST';
 
                 $order[] = $field . ($dir ? ' ' . $dir : NULL);
+
             }
 
-            $sql .= implode(', ', $order);
         }
 
-        if(count($this->group) > 0)
-            $sql .= ' GROUP BY ' . $this->adapter->prepareFields($this->group);
-
-        if (count($this->having) > 0)
-            $sql .= ' HAVING ' . $this->adapter->prepareCriteria($this->having);
-
-        if ($this->limit !== NULL)
-            $sql .= ' LIMIT ' . (string) (int) $this->limit;
-
-        if ($this->offset !== NULL)
-            $sql .= ' OFFSET ' . (string) (int) $this->offset;
-
-        if ($terminate_with_colon)
-            $sql .= ';';
-
-        return $sql;
+        return implode(', ', $order);
 
     }
 
@@ -248,10 +320,14 @@ class Table {
 
         if ($this->result === null) {
 
+            DBD\BaseDriver::$select_groups = array();
+
             $sql = $this->toString();
 
             if (!($this->result = $this->adapter->query($sql)))
-                throw new \Exception($this->adapter->errorinfo()[2]);
+                throw $this->adapter->errorException();
+
+            $this->result->setSelectGroups(DBD\BaseDriver::$select_groups);
 
         }
 
@@ -274,18 +350,16 @@ class Table {
      * @param mixed $criteria   The query selection criteria.
      * @param mixed $fields     The field selection.
      * @throws \Exception
-     * @return null
+     * @return Result|boolean
      */
-    public function prepare($criteria = array(), $fields = array()){
+    public function prepare($criteria = array(), $fields = array(), $name = null){
 
         $this->find($criteria, $fields);
 
-        if ($stmt = $this->adapter->prepare($this->toString()))
-            $this->result = new Result($this->adapter, $stmt);
-        else
-            throw new \Exception($this->driver->errorinfo()[2]);
+        if ($statement = $this->adapter->prepare($this->toString(), $name))
+            return new Result($this->adapter, $statement, $this->options);
 
-        return $this->result;
+        return false;
 
     }
 
@@ -295,9 +369,9 @@ class Table {
      * @param mixed $fields A valid field definition
      * @return Table
      */
-    public function fields($fields) {
+    public function fields() {
 
-        $this->fields = array_merge($this->fields, (array)$fields);
+        $this->fields[] = func_get_args();
 
         return $this;
 
@@ -309,9 +383,9 @@ class Table {
      * @param mixed $fields One or more column names
      * @return Table
      */
-    public function select($fields){
+    public function select(){
 
-        return $this->fields($fields);
+        return $this->fields(func_get_args());
 
     }
 
@@ -331,17 +405,28 @@ class Table {
 
     }
 
-    public function group($columns){
+    public function group(){
 
-        $this->group = array_merge($this->group, (array)$columns);
+        $this->group = array_merge($this->group, func_get_args());
 
         return $this;
 
     }
 
-    public function having($criteria){
+    public function having(){
 
-        $this->having = array_merge($this->having, (array)$criteria);
+        $this->having = array_merge($this->having, func_get_args());
+
+        return $this;
+
+    }
+
+    public function window($name, $partition_by, $order_by = null){
+
+        $this->window[$name] = array(
+            'as' => $partition_by,
+            'order' => $order_by
+        );
 
         return $this;
 
@@ -356,7 +441,7 @@ class Table {
      * @param string $type The join type such as INNER, OUTER, LEFT, RIGHT, etc.
      * @return Table
      */
-    public function join($references, $on = array(), $alias = NULL, $type = 'INNER') {
+    public function join($references, $on, $alias = NULL, $type = 'INNER') {
 
         if (!$type)
             $type = 'INNER';
@@ -403,6 +488,7 @@ class Table {
             $field_def = array(
                 $field_def => ($desc ? -1 : 1)
             );
+
         }
 
         $this->order = $field_def;
@@ -411,8 +497,11 @@ class Table {
 
     }
 
-    public function limit($limit = 1) {
+    public function limit($limit = null) {
 
+        if($limit === null)
+            return $this->limit;
+            
         $this->limit = $limit;
 
         return $this;
@@ -429,19 +518,51 @@ class Table {
 
     public function insert($fields, $returning = NULL) {
 
-        return $this->adapter->insert($this->name, $this->encrypt($fields), $returning);
+        return $this->adapter->insert($this->name, $fields, $returning);
 
     }
 
     public function update($criteria, $fields) {
 
-        return $this->adapter->update($this->name, $this->encrypt($fields), $criteria);
+        $from = array();
+
+        if(count($this->joins) > 0){
+
+            foreach($this->joins as $join){
+
+                $from[] = $join['ref'] . (array_key_exists('alias', $join) ? ' ' . $join['alias'] : null);
+
+                $criteria[] = $join['on'];
+
+            }
+
+        }
+
+        $name = $this->adapter->field($this->name) . ($this->alias ? ' ' . $this->alias : null);
+
+        return $this->adapter->update($name, $fields, $criteria, $from);
 
     }
 
     public function delete($criteria) {
 
-        return $this->adapter->delete($this->name, $criteria);
+        $from = array();
+
+        if(count($this->joins) > 0){
+
+            foreach($this->joins as $join){
+
+                $from[] = $join['ref'] . (array_key_exists('alias', $join) ? ' ' . $join['alias'] : null);
+
+                $criteria[] = $join['on'];
+
+            }
+
+        }
+
+        $name = $this->adapter->field($this->name) . ($this->alias ? ' ' . $this->alias : null);
+
+        return $this->adapter->delete($name , $criteria, $from);
 
     }
 
@@ -451,43 +572,37 @@ class Table {
 
     }
 
-    public function row() {
+    public function row($offset = 0) {
 
-        return $this->fetch();
-
-    }
-
-    public function all() {
-
-        return $this->fetchAll();
-
-    }
-
-    public function fetch($offset = 0) {
-
-        if ($result = $this->execute()){
-
-            $data = $result->fetch(\PDO::FETCH_ASSOC, \PDO::FETCH_ORI_NEXT, $offset);
-
-            return $this->decrypt($data, $result);
-
-        }
+        if ($result = $this->execute())
+            return $result->row($offset);
 
         return FALSE;
 
     }
 
-    public function fetchAll() {
+    public function rows() {
 
-        if ($result = $this->execute()){
+        if ($result = $this->execute())
+            return $result->rows();
 
-            $data = $result->fetchAll(\PDO::FETCH_ASSOC);
+        return FALSE;
 
-            if(is_array($data)) foreach($data as &$row) $this->decrypt($row, $result);
+    }
 
-            return $data;
+    public function fetch($cursor_orientation = \PDO::FETCH_ORI_NEXT, $offset = 0) {
 
-        }
+        if ($result = $this->execute())
+            return $result->fetch((is_assoc($this->fields) ? \PDO::FETCH_NAMED : \PDO::FETCH_ASSOC), $cursor_orientation, $offset);
+
+        return FALSE;
+
+    }
+
+    public function fetchAll($fetch_argument = null, $ctor_args = array()) {
+
+        if ($result = $this->execute())
+            return $result->fetchAll((is_assoc($this->fields) ? \PDO::FETCH_NAMED : \PDO::FETCH_ASSOC), $fetch_argument, $ctor_args);
 
         return FALSE;
 
@@ -524,13 +639,13 @@ class Table {
 
     public function offsetSet($offset, $value) {
 
-        throw new \Exception('Updating a value in a database result is not currently implemented!');
+        throw new \Hazaar\Exception('Updating a value in a database result is not currently implemented!');
 
     }
 
     public function offsetUnset($offset) {
 
-        throw new \Exception('Unsetting a value in a database result is not currently implemented!');
+        throw new \Hazaar\Exception('Unsetting a value in a database result is not currently implemented!');
 
     }
 
@@ -642,102 +757,27 @@ class Table {
      */
     public function collate($index_column, $value_column, $group_column = null){
 
-        if (!$this->result)
-            $this->execute();
-
         return array_collate($this->fetchAll(), $index_column, $value_column, $group_column);
 
     }
 
-    private function encrypted(&$fields = array()){
+    /**
+     * Truncate the table
+     *
+     * Truncating a table quickly removes all rows from a set of tables. It has the same effect as Hazaar\DBI\Table::deleteAll() on
+     * each table, but since it does not actually scan the tables it is faster. Furthermore, it reclaims disk space
+     * immediately, rather than requiring a subsequent VACUUM operation. This is most useful on large tables.
+     *
+     * @param mixed $only               Only the named table is truncated. If FALSE, the table and all its descendant tables (if any) are truncated.
+     * @param mixed $restart_identity   Automatically restart sequences owned by columns of the truncated table(s).  The default is to no restart.
+     * @param mixed $cascade            If TRUE, automatically truncate all tables that have foreign-key references to any of the named tables, or
+     *                                  to any tables added to the group due to CASCADE.  If FALSE, Refuse to truncate if any of the tables have
+     *                                  foreign-key references from tables that are not listed in the command. FALSE is the default.
+     * @return boolean
+     */
+    public function truncate($only = false, $restart_identity = false, $cascade = false){
 
-        if($this->encrypt
-            && array_key_exists('table', $this->options['encrypt'])
-            && array_key_exists($this->name, $this->options['encrypt']['table'])){
-
-            return (is_array($this->options['encrypt']['table'][$this->name])
-                    ? array_intersect($this->options['encrypt']['table'][$this->name], array_keys($fields))
-                    : ($this->options['encrypt']['table'][$this->name] === true ? array_keys($fields) : null));
-
-        }
-
-        return false;
-
-    }
-
-    private function encrypt(&$data){
-
-        if(($encrypt_fields = $this->encrypted($data)) === false)
-            return $data;
-
-        $cipher = ake($this->options['encrypt'], 'cipher', 'aes-256-ctr');
-
-        $key = ake($this->options['encrypt'], 'key', '0000');
-
-        $checkstring = ake($this->options['encrypt'], 'checkstring', Table::$default_checkstring);
-
-        foreach($encrypt_fields as $field){
-
-            if(!is_string($field))
-                throw new \Exception('Trying to encrypt non-string field: ' . $field);
-
-            $iv = openssl_random_pseudo_bytes(openssl_cipher_iv_length($cipher));
-
-            $content = base64_encode($iv . openssl_encrypt($checkstring . $data[$field], $cipher, $key, OPENSSL_RAW_DATA, $iv));
-
-            $data[$field] = $content;
-
-        }
-
-        return $data;
-
-    }
-
-    private function decrypt(&$data, Result $result = null){
-
-        if($data === null || ($encrypted_fields = $this->encrypted($data)) === false)
-            return $data;
-
-        $cipher = ake($this->options['encrypt'], 'cipher', 'aes-256-ctr');
-
-        $key = ake($this->options['encrypt'], 'key', '0000');
-
-        $checkstring = ake($this->options['encrypt'], 'checkstring', Table::$default_checkstring);
-
-        $strings = null;
-
-        if($result !== null){
-
-            $strings = array();
-
-            for($i = 0; $i < $result->columnCount(); $i++){
-
-                $meta = $result->getColumnMeta($i);
-
-                if($meta['native_type'] === 'text')
-                    $strings[] = $meta['name'];
-
-            }
-
-        }
-
-        foreach($encrypted_fields as $field){
-
-            if(!($strings !== null && in_array($field, $strings) || ($strings === null && is_string($data[$field]))))
-                continue;
-
-            list($iv, $content) = preg_split('/(?<=.{' . openssl_cipher_iv_length($cipher) . '})/', base64_decode($data[$field]), 2);
-
-            list($checkbit, $content) = preg_split('/(?<=.{' . strlen($checkstring) . '})/', openssl_decrypt($content, $cipher, $key, OPENSSL_RAW_DATA, $iv), 2);
-
-            if($checkbit !== $checkstring)
-                throw new \Exception('Field decryption failed: ' . $field);
-
-            $data[$field] = $content;
-
-        }
-
-        return $data;
+        return $this->adapter->truncate($this->name, $only, $restart_identity, $cascade);
 
     }
 

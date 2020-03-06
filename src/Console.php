@@ -45,18 +45,37 @@ class Console extends \Hazaar\Console\Module {
 
     }
 
-    public function migrate($request){
+    public function migrate(){
 
-        if($request->isPOST()){
+        if($this->request->isPOST()){
 
             $version = $this->request->get('version', 'latest');
 
             if($version == 'latest')
                 $version = null;
 
-            $result = $this->db->getSchemaManager()->migrate($version, boolify($request->get('sync')), boolify($request->get('testmode', false)));
+            $result = false;
 
-            return array('ok' => $result, 'log' => $this->db->getSchemaManager()->getMigrationLog());
+            try{
+
+                $result = $this->db->getSchemaManager()->migrate(
+                    $version,
+                    boolify($this->request->get('sync')),
+                    boolify($this->request->get('testmode', false)),
+                    boolify($this->request->get('keeptables', false))
+                );
+
+                $log = $this->db->getSchemaManager()->getMigrationLog();
+
+            }catch(\Throwable $e){
+
+                $log = $this->db->getSchemaManager()->getMigrationLog();
+
+                $log[] = array('time' => time(), 'msg' => 'ERROR: ' . $e->getMessage() . ' in file ' . $e->getFile() . ' on line #' . $e->getLine() . '.');
+
+            }
+
+            return array('ok' => $result, 'log' => $log);
 
         }
 
@@ -73,11 +92,11 @@ class Console extends \Hazaar\Console\Module {
 
     }
 
-    public function snapshot($request){
+    public function snapshot(){
 
-        if($request->isPOST()){
+        if($this->request->isPOST()){
 
-            $result = $this->db->getSchemaManager()->snapshot($request->get('comment'), boolify($request->get('testmode', false)));
+            $result = $this->db->getSchemaManager()->snapshot($this->request->get('comment'), boolify($this->request->get('testmode', false)));
 
             return array('ok' => $result, 'log' => $this->db->getSchemaManager()->getMigrationLog());
 
@@ -87,9 +106,9 @@ class Console extends \Hazaar\Console\Module {
 
     }
 
-    public function sync($request){
+    public function sync(){
 
-        if($request->isPOST()){
+        if($this->request->isPOST()){
 
             $result = $this->db->getSchemaManager()->syncData();
 

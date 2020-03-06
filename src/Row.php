@@ -16,7 +16,7 @@ final class Row extends \Hazaar\Model\Strict {
 
     private $statement;
 
-    function __construct(\Hazaar\DBI\Adapter $adapter, $meta = array(), $data = array(), \PDOStatement $statement = null){
+    function __construct(\Hazaar\DBI\Adapter $adapter, $meta = array(), $data = array(), \PDOStatement $statement = null, $options = array()){
 
         $this->adapter = $adapter;
 
@@ -24,17 +24,40 @@ final class Row extends \Hazaar\Model\Strict {
 
         $this->statement = $statement;
 
-        $this->ignore_undefined = false;
-
-        $this->allow_undefined = true;
-
         parent::__construct($data);
+
+    }
+
+    /**
+     * Prepare the row values by checking for fields that are an array that should not be
+     *
+     * This will happen when a join selects multiple fields from different tables with the same name.  For example, when
+     * doing a SELECT * with multiple tables that all have an 'id' column.  The 'id' columns from each table will clobber
+     * the earlier value as each table is processed, meaning the Row::update() may not work.  To get around this, the
+     * Row class is given data using the \PDO::FETCH_NAMED flag which will cause multiple columns with the same name to be
+     * returned as an array.  However, the column will not have an array data type so we detect that and just grab the
+     * first value in the array.
+     *
+     * @param mixed $data
+     */
+    public function prepare(&$data){
+
+        foreach($this->fields as $key => $def){
+
+            if(!(array_key_exists($key, $data) && is_array($data[$key])) || ake($def, 'type', 'none') === 'array')
+                continue;
+
+            $data[$key] = array_shift($data[$key]);
+
+        }
 
     }
 
     public function init(){
 
         foreach($this->fields as &$def){
+
+            $def = (array)$def;
 
             $def['changed'] = false;
 
@@ -51,19 +74,21 @@ final class Row extends \Hazaar\Model\Strict {
     public function update(){
 
         if(!$this->statement instanceof \PDOStatement)
-            throw new \Exception('Unable to perform updates without the original PDO statement!');
+            throw new \Hazaar\Exception('Unable to perform updates without the original PDO statement!');
 
         $changes = array();
 
         foreach($this->fields as $key => $def){
 
-            if($def['changed'] !== true)
+            if(!(array_key_exists('changed', $def) && $def['changed'] === true))
                 continue;
 
             if(!array_key_exists('table', $def))
-                throw new \Exception('Unable to update ' . $key . ' with unknown table');
+                throw new \Hazaar\Exception('Unable to update ' . $key . ' with unknown table');
 
-            $changes[$def['table']][] = $key . '=' . $this->adapter->prepareValue($this->get($key));
+            //$changes[$def['table']][] = $key . '=' . $this->adapter->prepareValue($this->get($key), $key, $this->fields[$key]['native_type']);
+
+            $changes[$def['table']][$key] = $this->get($key);
 
         }
 
@@ -94,8 +119,8 @@ final class Row extends \Hazaar\Model\Strict {
 
         $tables = array();
 
-        if(!preg_match('/FROM\s+"?(\w+)"?(\s+"?(\w+)"?)/', $this->statement->queryString, $matches))
-            throw new \Exception('Can\'t figure out which table we\'re updating!');
+        if(!preg_match('/FROM\s+"?(\w+)"?(\s+"?(\w+)"?)?/', $this->statement->queryString, $matches))
+            throw new \Hazaar\Exception('Can\'t figure out which table we\'re updating!');
 
         //Find the primary key for the primary table so we know which row we are updating
         foreach($this->adapter->listPrimaryKeys($matches[1]) as $data){
@@ -105,7 +130,7 @@ final class Row extends \Hazaar\Model\Strict {
 
             $tables[$matches[1]] = array();
 
-            if(!in_array(strtoupper($matches[3]), $keywords))
+            if(isset($matches[3]) && !in_array(strtoupper($matches[3]), $keywords))
                 $tables[$matches[1]]['alias'] = $matches[3];
 
             $tables[$matches[1]]['condition'] = ake($tables[$matches[1]], 'alias', $matches[1]) . '.' . $data['column'] . '=' . $this->get($data['column']);
@@ -115,7 +140,7 @@ final class Row extends \Hazaar\Model\Strict {
         }
 
         if(!count($tables) > 0)
-            throw new \Exception('Missing primary key in selection!');
+            throw new \Hazaar\Exception('Missing primary key in selection!');
 
         //Check and process joins
         if(preg_match_all('/JOIN\s+"?(\w+)"?(\s"?(\w+)"?)?\s+ON\s+("?[\w\.]+"?)\s?([\!=<>])\s?("?[\w\.]+"?)/i', $this->statement->queryString, $matches)){
@@ -133,22 +158,17 @@ final class Row extends \Hazaar\Model\Strict {
 
         }
 
+        $change_count = 0;
+
         $this->adapter->beginTransaction();
 
         foreach($changes as $table => $updates){
 
-            $sql = 'UPDATE ' . $table;
-
-            if(array_key_exists('alias', $tables[$table]))
-                $sql .= ' AS ' . $tables[$table]['alias'];
-
-            $sql .= ' SET ' . implode(', ', $updates);
-
             $conditions = array();
 
-            if($tables[$table]['condition']){
+            $from = array();
 
-                $from = array();
+            if($tables[$table]['condition']){
 
                 foreach($tables as $from_table => $data){
 
@@ -160,13 +180,12 @@ final class Row extends \Hazaar\Model\Strict {
 
                 }
 
-                $sql .= ' FROM ' . implode(', ', $from);
-
             }
 
-            $sql .= ' WHERE ' . implode(' AND ', $conditions);
+            if(array_key_exists('alias', $tables[$table]))
+                $table = array($table, $tables[$table]['alias']);
 
-            if(!$this->adapter->query($sql)){
+            if(!$changed_rows = $this->adapter->update($table, $updates, $conditions, $from)){
 
                 $this->adapter->rollback();
 
@@ -174,11 +193,21 @@ final class Row extends \Hazaar\Model\Strict {
 
             }
 
+            $change_count += $changed_rows;
+
         }
 
-        $this->adapter->commit();
+        if($change_count === count($changes)){
 
-        return true;
+            $this->adapter->commit();
+
+            return true;
+
+        }
+
+        $this->adapter->rollback();
+
+        return false;
 
     }
 

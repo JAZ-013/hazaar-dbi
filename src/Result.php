@@ -42,27 +42,43 @@ class Result implements \ArrayAccess, \Countable, \Iterator {
     private $array_columns = array();
 
     private $type_map = array(
-        'text'      => 'string',
-        'varchar'   => 'string',
-        'int2'      => 'integer',
-        'int4'      => 'integer',
-        'int8'      => 'integer',
-        'float8'    => 'float',
-        'timestamp' => '\Hazaar\Date',
-        'bool'      => 'boolean'
+        'numeric'       => 'integer',
+        'int2'          => 'integer',
+        'int4'          => 'integer',
+        'int8'          => 'integer',
+        'float8'        => 'float',
+        'timestamp'     => '\Hazaar\Date',
+        'timestamptz'   => '\Hazaar\Date',
+        'date'          => '\Hazaar\Date',
+        'bool'          => 'boolean',
+        'money'         => '\Hazaar\Money'
     );
 
     private $meta;
 
     private $adapter;
 
-    function __construct(\Hazaar\DBI\Adapter $adapter, \PDOStatement $statement) {
+    private $encrypt = false;
+
+    private $select_groups = array();
+    
+    function __construct(\Hazaar\DBI\Adapter $adapter, \PDOStatement $statement, $options = array()) {
 
         $this->adapter = $adapter;
 
         $this->statement = $statement;
 
+        if(is_array($options))
+            $this->encrypt =  ake($options, 'encrypt', false);
+
         $this->processStatement($statement);
+
+    }
+
+    public function setSelectGroups($select_groups){
+
+        if(\is_array($select_groups))
+            $this->select_groups = $select_groups;
 
     }
 
@@ -77,40 +93,46 @@ class Result implements \ArrayAccess, \Countable, \Iterator {
 
             $meta = $this->statement->getColumnMeta($i);
 
-            if(array_key_exists($meta['name'], $this->meta))
-                continue;
-
-            $def = array();
+            $def = array('native_type' => $meta['native_type']);
 
             if(array_key_exists('table', $meta))
                 $def['table'] = $meta['table'];
 
             if(substr($meta['native_type'], 0, 1) == '_'){
 
-                $type = substr($meta['native_type'], 1);
+                $this->array_columns[] = array(substr($meta['native_type'], 1), $meta['name']);
 
-                if(!array_key_exists($type, $this->type_map))
-                    throw new \Exception('Unknown native type: ' . $type);
+                $type = substr($meta['native_type'], 1);
 
                 $def['type'] = 'array';
 
-                $def['arrayOf'] =  $this->type_map[$type];
+                $def['arrayOf'] =  ake($this->type_map, $type, 'string');
 
             }elseif ($meta['pdo_type'] == \PDO::PARAM_STR && (substr(ake($meta, 'native_type'), 0, 4) == 'json'
                     || (!array_key_exists('native_type', $meta) && in_array('blob', ake($meta, 'flags'))))){
+
+                $this->array_columns[] = array('json', $meta['name']);
 
                 $def['prepare'] = function($value){ if(is_string($value)) return json_decode($value); return $value; };
 
             }else{
 
-                if(!array_key_exists($meta['native_type'], $this->type_map))
-                    throw new \Exception('Unknown native type: ' . $meta['native_type']);
-
-                $def['type'] = $this->type_map[$meta['native_type']];
+                $def['type'] = ake($this->type_map, $meta['native_type'], 'string');
 
             }
 
-            $this->meta[$meta['name']] = $def;
+            if(array_key_exists($meta['name'], $this->meta)){
+
+                if(!is_array($this->meta[$meta['name']]))
+                    $this->meta[$meta['name']] = array($this->meta[$meta['name']]);
+
+                $this->meta[$meta['name']][] = (object)$def;
+
+            }else{
+
+                $this->meta[$meta['name']] = (object)$def;
+
+            }
 
         }
 
@@ -130,19 +152,37 @@ class Result implements \ArrayAccess, \Countable, \Iterator {
 
     }
 
-    public function bindColumn($column, &$param, $type, $maxlen, $driverdata) {
+    public function bindColumn($column, &$param, $type = null, $maxlen = null, $driverdata = null) {
 
-        if ($this->statement instanceof \PDOStatement)
-            return $this->statement->bindColumn($column, $param, $type, $maxlen, $driverdata);
+        if ($this->statement instanceof \PDOStatement){
+
+            if($driverdata !== null)
+                return $this->statement->bindColumn($column, $param, $type, $maxlen, $driverdata);
+            if($maxlen !== null)
+                return $this->statement->bindColumn($column, $param, $type, $maxlen);
+            if($type !== null)
+                return $this->statement->bindColumn($column, $param, $type);
+
+            return $this->statement->bindColumn($column, $param);
+
+        }
 
         return false;
 
     }
 
-    public function bindParam($parameter, &$variable, $data_type = \PDO::PARAM_STR, $length, $driver_options) {
+    public function bindParam($parameter, &$variable, $data_type = \PDO::PARAM_STR, $length = null, $driver_options = null) {
 
-        if ($this->statement instanceof \PDOStatement)
-            return $this->statement->bindParam($parameter, $variable, $data_type, $length, $driver_options);
+        if ($this->statement instanceof \PDOStatement){
+
+            if($driver_options !== null)
+                return $this->statement->bindParam($parameter, $variable, $data_type, $length, $driver_options);
+            if($length !== null)
+                return $this->statement->bindParam($parameter, $variable, $data_type, $length);
+
+            return $this->statement->bindParam($parameter, $variable, $data_type);
+
+        }
 
         return false;
 
@@ -204,16 +244,20 @@ class Result implements \ArrayAccess, \Countable, \Iterator {
 
     public function execute($input_parameters = array()) {
 
-        if (!is_array($input_parameters))
-            $input_parameters = array(
-                $input_parameters
-            );
-
         $this->reset = false;
 
-        $result = $this->statement->execute($input_parameters);
+        if(is_array($input_parameters) && count($input_parameters) > 0)
+            $result = $this->statement->execute($input_parameters);
+        else
+            $result = $this->statement->execute();
+
+        if(!$result)
+            return false;
 
         $this->processStatement($this->statement);
+
+        if(preg_match('/^INSERT/i', $this->statement->queryString))
+            return $this->adapter->lastInsertId();
 
         return $result;
 
@@ -221,65 +265,60 @@ class Result implements \ArrayAccess, \Countable, \Iterator {
 
     public function fetch($fetch_style = \PDO::FETCH_ASSOC, $cursor_orientation = \PDO::FETCH_ORI_NEXT, $cursor_offset = 0) {
 
-        if ($this->statement instanceof \PDOStatement) {
+        if (!$this->statement instanceof \PDOStatement)
+            return false;
 
-            $this->reset = true;
+        $this->reset = true;
 
-            if($record = $this->statement->fetch(\PDO::FETCH_ASSOC))
-                return new Row($this->adapter, $this->meta, $record, $this->statement);
+        if($record = $this->statement->fetch($fetch_style, $cursor_orientation, $cursor_offset)){
+
+            $this->fix($record);
+
+            return $record;
 
         }
 
-        return false;
+        return null;
 
     }
 
     public function fetchAll($fetch_style = \PDO::FETCH_ASSOC, $fetch_argument = null, $ctor_args = array()) {
 
-        if ($this->statement instanceof \PDOStatement) {
+        if (!$this->statement instanceof \PDOStatement)
+            return false;
 
-            $this->reset = true;
+        $this->reset = true;
 
-            if ($fetch_argument !== null)
-                $results = $this->statement->fetchAll($fetch_style, $fetch_argument, $ctor_args);
-            else
-                $results = $this->statement->fetchAll($fetch_style);
+        if ($fetch_argument !== null)
+            $results = $this->statement->fetchAll($fetch_style, $fetch_argument, $ctor_args);
+        else
+            $results = $this->statement->fetchAll($fetch_style);
 
-            foreach($results as &$record) $record = new Row($this->adapter, $this->meta, $record, $this->statement);
+        foreach($results as &$record) $this->fix($record);
 
-            return $results;
-
-        }
-
-        return false;
+        return $results;
 
     }
 
     public function fetchColumn($column_number = 0) {
 
-        if ($this->statement instanceof \PDOStatement) {
+        if (!$this->statement instanceof \PDOStatement)
+            return false;
 
-            $this->reset = true;
+        $this->reset = true;
 
-            return $this->statement->fetchColumn($column_number);
-
-        }
-
-        return false;
+        return $this->statement->fetchColumn($column_number);
 
     }
 
     public function fetchObject($class_name = "stdClass", $ctor_args) {
 
-        if ($this->statement instanceof \PDOStatement) {
+        if (!$this->statement instanceof \PDOStatement)
+            return false;
 
-            $this->reset = true;
+        $this->reset = true;
 
-            return $this->statement->fetchObject($class_name, $ctor_args);
-
-        }
-
-        return false;
+        return $this->statement->fetchObject($class_name, $ctor_args);
 
     }
 
@@ -306,7 +345,7 @@ class Result implements \ArrayAccess, \Countable, \Iterator {
         if (!$record)
             return null;
 
-        if (!(count($this->array_columns) > 0))
+        if (!((count($this->array_columns) + count($this->select_groups)) > 0))
             return $record;
 
         foreach($this->array_columns as $item){
@@ -347,20 +386,83 @@ class Result implements \ArrayAccess, \Countable, \Iterator {
 
         }
 
+        $objs = array();
+
+        foreach($record as $name => $value){
+
+            if(array_key_exists($name, $this->select_groups)){
+
+                $objs[$this->select_groups[$name]] = $value;
+
+                unset($record[$name]);
+
+                continue;
+
+            }
+
+            $aliases = array();
+
+            $meta = null;
+
+            if(is_array($this->meta[$name])){
+
+                $meta = array();
+
+                foreach($this->meta[$name] as $col){
+
+                    $meta[] = $col;
+
+                    $aliases[] = ake($col, 'table');
+
+                }
+
+            }else{
+
+                $meta = $this->meta[$name];
+
+                if(!($alias = ake($meta, 'table')))
+                    continue;
+
+                $aliases[] = $alias;
+
+            }
+
+            foreach($aliases as $idx => $alias){
+
+                if(!array_key_exists($alias, $this->select_groups))
+                    continue;
+
+                while(array_key_exists($alias, $this->select_groups) && $this->select_groups[$alias] !== $alias)
+                    $alias = $this->select_groups[$alias];
+
+                if(!isset($objs[$alias]))
+                    $objs[$alias] = array();
+
+                $objs[$alias][$name] = (is_array($value) && is_array($meta)) ? $value[$idx] : $value;
+
+                unset($record[$name]);
+
+            }
+
+        }
+
+        $record = array_merge($record, array_from_dot_notation($objs));
+
+        if($this->encrypt !== false)
+            $this->decrypt($record);
+
         return $record;
 
     }
 
     public function nextRowset() {
 
-        if ($this->statement instanceof \PDOStatement) {
+        if (!$this->statement instanceof \PDOStatement)
+            return false;
 
-            $this->reset = true;
+        $this->reset = true;
 
-            return $this->statement->nextRowset();
-        }
-
-        return false;
+        return $this->statement->nextRowset();
 
     }
 
@@ -419,18 +521,37 @@ class Result implements \ArrayAccess, \Countable, \Iterator {
 
     }
 
-    public function row() {
+    public function row($cursor_orientation = \PDO::FETCH_ORI_NEXT, $offset = 0) {
 
-        if ($this->statement instanceof \PDOStatement) {
+        if (!$this->statement instanceof \PDOStatement)
+            return false;
 
-            $this->reset = true;
+        $this->reset = true;
 
-            if($record = $this->statement->fetch(\PDO::FETCH_ASSOC))
-                return new Row($this->adapter, $this->meta, $record, $this->statement);
+        if($record = $this->statement->fetch(\PDO::FETCH_NAMED, $cursor_orientation, $offset))
+            return new Row($this->adapter, $this->meta, $this->decrypt($record), $this->statement);
+
+        return null;
+
+    }
+
+    public function rows() {
+
+        if (!$this->statement instanceof \PDOStatement)
+            return false;
+
+        $this->reset = true;
+
+        if($records = $this->statement->fetchAll(\PDO::FETCH_NAMED)){
+
+            foreach($records as &$record)
+                $record = new Row($this->adapter, $this->meta, $this->decrypt($record), $this->statement);
+
+            return $records;
 
         }
 
-        return false;
+        return null;
 
     }
 
@@ -438,9 +559,9 @@ class Result implements \ArrayAccess, \Countable, \Iterator {
 
         if ($this->statement instanceof \PDOStatement && !$this->wakeup) {
 
-            $this->records = $this->statement->fetchAll(\PDO::FETCH_ASSOC);
+            $this->records = $this->statement->fetchAll(\PDO::FETCH_NAMED);
 
-            foreach($this->records as &$record) $record = new Row($this->adapter, $this->meta, $record, $this->statement);
+            foreach($this->records as &$record) new Row($this->adapter, $this->meta, $this->decrypt($record), $this->statement);
 
             $this->wakeup = true;
 
@@ -495,13 +616,13 @@ class Result implements \ArrayAccess, \Countable, \Iterator {
 
     public function offsetSet($offset, $value) {
 
-        throw new \Exception('Updating a value in a database result is not supported!');
+        throw new \Hazaar\Exception('Updating a value in a database result is not supported!');
 
     }
 
     public function offsetUnset($offset) {
 
-        throw new \Exception('Unsetting a value in a database result is not supported!');
+        throw new \Hazaar\Exception('Unsetting a value in a database result is not supported!');
 
     }
 
@@ -530,16 +651,15 @@ class Result implements \ArrayAccess, \Countable, \Iterator {
 
         $this->record = null;
 
-        if ($this->statement instanceof \PDOStatement) {
+        if (!$this->statement instanceof \PDOStatement)
+            return false;
 
-            $this->reset = true;
+        $this->reset = true;
 
-            if($record = $this->statement->fetch(\PDO::FETCH_ASSOC))
-                return $this->record = new Row($this->adapter, $this->meta, $record, $this->statement);
+        if($record = $this->statement->fetch(\PDO::FETCH_NAMED, \PDO::FETCH_ORI_NEXT))
+            return $this->record = new Row($this->adapter, $this->meta, $this->decrypt($record), $this->statement);
 
-        }
-
-        return false;
+        return null;
 
     }
 
@@ -550,19 +670,18 @@ class Result implements \ArrayAccess, \Countable, \Iterator {
 
         $this->record = null;
 
-        if ($this->statement instanceof \PDOStatement) {
+        if (!$this->statement instanceof \PDOStatement)
+            return false;
 
-            if($this->reset === true)
-                $this->statement->execute();
+        if($this->reset === true)
+            $this->statement->execute();
 
-            $this->reset = false;
+        $this->reset = false;
 
-            if($record = $this->statement->fetch(\PDO::FETCH_NAMED))
-                return $this->record = new Row($this->adapter, $this->meta, $record, $this->statement);
+        if($record = $this->statement->fetch(\PDO::FETCH_NAMED, \PDO::FETCH_ORI_NEXT))
+            return $this->record = new Row($this->adapter, $this->meta, $this->decrypt($record), $this->statement);
 
-        }
-
-        return false;
+        return null;
 
     }
 
@@ -575,5 +694,55 @@ class Result implements \ArrayAccess, \Countable, \Iterator {
 
     }
 
-}
+    private function decrypt(&$data){
 
+        if($data === null
+            || !(is_array($data) && count($data) > 0)
+            || $this->encrypt === false)
+            return $data;
+
+        $cipher = ake($this->encrypt, 'cipher', 'aes-256-ctr');
+
+        $key = ake($this->encrypt, 'key', '0000');
+
+        $checkstring = ake($this->encrypt, 'checkstring', Adapter::$default_checkstring);
+
+        foreach($data as $key => &$value){
+
+            if(!(in_array($key, ake($this->encrypt['table'], $this->meta[$key]['table'], array())) && $this->meta[$key]['type'] === 'string'))
+                continue;
+
+            $parts = preg_split('/(?<=.{' . openssl_cipher_iv_length($cipher) . '})/', base64_decode($value), 2);
+
+            if(count($parts) !== 2)
+                continue;
+
+            list($checkbit, $value) = preg_split('/(?<=.{' . strlen($checkstring) . '})/', openssl_decrypt($parts[1], $cipher, $key, OPENSSL_RAW_DATA, $parts[0]), 2);
+
+            if($checkbit !== $checkstring)
+                throw new \Hazaar\Exception('Field decryption failed: ' . $key);
+
+        }
+
+        return $data;
+
+    }
+
+    /**
+     * Collates a result into a simple key/value array.
+     *
+     * This is useful for generating SELECT lists directly from a resultset.
+     *
+     * @param mixed $index_column The column to use as the array index.
+     * @param mixed $value_column The column to use as the array value.
+     * @param mixed $group_column Optional column name to group items by.
+     *
+     * @return array
+     */
+    public function collate($index_column, $value_column, $group_column = null){
+
+        return array_collate($this->fetchAll(), $index_column, $value_column, $group_column);
+
+    }
+
+}

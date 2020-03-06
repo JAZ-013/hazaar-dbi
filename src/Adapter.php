@@ -13,30 +13,30 @@ namespace Hazaar\DBI;
  * @brief Relational Database Interface
  *
  * @detail The DB Adapter module provides classes for access to relational database via
- * "PDO":http://www.php.net/manual/en/book.pdo.php (PHP Data Object) drivers and classes. This
+ * [PDO](http://www.php.net/manual/en/book.pdo.php) (PHP Data Object) drivers and classes. This
  * approach allows developers to use these classes to access a range of different database servers.
  *
  * PDO has supporting drivers for:
  *
- * * "PostgreSQL":http://www.postgresql.org
- * * "MySQL":http://www.mysql.com
- * * "SQLite":http://www.sqlite.org
- * * "MS SQL Server":http://www.microsoft.com/sqlserver
- * * "Oracle":http://www.oracle.com
- * * "IBM Informix":http://www.ibm.com/software/data/informix
- * * "Interbase":http://www.embarcadero.com/products/interbase
+ * * [PostgreSQL](http://www.postgresql.org)
+ * * [MySQL](http://www.mysql.com)
+ * * [SQLite](http://www.sqlite.org)
+ * * [MS SQL Server](http://www.microsoft.com/sqlserver)
+ * * [Oracle](http://www.oracle.com)
+ * * [IBM Informix](http://www.ibm.com/software/data/informix)
+ * * [Interbase](http://www.embarcadero.com/products/interbase)
  *
  * Access to database functions is all done using a common class structure.
  *
  * h2. Example Usage
  *
- * <code>
+ * ```php
  * $db = new Hazaar\DBI\Adapter();
  * $result = $this->execute('SELECT * FROM users');
  * while($row = $result->fetch()){
  * //Do things with $row here
  * }
- * </code>
+ * ```
  */
 class Adapter {
 
@@ -54,6 +54,8 @@ class Adapter {
     private static $connections = array();
 
     private $schema_manager;
+
+    static public $default_checkstring = '!!';
 
     function __construct($config_env = NULL) {
 
@@ -110,14 +112,15 @@ class Adapter {
 
         }
 
-        $this->connect($dsn, $user, $password);
+        if(!$this->connect($dsn, $user, $password))
+            throw new Exception\ConnectionFailed($this->config['host']);
 
         if(array_key_exists('encrypt', $this->options) && !array_key_exists('key', $this->options['encrypt'])){
 
             $keyfile = \Hazaar\Application::getInstance()->runtimePath(ake($this->options['encrypt'], 'keyfile', '.db_key'));
 
             if(!file_exists($keyfile))
-                throw new \Exception('DBI keyfile is missing.  Database encryption will not work!');
+                throw new \Hazaar\Exception('DBI keyfile is missing.  Database encryption will not work!');
 
             $this->options['encrypt']['key'] = trim(file_get_contents($keyfile));
 
@@ -161,7 +164,11 @@ class Adapter {
 
         if (!array_key_exists($env, Adapter::$default_config)){
 
-            $config = new \Hazaar\Application\Config('database', $env, array(), FILE_PATH_CONFIG, true);
+            $defaults = array(
+                'timezone' => date_default_timezone_get()
+            );
+
+            $config = new \Hazaar\Application\Config('database', $env, $defaults, FILE_PATH_CONFIG, true);
 
             if(!$config->loaded())
                 return null;
@@ -214,7 +221,7 @@ class Adapter {
             ), $driver_options);
 
             if (!$this->driver->connect($dsn, $username, $password, $driver_options))
-                throw new Exception\ConnectionFailed($dsn);
+                return false;
 
             Adapter::$connections[$hash] = $this->driver;
 
@@ -236,6 +243,9 @@ class Adapter {
                 $this->driver->setMasterDBD($master);
 
             }
+
+            if($this->config->has('timezone'))
+                $this->setTimezone($this->config['timezone']);
 
         }
 
@@ -277,7 +287,7 @@ class Adapter {
         $result = $this->driver->query($sql);
 
         if($result instanceof \PDOStatement)
-            return new Result($this, $result);
+            return new Result($this, $result, $this->options);
 
         return $result;
 
@@ -309,6 +319,8 @@ class Adapter {
     }
 
     public function table($name, $alias = NULL) {
+
+        $this->checkConfig();
 
         return new Table($this, $name, $alias, $this->options);
 
@@ -361,14 +373,14 @@ class Adapter {
         $statement = $this->driver->prepare($sql);
 
         if(!$statement instanceof \PDOStatement)
-            throw new \Exception('Driver did not return PDOStatement during prepare!');
+            throw new \Hazaar\Exception('Driver did not return PDOStatement during prepare!');
 
         if ($name)
             $this->statements[$name] = $statement;
         else
             $this->statements[] = $statement;
 
-        return $statement;
+        return new Result($this, $statement, $this->options);
 
     }
 
@@ -410,107 +422,87 @@ class Adapter {
 
     }
 
-    /**
-     * Returns the current DBI schema versions
-     *
-     * See: \Hazaar\DBI\Schema\Manager::getSchemaVersion()
-     *
-     * @deprecated
-     */
-    public function getSchemaVersion() {
+    public function insert($table, $fields, $returning = null){
 
-        return $this->getSchemaManager()->getSchemaVersion();
+        return $this->driver->insert($table, $this->encrypt($table, $fields), $returning);
+
+    }
+
+    public function update($table, $fields, $criteria = array(), $from = array()){
+
+        return $this->driver->update($table, $this->encrypt($table, $fields), $criteria, $from);
+
+    }
+
+    public function encrypt($table, &$data){
+
+        if(is_array($table) && isset($table[0]))
+            $table = $table[0];
+
+        if($data === null
+            || !(is_array($data) && count($data) > 0)
+            || ($encrypt = ake($this->options, 'encrypt', false)) === false
+            || ($encrypted_fields = ake(ake($encrypt, 'table'), $table)) === null)
+            return $data;
+
+        $cipher = ake($encrypt, 'cipher', 'aes-256-ctr');
+
+        $key = ake($encrypt, 'key', '0000');
+
+        $checkstring = ake($encrypt, 'checkstring', Adapter::$default_checkstring);
+
+        foreach($data as $key => &$value){
+
+            if(!in_array($key, $encrypted_fields))
+                continue;
+
+            if(!is_string($value))
+                throw new \Hazaar\Exception('Trying to encrypt non-string field: ' . $key);
+
+            $iv = openssl_random_pseudo_bytes(openssl_cipher_iv_length($cipher));
+
+            $value = base64_encode($iv . openssl_encrypt($checkstring . $value, $cipher, $key, OPENSSL_RAW_DATA, $iv));
+
+        }
+
+        return $data;
 
     }
 
     /**
-     * Returns a list of all known schema versions
+     * TRUNCATE � empty a table or set of tables
      *
-     * See: \Hazaar\DBI\Schema\Manager::getSchemaVersions()
+     * TRUNCATE quickly removes all rows from a set of tables. It has the same effect as an unqualified DELETE on
+     * each table, but since it does not actually scan the tables it is faster. Furthermore, it reclaims disk space
+     * immediately, rather than requiring a subsequent VACUUM operation. This is most useful on large tables.
      *
-     * @deprecated
+     * @param mixed $table_name         The name of the table(s) to truncate.  Multiple tables are supported.
+     * @param mixed $only               Only the named table is truncated. If FALSE, the table and all its descendant tables (if any) are truncated.
+     * @param mixed $restart_identity   Automatically restart sequences owned by columns of the truncated table(s).  The default is to no restart.
+     * @param mixed $cascade            If TRUE, automatically truncate all tables that have foreign-key references to any of the named tables, or
+     *                                  to any tables added to the group due to CASCADE.  If FALSE, Refuse to truncate if any of the tables have
+     *                                  foreign-key references from tables that are not listed in the command. FALSE is the default.
+     * @return boolean
      */
-    public function getSchemaVersions($with_file_obj = false) {
+    public function truncate($table_name, $only = false, $restart_identity = false, $cascade = false){
 
-        return $this->getSchemaManager()->getSchemaVersions($with_file_obj);
+        return $this->driver->truncate($table_name, $only, $restart_identity, $cascade);
 
     }
 
-    /**
-     * Returns the version number of the latest schema version
-     *
-     * See: \Hazaar\DBI\Schema\Manager::getLatestSchemaVersion()
-     *
-     * @deprecated
-     */
-    public function getLatestSchemaVersion($with_file_obj = false){
+    public function errorException($msg = null){
 
-        return $this->getSchemaManager()->getLatestSchemaVersion($with_file_obj);
+        if($err = $this->errorinfo()){
 
-    }
+            if($err[1] !== null)
+                $msg .= (($msg !== null) ? ' SQL ERROR ' . $err[0] . ': ' : $err[0] . ': ') . $err[2];
 
-    /**
-     * Checks if the current DBI schema is the latest versions
-     *
-     * See: \Hazaar\DBI\Schema\Manager::isSchemaLatest()
-     *
-     * @deprecated
-     */
-    public function isSchemaLatest(){
+            if($msg)
+                return new \Exception($msg, $err[1]);
 
-        return $this->getSchemaManager()->isSchemaLatest();
+        }
 
-    }
-
-    /**
-     * Snapshot the database schema and create a new schema version with migration replay files.
-     *
-     * See: \Hazaar\DBI\Schema\Manager::snapshot()
-     *
-     * @deprecated
-     */
-    public function snapshot($comment = null, $test = false){
-
-        return $this->getSchemaManager()->snapshot($comment, $test);
-
-    }
-
-    /**
-     * Database migration method.
-     *
-     * See: \Hazaar\DBI\Schema\Manager::migrate()
-     *
-     * @deprecated
-     */
-    public function migrate($version = null, $force_data_sync = false, $test = false){
-
-        return $this->getSchemaManager()->migrate($version, $force_data_sync, $test);
-
-    }
-
-    /**
-     * Takes a schema definition and creates it in the database.
-     *
-     * See: \Hazaar\DBI\Schema\Manager::createSchema()
-     *
-     * @deprecated
-     */
-    public function createSchema($schema){
-
-        return $this->getSchemaManager()->createSchema($schema);
-
-    }
-
-    /**
-     * Synchonise schema data with the database
-     *
-     * See: \Hazaar\DBI\Schema\Manager::syncSchemaData()
-     *
-     * @deprecated
-     */
-    public function syncSchemaData($data_schema = null, $test = false){
-
-        return $this->getSchemaManager()->syncSchemaData();
+        return new \Exception('Unknown DBI Error!');
 
     }
 

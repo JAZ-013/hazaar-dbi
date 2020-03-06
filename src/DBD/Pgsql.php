@@ -4,11 +4,74 @@ namespace Hazaar\DBI\DBD;
 
 class Pgsql extends BaseDriver {
 
+    static public $dsn_elements = array(
+        'host',
+        'port',
+        'dbname',
+        'user',
+        'password'
+    );
+
     public function __construct($config){
 
         parent::__construct($config);
 
         $this->schema = 'public';
+
+    }
+
+    public function setTimezone($tz){
+
+        if($this->exec("SET TIME ZONE '$tz';") === false)
+            return false;
+
+        if($this->master instanceof BaseDriver)
+            $this->master->setTimezone($tz);
+
+        return true;
+
+    }
+
+    public function repair(){
+
+        /*
+         * Fix sequence current values to max value of column
+         *
+         * See: https://wiki.postgresql.org/wiki/Fixing_Sequences
+         */
+        $sql = "SELECT quote_ident(PGT.schemaname) || '.' || quote_ident(T.relname) as t, 'SELECT SETVAL(' ||
+               quote_literal(quote_ident(PGT.schemaname) || '.' || quote_ident(S.relname)) ||
+               ', COALESCE(MAX(' ||quote_ident(C.attname)|| '), 1) ) FROM ' ||
+               quote_ident(PGT.schemaname) || '.' || quote_ident(T.relname) || ';' as sql
+               FROM pg_class AS S,
+                    pg_depend AS D,
+                    pg_class AS T,
+                    pg_attribute AS C,
+                    pg_tables AS PGT
+               WHERE S.relkind = 'S'
+                   AND S.oid = D.objid
+                   AND D.refobjid = T.oid
+                   AND D.refobjid = C.attrelid
+                   AND D.refobjsubid = C.attnum
+                   AND T.relname = PGT.tablename
+               ORDER BY S.relname;";
+
+        $result = $this->query($sql);
+
+        $tables = array();
+
+        while($row = $result->fetch(\PDO::FETCH_ASSOC)){
+
+            $tables[] = $row['t'];
+
+            $this->query($row['sql']);
+
+        }
+
+        //Do a quick vacuum as well.
+        $this->query('VACUUM');
+
+        return true;
 
     }
 
@@ -30,6 +93,19 @@ class Pgsql extends BaseDriver {
     }
 
     public function field($string) {
+
+        if(!is_string($string)){
+
+            if(is_bool($string))
+                return boolstr($string);
+            elseif(is_array($string) && array_key_exists('schema', $string) && array_key_exists('name', $string))
+                $string = $string['schema'] . '.' . $string['name'];
+            elseif($string === null)
+                return 'NULL';
+            else
+                return (string)$string;
+
+        }
 
         //This matches an string that contain a non-word character, which means it is either a function call, concat or
         //at least definitely not a reserved word as all reserved words have only word characters
@@ -157,7 +233,7 @@ class Pgsql extends BaseDriver {
         $sql .= "\nGROUP BY s.nspname, t.relname, i.relname, ix.indisunique ORDER BY t.relname, i.relname;";
 
         if(!($result = $this->query($sql)))
-            throw new \Exception('Index list failed. ' . $this->errorInfo()[2]);
+            throw new \Hazaar\Exception('Index list failed. ' . $this->errorInfo()[2]);
 
         $indexes = array();
 
@@ -171,39 +247,6 @@ class Pgsql extends BaseDriver {
         }
 
         return $indexes;
-
-    }
-
-    public function repair(){
-
-        /*
-         * Fix sequence current values to max value of column
-         *
-         * See: https://wiki.postgresql.org/wiki/Fixing_Sequences
-         */
-        $sql = "SELECT 'SELECT SETVAL(' ||
-               quote_literal(quote_ident(PGT.schemaname) || '.' || quote_ident(S.relname)) ||
-               ', COALESCE(MAX(' ||quote_ident(C.attname)|| '), 1) ) FROM ' ||
-               quote_ident(PGT.schemaname)|| '.'||quote_ident(T.relname)|| ';'
-               FROM pg_class AS S,
-                    pg_depend AS D,
-                    pg_class AS T,
-                    pg_attribute AS C,
-                    pg_tables AS PGT
-               WHERE S.relkind = 'S'
-                   AND S.oid = D.objid
-                   AND D.refobjid = T.oid
-                   AND D.refobjid = C.attrelid
-                   AND D.refobjsubid = C.attnum
-                   AND T.relname = PGT.tablename
-               ORDER BY S.relname;";
-
-        $result = $this->query($sql);
-
-        while($seq = $result->fetchColumn(0))
-            $this->query($seq);
-
-        return true;
 
     }
 
