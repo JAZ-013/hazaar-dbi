@@ -938,7 +938,7 @@ abstract class BaseDriver implements Driver_Interface {
                 'ordinal_position' => $col['ordinal_position'],
                 'default' => $this->fixValue($col['column_default']),
                 'not_null' => (($col['is_nullable'] == 'NO') ? TRUE : FALSE),
-                'data_type' => $this->type($col['data_type']),
+                'data_type' => $this->type($col),
                 'length' => $col['character_maximum_length']
             );
 
@@ -993,7 +993,7 @@ abstract class BaseDriver implements Driver_Interface {
         if (!array_key_exists('data_type', $column_spec))
             return FALSE;
 
-        $sql = 'ALTER TABLE ' . $this->field($table) . ' ADD COLUMN ' . $this->field($column_spec['name']) . ' ' . $this->type($column_spec['data_type']);
+        $sql = 'ALTER TABLE ' . $this->field($table) . ' ADD COLUMN ' . $this->field($column_spec['name']) . ' ' . $this->type($column_spec);
 
         if (array_key_exists('not_null', $column_spec) && $column_spec['not_null'])
             $sql .= ' NOT NULL';
@@ -1029,7 +1029,7 @@ abstract class BaseDriver implements Driver_Interface {
 
         if (array_key_exists('data_type', $column_spec)){
 
-            $alter_type = $prefix . " TYPE " . $this->type($column_spec['data_type']) . ((array_key_exists('length', $column_spec) && $column_spec['length'] > 0) ? '(' . $column_spec['length'] . ')' : NULL);
+            $alter_type = $prefix . " TYPE " . $this->type($column_spec) . ((array_key_exists('length', $column_spec) && $column_spec['length'] > 0) ? '(' . $column_spec['length'] . ')' : NULL);
 
             if (array_key_exists('using', $column_spec))
                 $alter_type .= ' USING ' . $column_spec['using'];
