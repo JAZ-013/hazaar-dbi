@@ -299,7 +299,12 @@ abstract class BaseDriver implements Driver_Interface {
 
     }
 
-    public function type($string) {
+    public function type($info) {
+
+        if(!($type = ake($info, 'data_type')))
+            return false;
+
+        $array = false;
 
         $types = array(
             'timestamp without time zone' => 'timestamp',
@@ -307,10 +312,13 @@ abstract class BaseDriver implements Driver_Interface {
             'character varying' => 'varchar'
         );
 
-        if (array_key_exists($string, $types))
-            return $types[$string];
+        if($array = (substr($type, -2) === '[]'))
+            $type = substr($type, 0, -2);
 
-        return $string;
+        if (array_key_exists($type, $types))
+            $type = $types[$type];
+
+        return $type . (ake($info, 'length') ? '(' . $info['length'] . ')' : NULL) . ($array ? '[]' : '');
 
     }
 
@@ -815,13 +823,16 @@ abstract class BaseDriver implements Driver_Interface {
 
     }
 
-    public function createTable($name, $columns) {
+    public function createTable($table_name, $columns) {
 
-        $sql = "CREATE TABLE " . $this->field($name) . " (\n";
+        $sql = "CREATE TABLE " . $this->field($table_name) . " (\n";
 
         $coldefs = array();
 
         $constraints = array();
+
+        if($table_name === 'oauth2_auth')
+            echo '';
 
         foreach($columns as $name => $info) {
 
@@ -835,8 +846,11 @@ abstract class BaseDriver implements Driver_Interface {
                     $name = $info['name'];
 
                 }
-
-                $def = $this->field($name) . ' ' . $this->type($info['data_type']) . (ake($info, 'length') ? '(' . $info['length'] . ')' : NULL);
+                
+                if(!($type = $this->type($info)))
+                    throw new \Hazaar\Exception("Column '$name' has no data type!");
+                
+                $def = $this->field($name) . ' ' . $type;
 
                 if (array_key_exists('default', $info) && $info['default'] !== NULL)
                     $def .= ' DEFAULT ' . $info['default'];
@@ -876,7 +890,7 @@ abstract class BaseDriver implements Driver_Interface {
         $affected = $this->exec($sql);
 
         if ($affected === FALSE)
-            throw new \Hazaar\Exception('Could not create table. ' . $this->errorInfo()[2]);
+            throw new \Hazaar\Exception("Could not create table '$table_name'. " . $this->errorInfo()[2]);
 
         return TRUE;
 
