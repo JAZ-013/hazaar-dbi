@@ -19,7 +19,9 @@ class Manager {
 
     private $dbi;
 
-    private $schema_file;
+    private $db_dir;
+
+    private $migrate_dir;
 
     private $data_file;
 
@@ -29,15 +31,17 @@ class Manager {
 
     private $ignore_tables = array('schema_info', 'hz_file', 'hz_file_chunk');
 
+    private $versions = null;
+
     function __construct(Adapter $dbi){
 
         $this->dbi = $dbi;
 
-        $this->schema_file = realpath(APPLICATION_PATH . DIRECTORY_SEPARATOR . '..')
-            . DIRECTORY_SEPARATOR . 'db' . DIRECTORY_SEPARATOR . 'schema.json';
+        $this->db_dir = realpath(APPLICATION_PATH . DIRECTORY_SEPARATOR . '..') . DIRECTORY_SEPARATOR . 'db';
 
-        $this->data_file = realpath(APPLICATION_PATH . DIRECTORY_SEPARATOR . '..')
-            . DIRECTORY_SEPARATOR . 'db' . DIRECTORY_SEPARATOR . 'data.json';
+        $this->migrate_dir = $this->db_dir . DIRECTORY_SEPARATOR . 'migrate';
+
+        $this->data_file = $this->db_dir . DIRECTORY_SEPARATOR . 'data.json';
 
     }
 
@@ -52,48 +56,50 @@ class Manager {
 
     }
 
-    public function getVersions($with_file_obj = false){
+    public function &getVersions($with_file_obj = false){
 
-        $db_dir = dirname($this->schema_file);
+        if(!is_array($this->versions)){
 
-        $migrate_dir = $db_dir . '/migrate';
+            $this->versions = array(0 => array(), 1 => array());
 
-        $versions = array();
+            /**
+             * Get a list of all the available versions
+             */
+            $dir = new \Hazaar\File\Dir($this->migrate_dir);
 
-        /**
-         * Get a list of all the available versions
-         */
-        $dir = new \Hazaar\File\Dir($migrate_dir);
+            if($dir->exists()){
 
-        if($dir->exists()){
+                while($file = $dir->read()){
 
-            while($file = $dir->read()){
-
-                if(preg_match('/(\d*)_(\w*)/', $file, $matches)){
+                    if(!($file->extension() === 'json' && preg_match('/^(\d+)_(\w+)$/', $file->name(), $matches)))
+                        continue;
 
                     $version = $matches[1];
 
-                    if($with_file_obj)
-                        $versions[$version] = $file;
-
-                    else
-                        $versions[$version] = str_replace('_', ' ', $matches[2]);
+                    $this->versions[0][$version] = $file;
+                    
+                    $this->versions[1][$version] = str_replace('_', ' ', $matches[2]);
 
                 }
 
+                ksort($this->versions[0]);
+
+                ksort($this->versions[1]);
+
             }
 
-            ksort($versions);
-
         }
-
-        return $versions;
+        
+        if($with_file_obj)
+            return $this->versions[0];
+            
+        return $this->versions[1];
 
     }
 
-    public function getLatestVersion($with_file_obj = false){
+    public function getLatestVersion(){
 
-        $versions = $this->getVersions($with_file_obj);
+        $versions = $this->getVersions();
 
         end($versions);
 
@@ -202,6 +208,90 @@ class Manager {
 
     }
 
+    public function getSchema($version = null){
+
+        $table_map = array(
+            'table' => array('tables', 'cols'), 
+            'view' => array('views', true),
+            'constraint' => 'constraints',
+            'index' => 'indexes',
+            'function' => 'functions',
+            'trigger' => 'triggers'
+        );
+
+        $schema = array('version' => 0);
+
+        /**
+         * Get a list of all the available versions
+         */
+        $versions = $this->getVersions(true);
+
+        foreach($versions as $version => $file){
+
+            $migrate = $file->parseJSON(true);
+
+            if(!array_key_exists('up', $migrate))
+                continue;
+
+            foreach($migrate['up'] as $type => $actions){
+
+                if(!($map = ake($table_map, $type)))
+                    continue;
+
+                $elem = is_array($map) ? ake($map, 0) : $map;
+
+                if(!array_key_exists($elem, $schema))
+                        $schema[$elem] = array();
+
+                if(is_array($map) && ($source = ake($map, 1))){
+
+                    foreach($actions as $action => $items){
+
+                        foreach($items as $item){
+
+                            if($action === 'create')
+                                $schema[$elem][$item['name']] = ($source === true) ? $item : $item[$source];
+                            elseif($action === 'remove')
+                                unset($schema[$elem][$item]);
+
+                        }
+
+                    }
+
+                }else{
+
+                    foreach($actions as $action => $items){
+
+                        foreach($items as $item){
+
+                            if($action === 'create')
+                                $schema[$elem][$item['table']][$item['name']] = $item;
+                            elseif($action === 'remove')
+                                unset($schema[$elem][$item['table']][$item['name']]);
+
+                        }
+
+                    }
+
+                }
+
+            }
+
+            $schema['version'] = $version;
+
+        }
+
+        return $schema;
+
+    }
+
+    public function truncate(){
+
+        foreach($this->dbi->listTables() as $table)
+            $this->dbi->dropTable($table['schema'] . '.' . $table['name'], true);
+
+    }
+
     /**
      * Snapshot the database schema and create a new schema version with migration replay files.
      *
@@ -258,14 +348,12 @@ class Manager {
 
         $this->dbi->beginTransaction();
 
-        $db_dir = dirname($this->schema_file);
+        if(!is_dir($this->db_dir)){
 
-        if(!is_dir($db_dir)){
-
-            if(file_exists($db_dir))
+            if(file_exists($this->db_dir))
                 throw new \Hazaar\Exception('Unable to create database migration directory.  It exists but is not a directory!');
 
-            mkdir($db_dir);
+            mkdir($this->db_dir);
 
         }
 
@@ -292,7 +380,7 @@ class Manager {
         /**
          * Load the existing stored schema to use for comparison
          */
-        $schema = (file_exists($this->schema_file) ? json_decode(file_get_contents($this->schema_file), true) : array());
+        $schema = $this->getSchema();
 
         if($schema){
 
@@ -1059,17 +1147,15 @@ class Manager {
         /**
          * Save the migrate diff file
          */
-        $migrate_dir = $db_dir . '/migrate';
-
-        if(!file_exists($migrate_dir)){
+        if(!file_exists($this->migrate_dir)){
 
             $this->log('Migration directory does not exist.  Creating.');
 
-            mkdir($migrate_dir);
+            mkdir($this->migrate_dir);
 
         }
 
-        $migrate_file = $migrate_dir . '/' . $version . '_' . str_replace(' ', '_', trim($comment)) . '.json';
+        $migrate_file = $this->migrate_dir . '/' . $version . '_' . str_replace(' ', '_', trim($comment)) . '.json';
 
         $this->log("Writing migration file to '$migrate_file'");
 
@@ -1085,10 +1171,6 @@ class Manager {
             $current_schema['data'] = $data;
 
         }
-
-        $this->log("Saving current schema ($this->schema_file)");
-
-        file_put_contents($this->schema_file, json_encode($current_schema, JSON_PRETTY_PRINT));
 
         $this->createInfoTable();
 
@@ -1144,16 +1226,7 @@ class Manager {
 
         $versions = $this->getVersions(true);
 
-        $file = new \Hazaar\File($this->schema_file);
-
-        if(!$file->exists())
-            throw new \Hazaar\Exception("This application has no schema file.  Database schema is not being managed.");
-
-        if(!($schema = json_decode($file->get_contents(), true)))
-            throw new \Hazaar\Exception("Unable to parse the migration file.  Bad JSON?");
-
-        if(!array_key_exists('version', $schema))
-            $schema['version'] = 1;
+        $latest_version = $this->getLatestVersion();
 
         if($version){
 
@@ -1182,7 +1255,7 @@ class Manager {
 
             }else{
 
-                $version = $schema['version'];
+                $version = $latest_version;
 
                 $this->log('Initialising database at version: ' . $version);
 
@@ -1234,7 +1307,7 @@ class Manager {
 
             $this->log('Starting database migration process.');
 
-            if(!$current_version && $version == $schema['version']){
+            if(!$current_version && $version === $latest_version){
 
                 /**
                  * This section sets up the database using the existing schema without migration replay.
@@ -1246,6 +1319,11 @@ class Manager {
                  *
                  * Otherwise we have to replay the migration files from current version to the target version.
                  */
+                if(!($schema = $this->getSchema($version)))
+                    throw new \Hazaar\Exception("This application has no schema file.  Database schema is not being managed.");
+
+                if(!array_key_exists('version', $schema))
+                    $schema['version'] = 1;
 
                 $tables = $this->dbi->listTables();
 
@@ -1992,9 +2070,9 @@ class Manager {
 
         if($data_schema === null){
 
-            $data_schema = array();
+            $schema = $this->getSchema($this->getVersion());
 
-            $this->loadDataFromFile($data_schema, $this->schema_file, 'data');
+            $data_schema = array_key_exists('data', $schema) ? $schema['data'] : array();
 
             $this->loadDataFromFile($data_schema, $this->data_file);
 
