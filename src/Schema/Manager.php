@@ -1222,7 +1222,7 @@ class Manager {
 
         $mode = 'up';
 
-        $current_version = null;
+        $current_version = 0;
 
         $versions = $this->getVersions(true);
 
@@ -1287,107 +1287,114 @@ class Manager {
 
             if($result = $this->dbi->table('schema_info')->find(array(), array('version'))->sort('version', true)){
 
-                if($row = $result->fetch())
+                if($row = $result->fetch()){
+
                     $current_version = $row['version'];
 
-                $this->log("Current database version: " . ($current_version ? $current_version : "None"));
+                    $this->log("Current database version: " . ($current_version ? $current_version : "None"));
+
+                }
 
             }
 
         }
 
-        /**
-         * Check to see if we are at the current version first.
-         */
-        if($current_version === $version){
+        $this->log('Starting database migration process.');
 
-            $this->log("Database is already at version: $version");
+        if($current_version === 0 && $version === $latest_version){
 
-        }else{
+            /**
+             * This section sets up the database using the existing schema without migration replay.
+             *
+             * The criteria here is:
+             *
+             * * No current version
+             * * $version must equal the schema file version
+             *
+             * Otherwise we have to replay the migration files from current version to the target version.
+             */
+            if(!($schema = $this->getSchema($version)))
+                throw new \Hazaar\Exception("This application has no schema file.  Database schema is not being managed.");
 
-            $this->log('Starting database migration process.');
+            if(!array_key_exists('version', $schema))
+                $schema['version'] = 1;
 
-            if(!$current_version && $version === $latest_version){
+            $tables = $this->dbi->listTables();
 
-                /**
-                 * This section sets up the database using the existing schema without migration replay.
-                 *
-                 * The criteria here is:
-                 *
-                 * * No current version
-                 * * $version must equal the schema file version
-                 *
-                 * Otherwise we have to replay the migration files from current version to the target version.
-                 */
-                if(!($schema = $this->getSchema($version)))
-                    throw new \Hazaar\Exception("This application has no schema file.  Database schema is not being managed.");
+            $excluded = $this->ignore_tables;
 
-                if(!array_key_exists('version', $schema))
-                    $schema['version'] = 1;
+            $tables = array_filter($tables, function($value) use($excluded){
+                return !($value['schema'] === 'public' && in_array($value['name'], $excluded));
+            });
 
-                $tables = $this->dbi->listTables();
+            if(count($tables) > 0 && $keep_tables !== true){
 
-                $excluded = $this->ignore_tables;
-
-                $tables = array_filter($tables, function($value) use($excluded){
-                    return !($value['schema'] === 'public' && in_array($value['name'], $excluded));
-                });
-
-                if(count($tables) > 0 && $keep_tables !== true){
-
-                    throw new \Hazaar\Exception("Tables exist in database but no schema info was found!  This should only be run on an empty database!");
-
-                }else{
-
-                    /*
-                     * There is no current database so just initialise from the schema file.
-                     */
-                    $this->log("Initialising database" . ($version ? " at version '$version'" : ''));
-
-                    if($schema['version'] > 0){
-
-                        if($this->createSchema($schema, $test, $keep_tables)){
-
-                            foreach($versions as $ver => $name)
-                                $this->dbi->insert('schema_info', array('version' => $ver));
-
-                        }
-
-                    }
-
-                    $force_data_sync = true;
-
-                }
+                throw new \Hazaar\Exception("Tables exist in database but no schema info was found!  This should only be run on an empty database!");
 
             }else{
 
-                if(!array_key_exists($current_version, $versions))
-                    throw new \Hazaar\Exception("Your current database version has no migration source.");
+                /*
+                 * There is no current database so just initialise from the schema file.
+                 */
+                $this->log("Initialising database" . ($version ? " at version '$version'" : ''));
 
-                $this->log("Migrating from version '$current_version' to '$version'.");
+                if($schema['version'] > 0){
 
-                if($version < $current_version){
+                    if($this->createSchema($schema, $test, $keep_tables)){
 
-                    $mode = 'down';
+                        foreach($versions as $ver => $name)
+                            $this->dbi->insert('schema_info', array('version' => $ver));
 
-                    krsort($versions);
+                    }
 
                 }
 
-                $source = reset($versions);
+                $force_data_sync = true;
 
-                $this->log("Migrating $mode");
+            }
 
-                do {
+        }else{
 
-                    $ver = key($versions);
+            $this->log("Migrating to version '$version'.");
 
-                    /**
-                     * Break out once we get to the end of versions
-                     */
-                    if(($mode == 'up' && ($ver > $version || $ver <= $current_version))
-                        || ($mode == 'down' && ($ver <= $version || $ver > $current_version)))
-                        continue;
+            $applied_versions = array_keys($this->dbi->schema_info->collate('version', 'version'));
+
+            //Compare known versions with the versions applied to the database and get a list of missing versions less than the requested version
+            $missing_versions = array_filter(array_diff(array_keys($versions), $applied_versions), function ($v) use($version) { return $v <= $version; });
+
+            if(($count = count($missing_versions)) > 0)
+                $this->log("Found $count missing versions that will get replayed.");
+
+            $migrations = array_combine($missing_versions, array_fill(0, count($missing_versions), 'up'));
+
+            ksort($migrations);
+            
+            if($version < $current_version){
+
+                $down_migrations = array();
+
+                foreach($versions as $ver => $info){
+
+                    if($ver > $version && $ver <= $current_version && in_array($ver, $applied_versions))
+                        $down_migrations[$ver] = 'down';
+
+                }
+
+                krsort($down_migrations);
+
+                $migrations = $migrations + $down_migrations;
+
+            }
+            
+            if(count($migrations) === 0){
+
+                $this->log('Nothing to do!');
+
+            }else{
+
+                foreach($migrations as $ver => $mode){
+
+                    $source = $versions[$ver];
 
                     if($mode == 'up'){
 
@@ -1403,8 +1410,11 @@ class Manager {
 
                     }
 
-                    if(!($current_schema = json_decode($source->get_contents(), true)))
+                    if(!($current_schema = $source->parseJSON(true)))
                         throw new \Hazaar\Exception("Unable to parse the migration file.  Bad JSON?");
+
+                    if(!array_key_exists($mode, $current_schema))
+                        continue;
 
                     try{
 
@@ -1456,7 +1466,7 @@ class Manager {
                     $force_data_sync = true;
 
             }
-
+            
         }
 
         if(!$test)
@@ -1806,7 +1816,18 @@ class Manager {
 
     }
 
-    private function replayItems($type, $action, $items, $test = false){
+    private function replayItems($type, $action, $items, $test = false, $do_pks_first = true){
+
+        //Replay primary key constraints first!
+        if($type === 'constraint' && $do_pks_first === true){
+
+            $pk_items = array_filter($items, function($i){ return $i['type'] === 'PRIMARY KEY'; });
+
+            $this->replayItems($type, $action, $pk_items, $test, false);
+
+            $items = array_filter($items, function($i){ return $i['type'] !== 'PRIMARY KEY'; });
+
+        }
 
         foreach($items as $item_name => $item){
 
@@ -2054,7 +2075,7 @@ class Manager {
             }
 
             if($this->dbi->errorCode() > 0)
-                throw new \Hazaar\Exception($this->dbi->errorInfo()[2]);
+                throw new \Hazaar\Exception(ake($this->dbi->errorInfo(), 2));
 
         }
 
