@@ -2318,7 +2318,7 @@ class Manager {
             if($col === null) continue;
 
             if(substr($tableDef[$name]['data_type'], 0, 4) === 'json')
-                $col = json_encode($col);
+                $col = array('$json' => $col);
             elseif(is_array($col))
                 $col = array('$array' => $col);
 
