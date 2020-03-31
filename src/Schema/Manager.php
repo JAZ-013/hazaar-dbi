@@ -71,7 +71,7 @@ class Manager {
 
                 while($file = $dir->read()){
 
-                    if(!($file->extension() === 'json' && preg_match('/(\d*)_(\w*)/', $file->name(), $matches)))
+                    if(!($file->extension() === 'json' && preg_match('/^(\d+)_(\w+)$/', $file->name(), $matches)))
                         continue;
 
                     $version = $matches[1];
