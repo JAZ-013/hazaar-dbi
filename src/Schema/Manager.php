@@ -210,6 +210,15 @@ class Manager {
 
     public function getSchema($version = null){
 
+        $table_map = array(
+            'table' => array('tables', 'cols'), 
+            'view' => array('views', true),
+            'constraint' => 'constraints',
+            'index' => 'indexes',
+            'function' => 'functions',
+            'trigger' => 'triggers'
+        );
+
         $schema = array('version' => 0);
 
         /**
@@ -226,58 +235,39 @@ class Manager {
 
             foreach($migrate['up'] as $type => $actions){
 
-                if($type === 'table'){
+                if(!($map = ake($table_map, $type)))
+                    continue;
 
-                    if(!array_key_exists('tables', $schema))
-                        $schema['tables'] = array();
+                $elem = is_array($map) ? ake($map, 0) : $map;
+
+                if(!array_key_exists($elem, $schema))
+                        $schema[$elem] = array();
+
+                if(is_array($map) && ($source = ake($map, 1))){
 
                     foreach($actions as $action => $items){
 
                         foreach($items as $item){
 
                             if($action === 'create')
-                                $schema['tables'][$item['name']] = $item['cols'];
-                            if($action === 'remove')
-                                unset($schema['tables'][$item]);
+                                $schema[$elem][$item['name']] = ($source === true) ? $item : $item[$source];
+                            elseif($action === 'remove')
+                                unset($schema[$elem][$item]);
 
                         }
 
                     }
 
-                }elseif($type === 'constraint'){
+                }else{
 
-                    if(!array_key_exists('constraints', $schema))
-                        $schema['constraints'] = array();
-                    
                     foreach($actions as $action => $items){
 
-                        foreach($items as $name => $item){
-
-                            if(!array_key_exists($item['table'], $schema['constraints']))
-                                $schema['constraints'][$item['table']] = array();
+                        foreach($items as $item){
 
                             if($action === 'create')
-                                $schema['constraints'][$item['table']][$item['name']] = $item;
-                            if($action === 'remove')
-                                unset($schema['constraints'][$item['table']][$item['name']]);
-
-                        }
-
-                    }
-
-                }elseif($type === 'view'){
-
-                    if(!array_key_exists('views', $schema))
-                        $schema['views'] = array();
-                    
-                    foreach($actions as $action => $items){
-
-                        foreach($items as $name => $item){
-
-                            if($action === 'create')
-                                $schema['views'][$item['name']] = $item;
-                            if($action === 'remove')
-                                unset($schema['views'][$item['name']]);
+                                $schema[$elem][$item['table']][$item['name']] = $item;
+                            elseif($action === 'remove')
+                                unset($schema[$elem][$item['table']][$item['name']]);
 
                         }
 
@@ -292,6 +282,13 @@ class Manager {
         }
 
         return $schema;
+
+    }
+
+    public function truncate(){
+
+        foreach($this->dbi->listTables() as $table)
+            $this->dbi->dropTable($table['schema'] . '.' . $table['name'], true);
 
     }
 
@@ -384,8 +381,6 @@ class Manager {
          * Load the existing stored schema to use for comparison
          */
         $schema = $this->getSchema();
-
-        dump($schema);
 
         if($schema){
 
