@@ -170,7 +170,15 @@ class Manager {
              */
             if(($old_column = $this->getColumn($col['name'], $old)) !== null){
 
-                $column_diff = array_diff_assoc($col, $old_column);
+                $column_diff = array();
+                
+                foreach($col as $key => $value){
+
+                    if((array_key_exists($key, $old_column) && $value !== $old_column[$key])
+                    || (!array_key_exists($key, $old_column) && $value !== null))
+                        $column_diff[$key] = $value;
+
+                }
 
                 if(count($column_diff) > 0){
 
@@ -230,7 +238,7 @@ class Manager {
 
             $migrate = $file->parseJSON(true);
 
-            if(!array_key_exists('up', $migrate))
+            if(!($migrate && array_key_exists('up', $migrate)))
                 continue;
 
             foreach($migrate['up'] as $type => $actions){
@@ -1115,70 +1123,81 @@ class Manager {
 
         //END PROCESSING TRIGGERS
 
-        $this->log('*** SNAPSHOT SUMMARY ***');
+        try{
 
-        array_remove_empty($changes);
+            $this->log('*** SNAPSHOT SUMMARY ***');
 
-        //If there are no changes, bail out now
-        if(!(count(ake($changes, 'up', array())) + count(ake($changes, 'down', array()))) > 0){
+            array_remove_empty($changes);
 
-            $this->log('No changes detected.');
+            //If there are no changes, bail out now
+            if(!(count(ake($changes, 'up', array())) + count(ake($changes, 'down', array()))) > 0){
 
-            $this->dbi->rollback();
+                $this->log('No changes detected.');
 
-            return false;
+                $this->dbi->rollback();
+
+                return false;
+
+            }
+
+            if(array_key_exists('up', $changes)){
+
+                $tokens = array('create' => '+', 'alter' => '>', 'remove' => '-');
+
+                foreach($changes['up'] as $type => $methods)
+                    foreach($methods as $method => $actions)
+                        $this->log($tokens[$method] . ' ' . ucfirst($method) . ' ' . $type . ' count: ' . count($actions));
+
+            }
+
+            //If we are testing, then return the diff between the previous schema version
+            if($test)
+                return ake($changes,'up');
+
+            /**
+             * Save the migrate diff file
+             */
+            if(!file_exists($this->migrate_dir)){
+
+                $this->log('Migration directory does not exist.  Creating.');
+
+                mkdir($this->migrate_dir);
+
+            }
+
+            $migrate_file = $this->migrate_dir . '/' . $version . '_' . str_replace(' ', '_', trim($comment)) . '.json';
+
+            $this->log("Writing migration file to '$migrate_file'");
+
+            if(!\is_writable($migrate_file))
+                throw new \Exception('Migration file is not writable!');
+
+            file_put_contents($migrate_file, json_encode($changes, JSON_PRETTY_PRINT));
+
+            /**
+             * Merge in static schema elements (like data) and save the current schema file
+             */
+            if($data = ake($schema, 'data')){
+
+                $this->log("Merging schema data records into current schema");
+
+                $current_schema['data'] = $data;
+
+            }
+
+            $this->createInfoTable();
+
+            $this->dbi->insert('schema_info', array(
+                'version' => $version
+            ));
+
+            $this->dbi->commit();
+
+        }catch(\Throwable $e){
+
+            $this->log('Aborting: ' . $e->getMessage());
 
         }
-
-        if(array_key_exists('up', $changes)){
-
-            $tokens = array('create' => '+', 'alter' => '>', 'remove' => '-');
-
-            foreach($changes['up'] as $type => $methods)
-                foreach($methods as $method => $actions)
-                    $this->log($tokens[$method] . ' ' . ucfirst($method) . ' ' . $type . ' count: ' . count($actions));
-
-        }
-
-        //If we are testing, then return the diff between the previous schema version
-        if($test)
-            return ake($changes,'up');
-
-        /**
-         * Save the migrate diff file
-         */
-        if(!file_exists($this->migrate_dir)){
-
-            $this->log('Migration directory does not exist.  Creating.');
-
-            mkdir($this->migrate_dir);
-
-        }
-
-        $migrate_file = $this->migrate_dir . '/' . $version . '_' . str_replace(' ', '_', trim($comment)) . '.json';
-
-        $this->log("Writing migration file to '$migrate_file'");
-
-        file_put_contents($migrate_file, json_encode($changes, JSON_PRETTY_PRINT));
-
-        /**
-         * Merge in static schema elements (like data) and save the current schema file
-         */
-        if($data = ake($schema, 'data')){
-
-            $this->log("Merging schema data records into current schema");
-
-            $current_schema['data'] = $data;
-
-        }
-
-        $this->createInfoTable();
-
-        $this->dbi->insert('schema_info', array(
-            'version' => $version
-        ));
-
-        $this->dbi->commit();
 
         return true;
 
@@ -1357,7 +1376,7 @@ class Manager {
 
             $this->log("Migrating to version '$version'.");
 
-            $applied_versions = array_keys($this->dbi->schema_info->collate('version', 'version'));
+            $applied_versions = $this->dbi->schema_info->fetchAllColumn('version');
 
             //Compare known versions with the versions applied to the database and get a list of missing versions less than the requested version
             $missing_versions = array_filter(array_diff(array_keys($versions), $applied_versions), function ($v) use($version) { return $v <= $version; });
