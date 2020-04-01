@@ -1357,7 +1357,7 @@ class Manager {
 
             $this->log("Migrating to version '$version'.");
 
-            $applied_versions = array_keys($this->dbi->schema_info->collate('version', 'version'));
+            $applied_versions = $this->dbi->schema_info->fetchAllColumn('version');
 
             //Compare known versions with the versions applied to the database and get a list of missing versions less than the requested version
             $missing_versions = array_filter(array_diff(array_keys($versions), $applied_versions), function ($v) use($version) { return $v <= $version; });
