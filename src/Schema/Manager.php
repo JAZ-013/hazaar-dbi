@@ -170,7 +170,15 @@ class Manager {
              */
             if(($old_column = $this->getColumn($col['name'], $old)) !== null){
 
-                $column_diff = array_diff_assoc($col, $old_column);
+                $column_diff = array();
+                
+                foreach($col as $key => $value){
+
+                    if((array_key_exists($key, $old_column) && $value !== $old_column[$key])
+                    || (!array_key_exists($key, $old_column) && $value !== null))
+                        $column_diff[$key] = $value;
+
+                }
 
                 if(count($column_diff) > 0){
 
