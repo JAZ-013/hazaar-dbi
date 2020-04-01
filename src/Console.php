@@ -28,13 +28,16 @@ class Console extends \Hazaar\Console\Module {
 
         $this->db = new \Hazaar\DBI\Adapter();
 
-        $current = $this->db->getSchemaManager()->getVersion();
+        $manager = $this->db->getSchemaManager();
 
-        $versions = array('latest' => 'Latest Version') + $this->db->getSchemaManager()->getVersions();
+        $current = $manager->getVersion();
+
+        $versions = array('latest' => 'Latest Version') + $manager->getVersions();
 
         $this->view->version_info = array(
             'current' => ($current ? $current . ' - ' . ake($versions, $current, 'missing') : null),
-            'latest' => $this->db->getSchemaManager()->isLatest()
+            'latest' => $manager->isLatest(),
+            'updates' => $manager->getMissingVersions()
         );
 
     }

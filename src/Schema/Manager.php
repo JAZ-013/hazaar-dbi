@@ -45,6 +45,9 @@ class Manager {
 
     }
 
+    /**
+     * Returns the currently applied schema version
+     */
     public function getVersion(){
 
         if(!$this->dbi->schema_info->exists())
@@ -56,6 +59,9 @@ class Manager {
 
     }
 
+    /**
+     * Returns a list of available schema versions
+     */
     public function &getVersions($with_file_obj = false){
 
         if(!is_array($this->versions)){
@@ -97,6 +103,9 @@ class Manager {
 
     }
 
+    /**
+     * Returns the version number of the latest schema version
+     */
     public function getLatestVersion(){
 
         $versions = $this->getVersions();
@@ -107,9 +116,21 @@ class Manager {
 
     }
 
+    /**
+     * Boolean indicator for when the current schema version is the latest
+     */
     public function isLatest(){
 
         return $this->getLatestVersion() === $this->getVersion();
+
+    }
+
+    /**
+     * Boolean indicator for when there are migrations that have not been applied
+     */
+    public function hasUpdates(){
+
+        return count($this->getMissingVersions()) > 0;
 
     }
 

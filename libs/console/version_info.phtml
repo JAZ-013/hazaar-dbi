@@ -6,10 +6,10 @@
             <?=$this->current;?>
         </div>
         <?php
-        if($this->latest)
-            echo $this->html->div('Up to date')->class('label success');
+        if(($count = count($this->updates)) > 0)
+            echo $this->html->div('Update' . (($count > 1) ? 's': '') . ' available')->class('label warning');
         else
-            echo $this->html->div('Update available')->class('label warning');
+            echo $this->html->div('Up to date')->class('label success');
         ?>
 
     </div>
