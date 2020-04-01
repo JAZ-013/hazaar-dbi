@@ -1169,8 +1169,8 @@ class Manager {
 
             $this->log("Writing migration file to '$migrate_file'");
 
-            if(!\is_writable($migrate_file))
-                throw new \Exception('Migration file is not writable!');
+            if(!\is_writable($this->migrate_dir))
+                throw new \Exception('Migration directory is not writable!');
 
             file_put_contents($migrate_file, json_encode($changes, JSON_PRETTY_PRINT));
 
@@ -1200,6 +1200,19 @@ class Manager {
         }
 
         return true;
+
+    }
+
+    public function getMissingVersions($version = null, &$applied_versions = null){
+        
+        if($version === null)
+            $version = $this->getLatestVersion();
+
+        $applied_versions = $this->dbi->schema_info->fetchAllColumn('version');
+
+        $versions = $this->getVersions();
+
+        return array_filter(array_diff(array_keys($versions), $applied_versions), function ($v) use($version) { return $v <= $version; });
 
     }
 
@@ -1376,10 +1389,8 @@ class Manager {
 
             $this->log("Migrating to version '$version'.");
 
-            $applied_versions = $this->dbi->schema_info->fetchAllColumn('version');
-
             //Compare known versions with the versions applied to the database and get a list of missing versions less than the requested version
-            $missing_versions = array_filter(array_diff(array_keys($versions), $applied_versions), function ($v) use($version) { return $v <= $version; });
+            $missing_versions = $this->getMissingVersions($version, $applied_version);
 
             if(($count = count($missing_versions)) > 0)
                 $this->log("Found $count missing versions that will get replayed.");
