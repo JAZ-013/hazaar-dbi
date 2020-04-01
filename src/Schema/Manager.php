@@ -237,7 +237,7 @@ class Manager {
 
     }
 
-    public function getSchema($version = null){
+    public function getSchema($max_version = null){
 
         $table_map = array(
             'table' => array('tables', 'cols'), 
@@ -256,6 +256,9 @@ class Manager {
         $versions = $this->getVersions(true);
 
         foreach($versions as $version => $file){
+
+            if($max_version !== null && $version > $max_version)
+                break;
 
             $migrate = $file->parseJSON(true);
 
@@ -276,12 +279,60 @@ class Manager {
 
                     foreach($actions as $action => $items){
 
-                        foreach($items as $item){
+                        if($action === 'alter'){
 
-                            if($action === 'create')
-                                $schema[$elem][$item['name']] = ($source === true) ? $item : $item[$source];
-                            elseif($action === 'remove')
-                                unset($schema[$elem][$item]);
+                            foreach($items as $table => $alterations){
+
+                                foreach($alterations as $alt_action => $alt_columns){
+
+                                    if($alt_action === 'drop'){
+
+                                        $schema['tables'][$table] = array_filter($schema['tables'][$table], function($item) use($col_data){
+                                            return !in_array($item['name'], $col_data);
+                                        });
+
+                                    }else{
+
+                                        foreach($alt_columns as $col_name => $col_data){
+
+                                            if($alt_action === 'add'){
+
+                                                $schema['tables'][$table][] = $col_data;
+
+                                            }elseif($alt_action === 'alter'){
+
+                                                foreach($schema['tables'][$table] as &$col){
+
+                                                    if($col['name'] !== $col_name)
+                                                        continue;
+        
+                                                    $col = array_merge($col, $col_data);
+        
+                                                    break;
+        
+                                                }
+
+                                            }
+
+                                        }
+
+                                    }
+
+                                }
+
+                            }
+
+                        }else{
+
+                            foreach($items as $item){
+
+                                if($action === 'create')
+                                    $schema[$elem][$item['name']] = ($source === true) ? $item : $item[$source];
+                                elseif($action === 'remove')
+                                    unset($schema[$elem][$item]);
+                                else throw new \Exception("I don't know how to handle: $action");
+
+                            }
 
                         }
 
@@ -293,10 +344,11 @@ class Manager {
 
                         foreach($items as $item){
 
-                            if($action === 'create')
+                            if($action === 'create' || $action === 'alter')
                                 $schema[$elem][$item['table']][$item['name']] = $item;
                             elseif($action === 'remove')
                                 unset($schema[$elem][$item['table']][$item['name']]);
+                            else throw new \Exception("I don't know how to handle: $action");
 
                         }
 
@@ -1411,7 +1463,7 @@ class Manager {
             $this->log("Migrating to version '$version'.");
 
             //Compare known versions with the versions applied to the database and get a list of missing versions less than the requested version
-            $missing_versions = $this->getMissingVersions($version, $applied_version);
+            $missing_versions = $this->getMissingVersions($version, $applied_versions);
 
             if(($count = count($missing_versions)) > 0)
                 $this->log("Found $count missing versions that will get replayed.");
