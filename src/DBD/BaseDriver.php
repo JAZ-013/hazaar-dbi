@@ -935,7 +935,6 @@ abstract class BaseDriver implements Driver_Interface {
 
             $columns[] = array(
                 'name' => $col['column_name'],
-                'ordinal_position' => $col['ordinal_position'],
                 'default' => $this->fixValue($col['column_default']),
                 'not_null' => (($col['is_nullable'] == 'NO') ? TRUE : FALSE),
                 'data_type' => $this->type($col),
