@@ -29,11 +29,13 @@ class Manager {
 
     static public $schema_info_table = 'schema_info';
 
-    private $ignore_tables = array('schema_info', 'hz_file', 'hz_file_chunk');
+    private $ignore_tables = array('hz_file', 'hz_file_chunk');
 
     private $versions = null;
 
     function __construct(Adapter $dbi){
+
+        $this->ignore_tables[] = self::$schema_info_table;
 
         $this->dbi = $dbi;
 
@@ -50,10 +52,10 @@ class Manager {
      */
     public function getVersion(){
 
-        if(!$this->dbi->schema_info->exists())
+        if(!$this->dbi->table(self::$schema_info_table)->exists())
             return false;
 
-        $result = $this->dbi->schema_info->findOne(array(), array('version' => "max(version)"));
+        $result = $this->dbi->table(self::$schema_info_table)->findOne(array(), array('version' => "max(version)"));
 
         return ake($result, 'version', false);
 
@@ -344,21 +346,58 @@ class Manager {
 
                         foreach($items as $item){
 
-                            if($action === 'create' || $action === 'alter')
-                                $schema[$elem][$item['table']][$item['name']] = $item;
-                            elseif($action === 'remove')
-                                unset($schema[$elem][$item['table']][$item['name']]);
-                            else throw new \Exception("I don't know how to handle: $action");
+                            if(is_string($item)){
+                                
+                                //String-only items are only ever remove actions.
+                                if($action === 'remove'){
+
+                                    foreach($schema[$elem] as $table_name => &$table_item){
+
+                                        if(!array_key_exists($item, $table_item))
+                                            continue;
+
+                                        unset($table_item[$item]);
+
+                                        break;
+
+                                    }
+
+                                }
+
+                            }elseif(array_key_exists('table', $item)){
+
+                                if($action === 'create' || $action === 'alter')
+                                    $schema[$elem][$item['table']][$item['name']] = $item;
+                                elseif($action === 'remove')
+                                    unset($schema[$elem][$item['table']][$item['name']]);
+                                else throw new \Exception("I don't know how to handle: $action");
+
+                            }else{
+
+                                if($action === 'create' || $action === 'alter')
+                                    $schema[$elem][$item['name']][] = $item;
+                                else throw new \Exception("I don't know how to handle: $action");
+
+                            }
 
                         }
 
                     }
+
+                    $schema[$elem] = array_filter($schema[$elem], function($item){
+                        return count($item) > 0;
+                    });
 
                 }
 
             }
 
             $schema['version'] = $version;
+
+            //Remove any empty stuff
+            $schema = array_filter($schema, function($item){
+                return !is_array($item) || count($item) > 0;
+            });
 
         }
 
@@ -495,7 +534,15 @@ class Manager {
         /**
          * Stores the schema as it currently exists in the database
          */
-        $current_schema = array('version' => $version);
+        $current_schema = array(
+            'version' => $version,
+            'tables' => array(),
+            'constraints' => array(),
+            'indexes' => array(),
+            'functions' => array(),
+            'views' => array(),
+            'triggers' => array()
+        );
 
         /**
          * Stores only changes between $schema and $current_schema.  Here we define all possible elements
@@ -660,14 +707,8 @@ class Manager {
             //BEGIN PROCESSING CONSTRAINTS
             $constraints = $this->dbi->listConstraints($name);
 
-            if(count($constraints) > 0){
-
-                if(!array_key_exists('constraints', $current_schema))
-                    $current_schema['constraints'] = array();
-
+            if(count($constraints) > 0)
                 $current_schema['constraints'][$name] =  $constraints;
-
-            }
 
             if(array_key_exists('constraints', $schema) && array_key_exists($name, $schema['constraints'])){
 
@@ -1055,7 +1096,11 @@ class Manager {
 
                 if(array_key_exists('functions', $schema)
                     && array_key_exists($name, $schema['functions'])
-                && count($ex_info = array_filter($schema['functions'][$name], function($item) use($info){
+                && count($ex_info = array_filter($schema['functions'][$name], function(&$item) use($info){
+                        if(!array_key_exists('parameters', $item)){
+                            if(!array_key_exists('parameters', $info) || count($info['parameters']) === 0) return true;
+                            $item['parameters'] = array();
+                        }
                         if(count($item['parameters']) !== count($info['parameters'])) return false;
                         foreach($item['parameters'] as $i => $p)
                             if(!(array_key_exists($i, $info['parameters']) && $info['parameters'][$i]['type'] === $p['type']))
@@ -1066,6 +1111,9 @@ class Manager {
                     $this->log("Function '$fullname' already exists.  Checking differences.");
 
                     foreach($ex_info as $e){
+
+                        if(!array_key_exists('parameters', $e))
+                            $e['parameters'] = array();
 
                         $diff = array_diff_assoc_recursive($info, $e);
 
@@ -1101,6 +1149,9 @@ class Manager {
         }
 
         if(array_key_exists('functions', $schema)){
+
+            if(!array_key_exists('functions', $current_schema))
+                $current_schema['functions'] = array();
 
             $missing = array_diff(array_keys($schema['functions']), array_keys($current_schema['functions']));
 
@@ -1260,7 +1311,7 @@ class Manager {
 
             $this->createInfoTable();
 
-            $this->dbi->insert('schema_info', array(
+            $this->dbi->insert(self::$schema_info_table, array(
                 'version' => $version
             ));
 
@@ -1281,7 +1332,10 @@ class Manager {
         if($version === null)
             $version = $this->getLatestVersion();
 
-        $applied_versions = $this->dbi->schema_info->fetchAllColumn('version');
+        $applied_versions = array();
+        
+        if($this->dbi->table(self::$schema_info_table)->exists())
+            $applied_versions = $this->dbi->table(self::$schema_info_table)->fetchAllColumn('version');
 
         $versions = $this->getVersions();
 
@@ -1388,9 +1442,9 @@ class Manager {
         /**
          * Get the current version (if any) from the database
          */
-        if($this->dbi->tableExists('schema_info')){
+        if($this->dbi->tableExists(self::$schema_info_table)){
 
-            if($result = $this->dbi->table('schema_info')->find(array(), array('version'))->sort('version', true)){
+            if($result = $this->dbi->table(self::$schema_info_table)->find(array(), array('version'))->sort('version', true)){
 
                 if($row = $result->fetch()){
 
@@ -1448,7 +1502,7 @@ class Manager {
                     if($this->createSchema($schema, $test, $keep_tables)){
 
                         foreach($versions as $ver => $name)
-                            $this->dbi->insert('schema_info', array('version' => $ver));
+                            $this->dbi->insert(self::$schema_info_table, array('version' => $ver));
 
                     }
 
@@ -1536,14 +1590,14 @@ class Manager {
                             $this->log('Inserting version record: ' . $ver);
 
                             if(!$test)
-                                $this->dbi->insert('schema_info', array('version' => $ver));
+                                $this->dbi->insert(self::$schema_info_table, array('version' => $ver));
 
                         }elseif($mode == 'down'){
 
                             $this->log('Removing version record: ' . $ver);
 
                             if(!$test)
-                                $this->dbi->delete('schema_info', array('version' => $ver));
+                                $this->dbi->delete(self::$schema_info_table, array('version' => $ver));
 
                         }
 
@@ -2178,7 +2232,7 @@ class Manager {
             }
 
             if($this->dbi->errorCode() > 0)
-                throw new \Hazaar\Exception(ake($this->dbi->errorInfo(), 2));
+                    throw new \Hazaar\Exception(ake($this->dbi->errorInfo(), 2));
 
         }
 
