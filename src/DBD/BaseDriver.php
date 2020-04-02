@@ -1028,7 +1028,7 @@ abstract class BaseDriver implements Driver_Interface {
 
         if (array_key_exists('data_type', $column_spec)){
 
-            $alter_type = $prefix . " TYPE " . $this->type($column_spec) . ((array_key_exists('length', $column_spec) && $column_spec['length'] > 0) ? '(' . $column_spec['length'] . ')' : NULL);
+            $alter_type = $prefix . " TYPE " . $this->type($column_spec);
 
             if (array_key_exists('using', $column_spec))
                 $alter_type .= ' USING ' . $column_spec['using'];

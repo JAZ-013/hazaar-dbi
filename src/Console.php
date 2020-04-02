@@ -74,7 +74,7 @@ class Console extends \Hazaar\Console\Module {
 
                 $log = $this->db->getSchemaManager()->getMigrationLog();
 
-                $log[] = array('time' => time(), 'msg' => 'ERROR: ' . $e->getMessage() . ' in file ' . $e->getFile() . ' on line #' . $e->getLine() . '.');
+                $log[] = array('time' => time(), 'msg' => $e->getMessage() . ' in file ' . $e->getFile() . ' on line #' . $e->getLine() . '.');
 
             }
 
