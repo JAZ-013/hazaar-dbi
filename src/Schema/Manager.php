@@ -33,6 +33,15 @@ class Manager {
 
     private $versions = null;
 
+    static private $table_map = array(
+        'table' => array('tables', 'cols'), 
+        'view' => array('views', true),
+        'constraint' => 'constraints',
+        'index' => 'indexes',
+        'function' => 'functions',
+        'trigger' => 'triggers'
+    );
+
     function __construct(Adapter $dbi){
 
         $this->ignore_tables[] = self::$schema_info_table;
@@ -241,16 +250,10 @@ class Manager {
 
     public function getSchema($max_version = null){
 
-        $table_map = array(
-            'table' => array('tables', 'cols'), 
-            'view' => array('views', true),
-            'constraint' => 'constraints',
-            'index' => 'indexes',
-            'function' => 'functions',
-            'trigger' => 'triggers'
-        );
-
         $schema = array('version' => 0);
+
+        foreach(self::$table_map as $i)
+            $schema[(is_array($i) ? $i[0] : $i)] = array();
 
         /**
          * Get a list of all the available versions
@@ -267,19 +270,33 @@ class Manager {
             if(!($migrate && array_key_exists('up', $migrate)))
                 continue;
 
-            foreach($migrate['up'] as $type => $actions){
+            foreach($migrate['up'] as $level1 => $actions){
 
-                if(!($map = ake($table_map, $type)))
-                    continue;
+                foreach($actions as $level2 => $items){
 
-                $elem = is_array($map) ? ake($map, 0) : $map;
+                    if(array_key_exists($level1, self::$table_map)){
 
-                if(!array_key_exists($elem, $schema))
+                        $type = $level1;
+
+                        $action = $level2;
+
+                    }else{
+
+                        $type = $level2;
+
+                        $action = $level1;
+
+                    }
+
+                    if(!($map = ake(self::$table_map, $type)))
+                        continue 2;
+
+                    $elem = is_array($map) ? ake($map, 0) : $map;
+
+                    if(!array_key_exists($elem, $schema))
                         $schema[$elem] = array();
 
-                if(is_array($map) && ($source = ake($map, 1))){
-
-                    foreach($actions as $action => $items){
+                    if(is_array($map) && ($source = ake($map, 1))){
 
                         if($action === 'alter'){
 
@@ -289,9 +306,23 @@ class Manager {
 
                                     if($alt_action === 'drop'){
 
-                                        $schema['tables'][$table] = array_filter($schema['tables'][$table], function($item) use($col_data){
-                                            return !in_array($item['name'], $col_data);
+                                        $schema['tables'][$table] = array_filter($schema['tables'][$table], function($item) use($alt_columns){
+                                            return !in_array($item['name'], $alt_columns);
                                         });
+
+                                        if($type === 'table'){
+
+                                            if(array_key_exists($table, $schema['constraints']))
+                                                $schema['constraints'][$table] = array_filter($schema['constraints'][$table], function($item) use($alt_columns){
+                                                    return !in_array($item['column'], $alt_columns);
+                                                });
+
+                                            if(array_key_exists($table, $schema['indexes']))
+                                                $schema['indexes'][$table] = array_filter($schema['indexes'][$table], function($item) use($alt_columns){
+                                                    return array_intersect($item['columns'], $alt_columns) === 0;
+                                                });
+
+                                        }
 
                                     }else{
 
@@ -301,13 +332,29 @@ class Manager {
 
                                                 $schema['tables'][$table][] = $col_data;
 
-                                            }elseif($alt_action === 'alter'){
+                                            }elseif($alt_action === 'alter' && array_key_exists($table, $schema['tables'])){
 
                                                 foreach($schema['tables'][$table] as &$col){
 
                                                     if($col['name'] !== $col_name)
                                                         continue;
         
+                                                    //If we are renaming the column, we need to update index and constraints
+                                                    if(array_key_exists('name', $col_data) && $col['name'] !== $col_data['name']){
+
+                                                        if(array_key_exists($table, $schema['constraints']))
+                                                            array_walk($schema['constraints'][$table], function(&$item) use($col_name, $col_data){
+                                                                if($item['column'] === $col_name) $item['column'] = $col_data['name'];
+                                                            });
+
+                                                        if(array_key_exists($table, $schema['indexes']))
+                                                            array_walk($schema['indexes'][$table], function(&$item) use($col_name, $col_data){
+                                                                if(in_array($col_name, $item['columns']))
+                                                                    $item['columns'][array_search($col_name, $item['columns'])] = $col_data['name'];
+                                                            });
+
+                                                    }
+
                                                     $col = array_merge($col, $col_data);
         
                                                     break;
@@ -330,19 +377,27 @@ class Manager {
 
                                 if($action === 'create')
                                     $schema[$elem][$item['name']] = ($source === true) ? $item : $item[$source];
-                                elseif($action === 'remove')
+                                elseif($action === 'remove'){
+
                                     unset($schema[$elem][$item]);
-                                else throw new \Exception("I don't know how to handle: $action");
+
+                                    if($type === 'table'){
+
+                                        if(isset($schema['constraints'][$item]))
+                                            unset($schema['constraints'][$item]);
+                                     
+                                        if(isset($schema['indexes'][$item]))
+                                            unset($schema['indexes'][$item]);
+
+                                    }
+
+                                }else throw new \Exception("I don't know how to handle: $action");
 
                             }
 
                         }
 
-                    }
-
-                }else{
-
-                    foreach($actions as $action => $items){
+                    }else{
 
                         foreach($items as $item){
 
@@ -382,11 +437,11 @@ class Manager {
 
                         }
 
-                    }
+                        $schema[$elem] = array_filter($schema[$elem], function($item){
+                            return count($item) > 0;
+                        });
 
-                    $schema[$elem] = array_filter($schema[$elem], function($item){
-                        return count($item) > 0;
-                    });
+                    }
 
                 }
 
@@ -549,7 +604,6 @@ class Manager {
          * to ensure the correct ordering.  Later we remove all empty elements before saving the migration file.
          */
         $changes = array(
-            "version" => 2,
             'up' => array(
                 'table' => array(
                     'create' => array(),
@@ -1460,7 +1514,7 @@ class Manager {
 
         $this->log('Starting database migration process.');
 
-        if($current_version === 0 && $version === $latest_version){
+        if($current_version === 0){
 
             /**
              * This section sets up the database using the existing schema without migration replay.
@@ -1501,7 +1555,9 @@ class Manager {
 
                     if($this->createSchema($schema, $test, $keep_tables)){
 
-                        foreach($versions as $ver => $name)
+                        $missing_versions = $this->getMissingVersions($version);
+
+                        foreach($missing_versions as $ver)
                             $this->dbi->insert(self::$schema_info_table, array('version' => $ver));
 
                     }
@@ -1577,7 +1633,7 @@ class Manager {
 
                         $this->dbi->beginTransaction();
 
-                        if($this->replay($current_schema[$mode], $test, ake($current_schema, 'version', 1)) !== true){
+                        if($this->replay($current_schema[$mode], $test) !== true){
 
                             $this->dbi->rollBack();
 
@@ -1906,7 +1962,7 @@ class Manager {
      * @param array $schema
      *            The JSON decoded schema to replay.
      */
-    private function replay($schema, $test = false, $version = 1){
+    private function replay($schema, $test = false){
 
         foreach($schema as $level1 => $data){
 
@@ -1956,10 +2012,10 @@ class Manager {
 
                     foreach($data as $level2 => $items){
 
-                        if($version === 1)
-                            $this->replayItems($level2, $level1, $items, $test);
-                        elseif($version === 2)
+                        if(array_key_exists($level1, self::$table_map))
                             $this->replayItems($level1, $level2, $items, $test);
+                        elseif(array_key_exists($level2, self::$table_map))
+                            $this->replayItems($level2, $level1, $items, $test);
                         else
                             throw new \Hazaar\Exception('Unsupported schema migration version: ' . $version);
 
@@ -1976,7 +2032,7 @@ class Manager {
     private function replayItems($type, $action, $items, $test = false, $do_pks_first = true){
 
         //Replay primary key constraints first!
-        if($type === 'constraint' && $do_pks_first === true){
+        if($type === 'constraint' && $action === 'create' && $do_pks_first === true){
 
             $pk_items = array_filter($items, function($i){ return $i['type'] === 'PRIMARY KEY'; });
 
