@@ -35,7 +35,8 @@ class Console extends \Hazaar\Console\Module {
         $versions = array('latest' => 'Latest Version') + $manager->getVersions();
 
         $this->view->version_info = array(
-            'current' => ($current ? $current . ' - ' . ake($versions, $current, 'missing') : null),
+            'current' => ($current ? $current . ' - ' . ake($versions, $current, 'missing') : 'Not Managed'),
+            'managed' => ($current !== false),
             'latest' => $manager->isLatest(),
             'updates' => $manager->getMissingVersions()
         );

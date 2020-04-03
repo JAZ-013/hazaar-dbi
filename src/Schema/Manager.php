@@ -132,6 +132,9 @@ class Manager {
      */
     public function isLatest(){
 
+        if(($version = $this->getVersion()) === false)
+            return false;
+
         return $this->getLatestVersion() === $this->getVersion();
 
     }
@@ -456,6 +459,9 @@ class Manager {
 
         }
 
+        if($schema['version'] === 0)
+            return false;
+
         return $schema;
 
     }
@@ -573,6 +579,8 @@ class Manager {
             $this->log('No existing schema.  Creating initial snapshot.');
 
             $init = true;
+
+            $schema = array();
 
         }
 
