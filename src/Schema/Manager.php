@@ -1121,10 +1121,7 @@ class Manager {
 
                     $changes['up']['view']['remove'][] = $view;
 
-                    $changes['down']['view']['create'][] = array(
-                        'name' => $view,
-                        'cols' => $schema['views'][$view]
-                    );
+                    $changes['down']['view']['create'][] = $schema['views'][$view];
 
                 }
 
