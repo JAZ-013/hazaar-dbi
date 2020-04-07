@@ -402,7 +402,7 @@ class Manager {
 
                     }else{
 
-                        foreach($items as $item){
+                        foreach($items as $item_name => $item){
 
                             if(is_string($item)){
                                 
@@ -422,6 +422,30 @@ class Manager {
 
                                 }
 
+                                //Functions removed are a bit different as we have to look at parameters.
+                            }elseif($type === 'function' && $action === 'remove'){
+
+                                if(array_key_exists($item_name, $schema[$elem])){
+
+                                    foreach($item as $params){
+
+                                        //Find the existing function and remove it
+                                        foreach($schema[$elem][$item_name] as $index => $func){
+
+                                            $c_params = array_map(function($item){
+                                                return ake($item, 'type');
+                                            }, ake($func, 'parameters'));
+                                        
+                                            //We do an array_diff_assoc so that parameter position is taken into account
+                                            if(count(array_diff_assoc($params, $c_params)) === 0 && count(array_diff_assoc($c_params, $params)) === 0)
+                                                unset($schema[$elem][$item_name][$index]);
+
+                                        }
+
+                                    }
+
+                                }
+                                
                             }elseif(array_key_exists('table', $item)){
 
                                 if($action === 'create' || $action === 'alter')
@@ -1212,20 +1236,63 @@ class Manager {
             if(!array_key_exists('functions', $current_schema))
                 $current_schema['functions'] = array();
 
-            $missing = array_diff(array_keys($schema['functions']), array_keys($current_schema['functions']));
+            $missing = array();
+            
+            foreach($schema['functions'] as $func_name => $func_instances){
+
+                $missing_func = null;
+
+                foreach($func_instances as $func){
+
+                    if(array_key_exists($func_name, $current_schema['functions'])
+                        && is_array($current_schema['functions'])
+                        && count($current_schema['functions']) > 0){
+
+                        $p1 = ake($func, 'parameters', array());
+
+                        foreach($current_schema['functions'][$func_name] as $c_func){
+
+                            $p2 = ake($c_func, 'parameters', array());
+
+                            if(count(array_diff_assoc_recursive($p1, $p2)) === 0 
+                                && count(array_diff_assoc_recursive($p2, $p1)) === 0)
+                                continue 2;
+
+                        };
+
+                    }
+
+                    if(!array_key_exists($func_name, $missing))
+                        $missing[$func_name] = array();
+
+                    $missing[$func_name][] = $func;
+
+                }
+
+            }
 
             if(count($missing) > 0){
 
-                foreach($missing as $func){
+                foreach($missing as $func_name => $func_instances){
 
-                    $this->log("- Function '$func' has been removed.");
+                    foreach($func_instances as $func){
 
-                    $changes['up']['function']['remove'][] = $func;
+                        $params = array();
 
-                    $changes['down']['function']['create'][] = array(
-                        'name' => $func,
-                        'cols' => $schema['functions'][$func]
-                    );
+                        foreach(ake($func, 'parameters', array()) as $param) $params[] = $param['type'];
+
+                        $func_full_name = $func_name . '(' . implode(', ', $params) . ')';
+
+                        $this->log("- Function '$func_full_name' has been removed.");
+
+                        $changes['up']['function']['remove'][$func_name][] = $params;
+
+                        if(!array_key_exists($func_name, $changes['down']['function']['create']))
+                            $changes['down']['function']['create'][$func_name] = array();
+
+                        $changes['down']['function']['create'][] = $func;
+
+                    }
 
                 }
 
@@ -2157,14 +2224,16 @@ class Manager {
 
                     }elseif($type === 'function'){
 
-                        $params = ake($item, 'parameters', array());
+                        foreach($item as $params){
 
-                        $this->log("- Removing function '{$item['name']}(" . implode(', ', $params) . ').');
+                            $this->log("- Removing function '{$item_name}(" . implode(', ', $params) . ').');
 
-                        if($test)
-                            break;
+                            if($test)
+                                continue;
 
-                        $this->dbi->dropFunction($item['name'], $params);
+                            $this->dbi->dropFunction($item_name, $params);
+
+                        }
 
                     }elseif($type === 'trigger'){
 
