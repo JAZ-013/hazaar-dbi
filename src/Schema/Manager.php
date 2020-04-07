@@ -402,7 +402,7 @@ class Manager {
 
                     }else{
 
-                        foreach($items as $item){
+                        foreach($items as $item_name => $item){
 
                             if(is_string($item)){
                                 
@@ -422,6 +422,30 @@ class Manager {
 
                                 }
 
+                                //Functions removed are a bit different as we have to look at parameters.
+                            }elseif($type === 'function' && $action === 'remove'){
+
+                                if(array_key_exists($item_name, $schema[$elem])){
+
+                                    foreach($item as $params){
+
+                                        //Find the existing function and remove it
+                                        foreach($schema[$elem][$item_name] as $index => $func){
+
+                                            $c_params = array_map(function($item){
+                                                return ake($item, 'type');
+                                            }, ake($func, 'parameters'));
+                                        
+                                            //We do an array_diff_assoc so that parameter position is taken into account
+                                            if(count(array_diff_assoc($params, $c_params)) === 0 && count(array_diff_assoc($c_params, $params)) === 0)
+                                                unset($schema[$elem][$item_name][$index]);
+
+                                        }
+
+                                    }
+
+                                }
+                                
                             }elseif(array_key_exists('table', $item)){
 
                                 if($action === 'create' || $action === 'alter')
