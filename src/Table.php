@@ -773,8 +773,6 @@ class Table {
      */
     public function collate($index_column, $value_column, $group_column = null){
 
-        $this->select($index_column, (($index_column !== $value_column) ? $value_column : null));
-
         return array_collate($this->fetchAll(), $index_column, $value_column, $group_column);
 
     }
