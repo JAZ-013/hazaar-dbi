@@ -19,7 +19,9 @@ class Manager {
 
     private $dbi;
 
-    private $schema_file;
+    private $db_dir;
+
+    private $migrate_dir;
 
     private $data_file;
 
@@ -27,73 +29,97 @@ class Manager {
 
     static public $schema_info_table = 'schema_info';
 
-    private $ignore_tables = array('schema_info', 'hz_file', 'hz_file_chunk');
+    private $ignore_tables = array('hz_file', 'hz_file_chunk');
+
+    private $versions = null;
+
+    static private $table_map = array(
+        'table' => array('tables', 'cols'), 
+        'view' => array('views', true),
+        'constraint' => 'constraints',
+        'index' => 'indexes',
+        'function' => 'functions',
+        'trigger' => 'triggers'
+    );
 
     function __construct(Adapter $dbi){
 
+        $this->ignore_tables[] = self::$schema_info_table;
+
         $this->dbi = $dbi;
 
-        $this->schema_file = realpath(APPLICATION_PATH . DIRECTORY_SEPARATOR . '..')
-            . DIRECTORY_SEPARATOR . 'db' . DIRECTORY_SEPARATOR . 'schema.json';
+        $this->db_dir = realpath(APPLICATION_PATH . DIRECTORY_SEPARATOR . '..') . DIRECTORY_SEPARATOR . 'db';
 
-        $this->data_file = realpath(APPLICATION_PATH . DIRECTORY_SEPARATOR . '..')
-            . DIRECTORY_SEPARATOR . 'db' . DIRECTORY_SEPARATOR . 'data.json';
+        $this->migrate_dir = $this->db_dir . DIRECTORY_SEPARATOR . 'migrate';
+
+        $this->data_file = $this->db_dir . DIRECTORY_SEPARATOR . 'data.json';
 
     }
 
+    /**
+     * Returns the currently applied schema version
+     */
     public function getVersion(){
 
-        if(!$this->dbi->schema_info->exists())
+        if(!$this->dbi->table(self::$schema_info_table)->exists())
             return false;
 
-        $result = $this->dbi->schema_info->findOne(array(), array('version' => "max(version)"));
+        $result = $this->dbi->table(self::$schema_info_table)->findOne(array(), array('version' => "max(version)"));
 
         return ake($result, 'version', false);
 
     }
 
-    public function getVersions($with_file_obj = false){
+    /**
+     * Returns a list of available schema versions
+     */
+    public function &getVersions($with_file_obj = false){
 
-        $db_dir = dirname($this->schema_file);
+        if(!is_array($this->versions)){
 
-        $migrate_dir = $db_dir . '/migrate';
+            $this->versions = array(0 => array(), 1 => array());
 
-        $versions = array();
+            /**
+             * Get a list of all the available versions
+             */
+            $dir = new \Hazaar\File\Dir($this->migrate_dir);
 
-        /**
-         * Get a list of all the available versions
-         */
-        $dir = new \Hazaar\File\Dir($migrate_dir);
+            if($dir->exists()){
 
-        if($dir->exists()){
+                while($file = $dir->read()){
 
-            while($file = $dir->read()){
-
-                if(preg_match('/(\d*)_(\w*)/', $file, $matches)){
+                    if(!($file->extension() === 'json' && preg_match('/^(\d+)_(\w+)$/', $file->name(), $matches)))
+                        continue;
 
                     $version = $matches[1];
 
-                    if($with_file_obj)
-                        $versions[$version] = $file;
-
-                    else
-                        $versions[$version] = str_replace('_', ' ', $matches[2]);
+                    $this->versions[0][$version] = $file;
+                    
+                    $this->versions[1][$version] = str_replace('_', ' ', $matches[2]);
 
                 }
 
+                ksort($this->versions[0]);
+
+                ksort($this->versions[1]);
+
             }
 
-            ksort($versions);
-
         }
-
-        return $versions;
+        
+        if($with_file_obj)
+            return $this->versions[0];
+            
+        return $this->versions[1];
 
     }
 
-    public function getLatestVersion($with_file_obj = false){
+    /**
+     * Returns the version number of the latest schema version
+     */
+    public function getLatestVersion(){
 
-        $versions = $this->getVersions($with_file_obj);
+        $versions = $this->getVersions();
 
         end($versions);
 
@@ -101,9 +127,24 @@ class Manager {
 
     }
 
+    /**
+     * Boolean indicator for when the current schema version is the latest
+     */
     public function isLatest(){
 
+        if(($version = $this->getVersion()) === false)
+            return false;
+
         return $this->getLatestVersion() === $this->getVersion();
+
+    }
+
+    /**
+     * Boolean indicator for when there are migrations that have not been applied
+     */
+    public function hasUpdates(){
+
+        return count($this->getMissingVersions()) > 0;
 
     }
 
@@ -164,7 +205,15 @@ class Manager {
              */
             if(($old_column = $this->getColumn($col['name'], $old)) !== null){
 
-                $column_diff = array_diff_assoc($col, $old_column);
+                $column_diff = array();
+                
+                foreach($col as $key => $value){
+
+                    if((array_key_exists($key, $old_column) && $value !== $old_column[$key])
+                    || (!array_key_exists($key, $old_column) && $value !== null))
+                        $column_diff[$key] = $value;
+
+                }
 
                 if(count($column_diff) > 0){
 
@@ -199,6 +248,252 @@ class Manager {
         }
 
         return $diff;
+
+    }
+
+    public function getSchema($max_version = null){
+
+        $schema = array('version' => 0);
+
+        foreach(self::$table_map as $i)
+            $schema[(is_array($i) ? $i[0] : $i)] = array();
+
+        /**
+         * Get a list of all the available versions
+         */
+        $versions = $this->getVersions(true);
+
+        foreach($versions as $version => $file){
+
+            if($max_version !== null && $version > $max_version)
+                break;
+
+            $migrate = $file->parseJSON(true);
+
+            if(!($migrate && array_key_exists('up', $migrate)))
+                continue;
+
+            foreach($migrate['up'] as $level1 => $actions){
+
+                foreach($actions as $level2 => $items){
+
+                    if(array_key_exists($level1, self::$table_map)){
+
+                        $type = $level1;
+
+                        $action = $level2;
+
+                    }else{
+
+                        $type = $level2;
+
+                        $action = $level1;
+
+                    }
+
+                    if(!($map = ake(self::$table_map, $type)))
+                        continue 2;
+
+                    $elem = is_array($map) ? ake($map, 0) : $map;
+
+                    if(!array_key_exists($elem, $schema))
+                        $schema[$elem] = array();
+
+                    if(is_array($map) && ($source = ake($map, 1))){
+
+                        if($action === 'alter'){
+
+                            foreach($items as $table => $alterations){
+
+                                foreach($alterations as $alt_action => $alt_columns){
+
+                                    if($alt_action === 'drop'){
+
+                                        $schema['tables'][$table] = array_filter($schema['tables'][$table], function($item) use($alt_columns){
+                                            return !in_array($item['name'], $alt_columns);
+                                        });
+
+                                        if($type === 'table'){
+
+                                            if(array_key_exists($table, $schema['constraints']))
+                                                $schema['constraints'][$table] = array_filter($schema['constraints'][$table], function($item) use($alt_columns){
+                                                    return !in_array($item['column'], $alt_columns);
+                                                });
+
+                                            if(array_key_exists($table, $schema['indexes']))
+                                                $schema['indexes'][$table] = array_filter($schema['indexes'][$table], function($item) use($alt_columns){
+                                                    return array_intersect($item['columns'], $alt_columns) === 0;
+                                                });
+
+                                        }
+
+                                    }else{
+
+                                        foreach($alt_columns as $col_name => $col_data){
+
+                                            if($alt_action === 'add'){
+
+                                                $schema['tables'][$table][] = $col_data;
+
+                                            }elseif($alt_action === 'alter' && array_key_exists($table, $schema['tables'])){
+
+                                                foreach($schema['tables'][$table] as &$col){
+
+                                                    if($col['name'] !== $col_name)
+                                                        continue;
+        
+                                                    //If we are renaming the column, we need to update index and constraints
+                                                    if(array_key_exists('name', $col_data) && $col['name'] !== $col_data['name']){
+
+                                                        if(array_key_exists($table, $schema['constraints']))
+                                                            array_walk($schema['constraints'][$table], function(&$item) use($col_name, $col_data){
+                                                                if($item['column'] === $col_name) $item['column'] = $col_data['name'];
+                                                            });
+
+                                                        if(array_key_exists($table, $schema['indexes']))
+                                                            array_walk($schema['indexes'][$table], function(&$item) use($col_name, $col_data){
+                                                                if(in_array($col_name, $item['columns']))
+                                                                    $item['columns'][array_search($col_name, $item['columns'])] = $col_data['name'];
+                                                            });
+
+                                                    }
+
+                                                    $col = array_merge($col, $col_data);
+        
+                                                    break;
+        
+                                                }
+
+                                            }
+
+                                        }
+
+                                    }
+
+                                }
+
+                            }
+
+                        }else{
+
+                            foreach($items as $item){
+
+                                if($action === 'create')
+                                    $schema[$elem][$item['name']] = ($source === true) ? $item : $item[$source];
+                                elseif($action === 'remove'){
+
+                                    unset($schema[$elem][$item]);
+
+                                    if($type === 'table'){
+
+                                        if(isset($schema['constraints'][$item]))
+                                            unset($schema['constraints'][$item]);
+                                     
+                                        if(isset($schema['indexes'][$item]))
+                                            unset($schema['indexes'][$item]);
+
+                                    }
+
+                                }else throw new \Exception("I don't know how to handle: $action");
+
+                            }
+
+                        }
+
+                    }else{
+
+                        foreach($items as $item_name => $item){
+
+                            if(is_string($item)){
+                                
+                                //String-only items are only ever remove actions.
+                                if($action === 'remove'){
+
+                                    foreach($schema[$elem] as $table_name => &$table_item){
+
+                                        if(!array_key_exists($item, $table_item))
+                                            continue;
+
+                                        unset($table_item[$item]);
+
+                                        break;
+
+                                    }
+
+                                }
+
+                                //Functions removed are a bit different as we have to look at parameters.
+                            }elseif($type === 'function' && $action === 'remove'){
+
+                                if(array_key_exists($item_name, $schema[$elem])){
+
+                                    foreach($item as $params){
+
+                                        //Find the existing function and remove it
+                                        foreach($schema[$elem][$item_name] as $index => $func){
+
+                                            $c_params = array_map(function($item){
+                                                return ake($item, 'type');
+                                            }, ake($func, 'parameters'));
+                                        
+                                            //We do an array_diff_assoc so that parameter position is taken into account
+                                            if(count(array_diff_assoc($params, $c_params)) === 0 && count(array_diff_assoc($c_params, $params)) === 0)
+                                                unset($schema[$elem][$item_name][$index]);
+
+                                        }
+
+                                    }
+
+                                }
+                                
+                            }elseif(array_key_exists('table', $item)){
+
+                                if($action === 'create' || $action === 'alter')
+                                    $schema[$elem][$item['table']][$item['name']] = $item;
+                                elseif($action === 'remove')
+                                    unset($schema[$elem][$item['table']][$item['name']]);
+                                else throw new \Exception("I don't know how to handle: $action");
+
+                            }else{
+
+                                if($action === 'create' || $action === 'alter')
+                                    $schema[$elem][$item['name']][] = $item;
+                                else throw new \Exception("I don't know how to handle: $action");
+
+                            }
+
+                        }
+
+                        $schema[$elem] = array_filter($schema[$elem], function($item){
+                            return count($item) > 0;
+                        });
+
+                    }
+
+                }
+
+            }
+
+            $schema['version'] = $version;
+
+            //Remove any empty stuff
+            $schema = array_filter($schema, function($item){
+                return !is_array($item) || count($item) > 0;
+            });
+
+        }
+
+        if($schema['version'] === 0)
+            return false;
+
+        return $schema;
+
+    }
+
+    public function truncate(){
+
+        foreach($this->dbi->listTables() as $table)
+            $this->dbi->dropTable($table['schema'] . '.' . $table['name'], true);
 
     }
 
@@ -258,14 +553,12 @@ class Manager {
 
         $this->dbi->beginTransaction();
 
-        $db_dir = dirname($this->schema_file);
+        if(!is_dir($this->db_dir)){
 
-        if(!is_dir($db_dir)){
-
-            if(file_exists($db_dir))
+            if(file_exists($this->db_dir))
                 throw new \Hazaar\Exception('Unable to create database migration directory.  It exists but is not a directory!');
 
-            mkdir($db_dir);
+            mkdir($this->db_dir);
 
         }
 
@@ -292,7 +585,7 @@ class Manager {
         /**
          * Load the existing stored schema to use for comparison
          */
-        $schema = (file_exists($this->schema_file) ? json_decode(file_get_contents($this->schema_file), true) : array());
+        $schema = $this->getSchema();
 
         if($schema){
 
@@ -311,6 +604,8 @@ class Manager {
 
             $init = true;
 
+            $schema = array();
+
         }
 
         if(!$comment)
@@ -326,14 +621,21 @@ class Manager {
         /**
          * Stores the schema as it currently exists in the database
          */
-        $current_schema = array('version' => $version);
+        $current_schema = array(
+            'version' => $version,
+            'tables' => array(),
+            'constraints' => array(),
+            'indexes' => array(),
+            'functions' => array(),
+            'views' => array(),
+            'triggers' => array()
+        );
 
         /**
          * Stores only changes between $schema and $current_schema.  Here we define all possible elements
          * to ensure the correct ordering.  Later we remove all empty elements before saving the migration file.
          */
         $changes = array(
-            "version" => 2,
             'up' => array(
                 'table' => array(
                     'create' => array(),
@@ -491,14 +793,8 @@ class Manager {
             //BEGIN PROCESSING CONSTRAINTS
             $constraints = $this->dbi->listConstraints($name);
 
-            if(count($constraints) > 0){
-
-                if(!array_key_exists('constraints', $current_schema))
-                    $current_schema['constraints'] = array();
-
+            if(count($constraints) > 0)
                 $current_schema['constraints'][$name] =  $constraints;
-
-            }
 
             if(array_key_exists('constraints', $schema) && array_key_exists($name, $schema['constraints'])){
 
@@ -849,10 +1145,7 @@ class Manager {
 
                     $changes['up']['view']['remove'][] = $view;
 
-                    $changes['down']['view']['create'][] = array(
-                        'name' => $view,
-                        'cols' => $schema['views'][$view]
-                    );
+                    $changes['down']['view']['create'][] = $schema['views'][$view];
 
                 }
 
@@ -886,7 +1179,11 @@ class Manager {
 
                 if(array_key_exists('functions', $schema)
                     && array_key_exists($name, $schema['functions'])
-                && count($ex_info = array_filter($schema['functions'][$name], function($item) use($info){
+                && count($ex_info = array_filter($schema['functions'][$name], function(&$item) use($info){
+                        if(!array_key_exists('parameters', $item)){
+                            if(!array_key_exists('parameters', $info) || count($info['parameters']) === 0) return true;
+                            $item['parameters'] = array();
+                        }
                         if(count($item['parameters']) !== count($info['parameters'])) return false;
                         foreach($item['parameters'] as $i => $p)
                             if(!(array_key_exists($i, $info['parameters']) && $info['parameters'][$i]['type'] === $p['type']))
@@ -897,6 +1194,9 @@ class Manager {
                     $this->log("Function '$fullname' already exists.  Checking differences.");
 
                     foreach($ex_info as $e){
+
+                        if(!array_key_exists('parameters', $e))
+                            $e['parameters'] = array();
 
                         $diff = array_diff_assoc_recursive($info, $e);
 
@@ -933,20 +1233,66 @@ class Manager {
 
         if(array_key_exists('functions', $schema)){
 
-            $missing = array_diff(array_keys($schema['functions']), array_keys($current_schema['functions']));
+            if(!array_key_exists('functions', $current_schema))
+                $current_schema['functions'] = array();
+
+            $missing = array();
+            
+            foreach($schema['functions'] as $func_name => $func_instances){
+
+                $missing_func = null;
+
+                foreach($func_instances as $func){
+
+                    if(array_key_exists($func_name, $current_schema['functions'])
+                        && is_array($current_schema['functions'])
+                        && count($current_schema['functions']) > 0){
+
+                        $p1 = ake($func, 'parameters', array());
+
+                        foreach($current_schema['functions'][$func_name] as $c_func){
+
+                            $p2 = ake($c_func, 'parameters', array());
+
+                            if(count(array_diff_assoc_recursive($p1, $p2)) === 0 
+                                && count(array_diff_assoc_recursive($p2, $p1)) === 0)
+                                continue 2;
+
+                        };
+
+                    }
+
+                    if(!array_key_exists($func_name, $missing))
+                        $missing[$func_name] = array();
+
+                    $missing[$func_name][] = $func;
+
+                }
+
+            }
 
             if(count($missing) > 0){
 
-                foreach($missing as $func){
+                foreach($missing as $func_name => $func_instances){
 
-                    $this->log("- Function '$func' has been removed.");
+                    foreach($func_instances as $func){
 
-                    $changes['up']['function']['remove'][] = $func;
+                        $params = array();
 
-                    $changes['down']['function']['create'][] = array(
-                        'name' => $func,
-                        'cols' => $schema['functions'][$func]
-                    );
+                        foreach(ake($func, 'parameters', array()) as $param) $params[] = $param['type'];
+
+                        $func_full_name = $func_name . '(' . implode(', ', $params) . ')';
+
+                        $this->log("- Function '$func_full_name' has been removed.");
+
+                        $changes['up']['function']['remove'][$func_name][] = $params;
+
+                        if(!array_key_exists($func_name, $changes['down']['function']['create']))
+                            $changes['down']['function']['create'][$func_name] = array();
+
+                        $changes['down']['function']['create'][] = $func;
+
+                    }
 
                 }
 
@@ -1027,78 +1373,99 @@ class Manager {
 
         //END PROCESSING TRIGGERS
 
-        $this->log('*** SNAPSHOT SUMMARY ***');
+        try{
 
-        array_remove_empty($changes);
+            $this->log('*** SNAPSHOT SUMMARY ***');
 
-        //If there are no changes, bail out now
-        if(!(count(ake($changes, 'up', array())) + count(ake($changes, 'down', array()))) > 0){
+            array_remove_empty($changes);
 
-            $this->log('No changes detected.');
+            //If there are no changes, bail out now
+            if(!(count(ake($changes, 'up', array())) + count(ake($changes, 'down', array()))) > 0){
 
-            $this->dbi->rollback();
+                $this->log('No changes detected.');
 
-            return false;
+                $this->dbi->rollback();
+
+                return false;
+
+            }
+
+            if(array_key_exists('up', $changes)){
+
+                $tokens = array('create' => '+', 'alter' => '>', 'remove' => '-');
+
+                foreach($changes['up'] as $type => $methods)
+                    foreach($methods as $method => $actions)
+                        $this->log($tokens[$method] . ' ' . ucfirst($method) . ' ' . $type . ' count: ' . count($actions));
+
+            }
+
+            //If we are testing, then return the diff between the previous schema version
+            if($test)
+                return ake($changes,'up');
+
+            /**
+             * Save the migrate diff file
+             */
+            if(!file_exists($this->migrate_dir)){
+
+                $this->log('Migration directory does not exist.  Creating.');
+
+                mkdir($this->migrate_dir);
+
+            }
+
+            $migrate_file = $this->migrate_dir . '/' . $version . '_' . str_replace(' ', '_', trim($comment)) . '.json';
+
+            $this->log("Writing migration file to '$migrate_file'");
+
+            if(!\is_writable($this->migrate_dir))
+                throw new \Exception('Migration directory is not writable!');
+
+            file_put_contents($migrate_file, json_encode($changes, JSON_PRETTY_PRINT));
+
+            /**
+             * Merge in static schema elements (like data) and save the current schema file
+             */
+            if($data = ake($schema, 'data')){
+
+                $this->log("Merging schema data records into current schema");
+
+                $current_schema['data'] = $data;
+
+            }
+
+            $this->createInfoTable();
+
+            $this->dbi->insert(self::$schema_info_table, array(
+                'version' => $version
+            ));
+
+            $this->dbi->commit();
+
+        }catch(\Throwable $e){
+
+            $this->log('Aborting: ' . $e->getMessage());
 
         }
-
-        if(array_key_exists('up', $changes)){
-
-            $tokens = array('create' => '+', 'alter' => '>', 'remove' => '-');
-
-            foreach($changes['up'] as $type => $methods)
-                foreach($methods as $method => $actions)
-                    $this->log($tokens[$method] . ' ' . ucfirst($method) . ' ' . $type . ' count: ' . count($actions));
-
-        }
-
-        //If we are testing, then return the diff between the previous schema version
-        if($test)
-            return ake($changes,'up');
-
-        /**
-         * Save the migrate diff file
-         */
-        $migrate_dir = $db_dir . '/migrate';
-
-        if(!file_exists($migrate_dir)){
-
-            $this->log('Migration directory does not exist.  Creating.');
-
-            mkdir($migrate_dir);
-
-        }
-
-        $migrate_file = $migrate_dir . '/' . $version . '_' . str_replace(' ', '_', trim($comment)) . '.json';
-
-        $this->log("Writing migration file to '$migrate_file'");
-
-        file_put_contents($migrate_file, json_encode($changes, JSON_PRETTY_PRINT));
-
-        /**
-         * Merge in static schema elements (like data) and save the current schema file
-         */
-        if($data = ake($schema, 'data')){
-
-            $this->log("Merging schema data records into current schema");
-
-            $current_schema['data'] = $data;
-
-        }
-
-        $this->log("Saving current schema ($this->schema_file)");
-
-        file_put_contents($this->schema_file, json_encode($current_schema, JSON_PRETTY_PRINT));
-
-        $this->createInfoTable();
-
-        $this->dbi->insert('schema_info', array(
-            'version' => $version
-        ));
-
-        $this->dbi->commit();
 
         return true;
+
+    }
+
+    public function getMissingVersions($version = null, &$applied_versions = null){
+        
+        if($version === null)
+            $version = $this->getLatestVersion();
+
+        $applied_versions = array();
+        
+        if($this->dbi->table(self::$schema_info_table)->exists())
+            $applied_versions = $this->dbi->table(self::$schema_info_table)->fetchAllColumn('version');
+
+        $versions = $this->getVersions();
+
+        return array_filter(array_diff(array_keys($versions), $applied_versions), function ($v) use($version) { return $v <= $version; });
 
     }
 
@@ -1140,20 +1507,11 @@ class Manager {
 
         $mode = 'up';
 
-        $current_version = null;
+        $current_version = 0;
 
         $versions = $this->getVersions(true);
 
-        $file = new \Hazaar\File($this->schema_file);
-
-        if(!$file->exists())
-            throw new \Hazaar\Exception("This application has no schema file.  Database schema is not being managed.");
-
-        if(!($schema = json_decode($file->get_contents(), true)))
-            throw new \Hazaar\Exception("Unable to parse the migration file.  Bad JSON?");
-
-        if(!array_key_exists('version', $schema))
-            $schema['version'] = 1;
+        $latest_version = $this->getLatestVersion();
 
         if($version){
 
@@ -1182,7 +1540,7 @@ class Manager {
 
             }else{
 
-                $version = $schema['version'];
+                $version = $latest_version;
 
                 $this->log('Initialising database at version: ' . $version);
 
@@ -1210,106 +1568,118 @@ class Manager {
         /**
          * Get the current version (if any) from the database
          */
-        if($this->dbi->tableExists('schema_info')){
+        if($this->dbi->tableExists(self::$schema_info_table)){
 
-            if($result = $this->dbi->table('schema_info')->find(array(), array('version'))->sort('version', true)){
+            if($result = $this->dbi->table(self::$schema_info_table)->find(array(), array('version'))->sort('version', true)){
 
-                if($row = $result->fetch())
+                if($row = $result->fetch()){
+
                     $current_version = $row['version'];
 
-                $this->log("Current database version: " . ($current_version ? $current_version : "None"));
+                    $this->log("Current database version: " . ($current_version ? $current_version : "None"));
+
+                }
 
             }
 
         }
 
-        /**
-         * Check to see if we are at the current version first.
-         */
-        if($current_version === $version){
+        $this->log('Starting database migration process.');
 
-            $this->log("Database is already at version: $version");
+        if($current_version === 0){
 
-        }else{
+            /**
+             * This section sets up the database using the existing schema without migration replay.
+             *
+             * The criteria here is:
+             *
+             * * No current version
+             * * $version must equal the schema file version
+             *
+             * Otherwise we have to replay the migration files from current version to the target version.
+             */
+            if(!($schema = $this->getSchema($version)))
+                throw new \Hazaar\Exception("This application has no schema file.  Database schema is not being managed.");
 
-            $this->log('Starting database migration process.');
+            if(!array_key_exists('version', $schema))
+                $schema['version'] = 1;
 
-            if(!$current_version && $version == $schema['version']){
+            $tables = $this->dbi->listTables();
 
-                /**
-                 * This section sets up the database using the existing schema without migration replay.
-                 *
-                 * The criteria here is:
-                 *
-                 * * No current version
-                 * * $version must equal the schema file version
-                 *
-                 * Otherwise we have to replay the migration files from current version to the target version.
-                 */
+            $excluded = $this->ignore_tables;
 
-                $tables = $this->dbi->listTables();
+            $tables = array_filter($tables, function($value) use($excluded){
+                return !($value['schema'] === 'public' && in_array($value['name'], $excluded));
+            });
 
-                $excluded = $this->ignore_tables;
+            if(count($tables) > 0 && $keep_tables !== true){
 
-                $tables = array_filter($tables, function($value) use($excluded){
-                    return !($value['schema'] === 'public' && in_array($value['name'], $excluded));
-                });
-
-                if(count($tables) > 0 && $keep_tables !== true){
-
-                    throw new \Hazaar\Exception("Tables exist in database but no schema info was found!  This should only be run on an empty database!");
-
-                }else{
-
-                    /*
-                     * There is no current database so just initialise from the schema file.
-                     */
-                    $this->log("Initialising database" . ($version ? " at version '$version'" : ''));
-
-                    if($schema['version'] > 0){
-
-                        if($this->createSchema($schema, $test, $keep_tables)){
-
-                            foreach($versions as $ver => $name)
-                                $this->dbi->insert('schema_info', array('version' => $ver));
-
-                        }
-
-                    }
-
-                    $force_data_sync = true;
-
-                }
+                throw new \Hazaar\Exception("Tables exist in database but no schema info was found!  This should only be run on an empty database!");
 
             }else{
 
-                if(!array_key_exists($current_version, $versions))
-                    throw new \Hazaar\Exception("Your current database version has no migration source.");
+                /*
+                 * There is no current database so just initialise from the schema file.
+                 */
+                $this->log("Initialising database" . ($version ? " at version '$version'" : ''));
 
-                $this->log("Migrating from version '$current_version' to '$version'.");
+                if($schema['version'] > 0){
 
-                if($version < $current_version){
+                    if($this->createSchema($schema, $test, $keep_tables)){
 
-                    $mode = 'down';
+                        $missing_versions = $this->getMissingVersions($version);
 
-                    krsort($versions);
+                        foreach($missing_versions as $ver)
+                            $this->dbi->insert(self::$schema_info_table, array('version' => $ver));
+
+                    }
 
                 }
 
-                $source = reset($versions);
+                $force_data_sync = true;
 
-                $this->log("Migrating $mode");
+            }
 
-                do {
+        }else{
 
-                    $ver = key($versions);
+            $this->log("Migrating to version '$version'.");
 
-                    /**
-                     * Break out once we get to the end of versions
-                     */
-                    if(($mode == 'up' && ($ver > $version || $ver <= $current_version))
-                        || ($mode == 'down' && ($ver <= $version || $ver > $current_version)))
-                        continue;
+            //Compare known versions with the versions applied to the database and get a list of missing versions less than the requested version
+            $missing_versions = $this->getMissingVersions($version, $applied_versions);
+
+            if(($count = count($missing_versions)) > 0)
+                $this->log("Found $count missing versions that will get replayed.");
+
+            $migrations = array_combine($missing_versions, array_fill(0, count($missing_versions), 'up'));
+
+            ksort($migrations);
+            
+            if($version < $current_version){
+
+                $down_migrations = array();
+
+                foreach($versions as $ver => $info){
+
+                    if($ver > $version && $ver <= $current_version && in_array($ver, $applied_versions))
+                        $down_migrations[$ver] = 'down';
+
+                }
+
+                krsort($down_migrations);
+
+                $migrations = $migrations + $down_migrations;
+
+            }
+            
+            if(count($migrations) === 0){
+
+                $this->log('Nothing to do!');
+
+            }else{
+
+                foreach($migrations as $ver => $mode){
+
+                    $source = $versions[$ver];
 
                     if($mode == 'up'){
 
@@ -1325,14 +1695,17 @@ class Manager {
 
                     }
 
-                    if(!($current_schema = json_decode($source->get_contents(), true)))
+                    if(!($current_schema = $source->parseJSON(true)))
                         throw new \Hazaar\Exception("Unable to parse the migration file.  Bad JSON?");
+
+                    if(!array_key_exists($mode, $current_schema))
+                        continue;
 
                     try{
 
                         $this->dbi->beginTransaction();
 
-                        if($this->replay($current_schema[$mode], $test, ake($current_schema, 'version', 1)) !== true){
+                        if($this->replay($current_schema[$mode], $test) !== true){
 
                             $this->dbi->rollBack();
 
@@ -1345,14 +1718,14 @@ class Manager {
                             $this->log('Inserting version record: ' . $ver);
 
                             if(!$test)
-                                $this->dbi->insert('schema_info', array('version' => $ver));
+                                $this->dbi->insert(self::$schema_info_table, array('version' => $ver));
 
                         }elseif($mode == 'down'){
 
                             $this->log('Removing version record: ' . $ver);
 
                             if(!$test)
-                                $this->dbi->delete('schema_info', array('version' => $ver));
+                                $this->dbi->delete(self::$schema_info_table, array('version' => $ver));
 
                         }
 
@@ -1378,7 +1751,7 @@ class Manager {
                     $force_data_sync = true;
 
             }
-
+            
         }
 
         if(!$test)
@@ -1661,7 +2034,7 @@ class Manager {
      * @param array $schema
      *            The JSON decoded schema to replay.
      */
-    private function replay($schema, $test = false, $version = 1){
+    private function replay($schema, $test = false){
 
         foreach($schema as $level1 => $data){
 
@@ -1711,10 +2084,10 @@ class Manager {
 
                     foreach($data as $level2 => $items){
 
-                        if($version === 1)
-                            $this->replayItems($level2, $level1, $items, $test);
-                        elseif($version === 2)
+                        if(array_key_exists($level1, self::$table_map))
                             $this->replayItems($level1, $level2, $items, $test);
+                        elseif(array_key_exists($level2, self::$table_map))
+                            $this->replayItems($level2, $level1, $items, $test);
                         else
                             throw new \Hazaar\Exception('Unsupported schema migration version: ' . $version);
 
@@ -1728,7 +2101,18 @@ class Manager {
 
     }
 
-    private function replayItems($type, $action, $items, $test = false){
+    private function replayItems($type, $action, $items, $test = false, $do_pks_first = true){
+
+        //Replay primary key constraints first!
+        if($type === 'constraint' && $action === 'create' && $do_pks_first === true){
+
+            $pk_items = array_filter($items, function($i){ return $i['type'] === 'PRIMARY KEY'; });
+
+            $this->replayItems($type, $action, $pk_items, $test, false);
+
+            $items = array_filter($items, function($i){ return $i['type'] !== 'PRIMARY KEY'; });
+
+        }
 
         foreach($items as $item_name => $item){
 
@@ -1840,14 +2224,16 @@ class Manager {
 
                     }elseif($type === 'function'){
 
-                        $params = ake($item, 'parameters', array());
+                        foreach($item as $params){
 
-                        $this->log("- Removing function '{$item['name']}(" . implode(', ', $params) . ').');
+                            $this->log("- Removing function '{$item_name}(" . implode(', ', $params) . ').');
 
-                        if($test)
-                            break;
+                            if($test)
+                                continue;
 
-                        $this->dbi->dropFunction($item['name'], $params);
+                            $this->dbi->dropFunction($item_name, $params);
+
+                        }
 
                     }elseif($type === 'trigger'){
 
@@ -1976,7 +2362,7 @@ class Manager {
             }
 
             if($this->dbi->errorCode() > 0)
-                throw new \Hazaar\Exception($this->dbi->errorInfo()[2]);
+                    throw new \Hazaar\Exception(ake($this->dbi->errorInfo(), 2));
 
         }
 
@@ -1992,9 +2378,9 @@ class Manager {
 
         if($data_schema === null){
 
-            $data_schema = array();
+            $schema = $this->getSchema($this->getVersion());
 
-            $this->loadDataFromFile($data_schema, $this->schema_file, 'data');
+            $data_schema = array_key_exists('data', $schema) ? $schema['data'] : array();
 
             $this->loadDataFromFile($data_schema, $this->data_file);
 

@@ -2,14 +2,14 @@
 <div class="panel default flex-grow-1">
     <div class="panel-header">Current version</div>
     <div class="panel-content">
-        <div class="row">
-            <?=$this->current;?>
-        </div>
         <?php
-        if($this->latest)
-            echo $this->html->div('Up to date')->class('label success');
-        else
-            echo $this->html->div('Update available')->class('label warning');
+        if($this->managed === true){
+                echo $this->html->div($this->current)->class('row');
+            if(($count = count($this->updates)) > 0)
+                echo $this->html->div('Update' . (($count > 1) ? 's': '') . ' available')->class('label warning');
+            else
+                echo $this->html->div('Up to date')->class('label success');
+        }else echo $this->html->div('Database schema is not managed!')->class('label danger');
         ?>
 
     </div>

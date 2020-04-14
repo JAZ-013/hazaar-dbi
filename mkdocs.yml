@@ -2,6 +2,11 @@ site_name: Hazaar DBI
 docs_dir: docs
 pages:
   - Welcome: index.md
+  - Configuring Hazaar DBI: configure.md
+  - Schema Management: 
+    - Overview: schema_manager.md
+    - Data Sync Files: data_sync.md
   - DBI Filesystem: filesystem.md
+
 markdown_extensions:
     - admonition

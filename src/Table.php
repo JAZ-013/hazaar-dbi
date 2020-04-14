@@ -371,7 +371,7 @@ class Table {
      */
     public function fields() {
 
-        $this->fields[] = func_get_args();
+        $this->fields[] = array_filter(func_get_args(), function($value) { return !(is_null($value) || (is_string($value) && trim($value) === '')); });
 
         return $this;
 
@@ -385,7 +385,7 @@ class Table {
      */
     public function select(){
 
-        return $this->fields(func_get_args());
+        return call_user_func_array(array($this, 'fields'), func_get_args());
 
     }
 
@@ -603,6 +603,22 @@ class Table {
 
         if ($result = $this->execute())
             return $result->fetchAll((is_assoc($this->fields) ? \PDO::FETCH_NAMED : \PDO::FETCH_ASSOC), $fetch_argument, $ctor_args);
+
+        return FALSE;
+
+    }
+
+    public function fetchAllColumn($column_name, $fetch_argument = null, $ctor_args = array()) {
+
+        $this->fields = array($column_name);
+
+        if ($result = $this->execute()){
+
+            $data = $result->fetchAll((is_assoc($this->fields) ? \PDO::FETCH_NAMED : \PDO::FETCH_ASSOC), $fetch_argument, $ctor_args);
+
+            return array_column($data, $column_name);
+
+        }
 
         return FALSE;
 

@@ -28,13 +28,17 @@ class Console extends \Hazaar\Console\Module {
 
         $this->db = new \Hazaar\DBI\Adapter();
 
-        $current = $this->db->getSchemaManager()->getVersion();
+        $manager = $this->db->getSchemaManager();
 
-        $versions = array('latest' => 'Latest Version') + $this->db->getSchemaManager()->getVersions();
+        $current = $manager->getVersion();
+
+        $versions = array('latest' => 'Latest Version') + $manager->getVersions();
 
         $this->view->version_info = array(
-            'current' => ($current ? $current . ' - ' . ake($versions, $current, 'missing') : null),
-            'latest' => $this->db->getSchemaManager()->isLatest()
+            'current' => ($current ? $current . ' - ' . ake($versions, $current, 'missing') : 'Not Managed'),
+            'managed' => ($current !== false),
+            'latest' => $manager->isLatest(),
+            'updates' => $manager->getMissingVersions()
         );
 
     }
@@ -71,7 +75,7 @@ class Console extends \Hazaar\Console\Module {
 
                 $log = $this->db->getSchemaManager()->getMigrationLog();
 
-                $log[] = array('time' => time(), 'msg' => 'ERROR: ' . $e->getMessage() . ' in file ' . $e->getFile() . ' on line #' . $e->getLine() . '.');
+                $log[] = array('time' => time(), 'msg' => $e->getMessage() . ' in file ' . $e->getFile() . ' on line #' . $e->getLine() . '.');
 
             }
 
