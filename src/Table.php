@@ -53,6 +53,8 @@ class Table {
 
     protected $offset;
 
+    protected $fetch;
+
     protected $result;
 
     protected $options;
@@ -246,6 +248,18 @@ class Table {
             $sql .= ' OFFSET ' . (string) (int) $this->offset;
 
         /* FETCH */
+
+        if(is_array($this->fetch) && array_key_exists('which', $this->fetch)){
+
+            $sql .= ' FETCH';
+            
+            if(array_key_exists('which', $this->fetch))
+                $sql .= ' ' . strtoupper($this->fetch['which']);
+
+            if(array_key_exists('count', $this->fetch))
+                $sql .= ' ' . (($this->fetch['count'] > 1) ? $this->fetch['count'] . ' ROWS' : 'ROW');
+
+        }
 
         /* FOR */
 
