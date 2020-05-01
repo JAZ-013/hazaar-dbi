@@ -69,7 +69,7 @@ class SQL extends \Hazaar\DBI\Table {
 
             $line = trim(substr($sql, $pos + strlen($keyword), $next - ($pos + strlen($keyword))));
 
-            $method = 'parse' . str_replace(' ', '_', $keyword);
+            $method = 'process' . str_replace(' ', '_', $keyword);
 
             if(method_exists($this, $method))
                 call_user_func(array($this, $method), $line);
@@ -80,13 +80,31 @@ class SQL extends \Hazaar\DBI\Table {
 
     }
 
-    public function parseSELECT($line){
+    private function parseCondition($line){
+
+        $delimeters = array('AND', 'OR');
+
+        $parts = preg_split('/\s*(' . implode('|', $delimeters) . ')\s*/i', $line, -1, PREG_SPLIT_DELIM_CAPTURE);
+
+        foreach($parts as $part){
+
+            //if(in_array(\strtoupper($part), $delimeters))
+
+        }
+
+        //dump($parts);
+
+        return array();
+
+    }
+
+    public function processSELECT($line){
 
         $this->fields = preg_split('/\s*,\s*/', $line);
 
     }
 
-    public function parseFROM($line){
+    public function processFROM($line){
 
         $parts = preg_split('/\s+/', $line, 2); 
 
@@ -98,37 +116,55 @@ class SQL extends \Hazaar\DBI\Table {
 
     }
 
-    public function parseWHERE($line){
+    public function processWHERE($line){
 
-        dump(array_unflatten($line));
-
-    }
-
-    public function parseGROUP_BY($line){
+        $this->where = $this->parseCondition($line);
 
     }
 
-    public function parseHAVING($line){
+    public function processGROUP_BY($line){
+
+        $this->group = preg_split('/\s*,\s*/', $line);
 
     }
 
-    public function parseWINDOW($line){
+    public function processHAVING($line){
+
+        $this->having = $this->parseCondition($line);
+
+    }
+
+    public function processWINDOW($line){
+
+        return null;
 
     }
 
     public function parseUNION($line){
 
-    }
+        //TODO: Find all string between ( and )
 
-    public function parseINTERSECT($line){
-
-    }
-
-    public function parseEXCEPT($line){
+        return null;
 
     }
 
-    public function parseORDER_BY($line){
+    public function processINTERSECT($line){
+
+        //TODO: Find all string between ( and )
+
+        return null;
+
+    }
+
+    public function processEXCEPT($line){
+
+        //TODO: Find all string between ( and )
+
+        return null;
+
+    }
+
+    public function processORDER_BY($line){
 
         $parts = preg_split('/\s+/', $line, 2);
 
@@ -142,13 +178,13 @@ class SQL extends \Hazaar\DBI\Table {
 
     }
 
-    public function parseLIMIT($line){
+    public function processLIMIT($line){
 
         $this->limit = strtoupper($line) === 'ALL' ? null : intval($line);
     
     }
 
-    public function parseOFFSET($line){
+    public function processOFFSET($line){
 
         $parts = preg_split('/\s+/', $line, 2);
 
@@ -157,7 +193,20 @@ class SQL extends \Hazaar\DBI\Table {
 
     }
 
-    public function parseFETCH($line){
+    public function processFETCH($line){
+
+        $fetch_def = array();
+
+        $parts = preg_split('/\s+/', $line);
+
+        if(array_key_exists(0, $parts))
+            $fetch_def['which'] = $parts[0];
+
+        if(array_key_exists(1, $parts) && is_numeric($parts[1]))
+            $fetch_def['count'] = intval($parts[1]);
+
+        if(count($fetch_def) > 0)
+            $this->fetch = $fetch_def;
 
     }
 
