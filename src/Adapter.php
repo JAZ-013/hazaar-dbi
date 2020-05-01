@@ -130,6 +130,26 @@ class Adapter {
 
     }
 
+    public function ready(){
+
+        try{
+
+            $this->checkConfig();
+
+        }catch(Exception\NotConfigured $e){
+
+            return false;
+
+        }catch(Exception\DriverNotSpecified $e){
+
+            return false;
+
+        }
+
+        return true;
+
+    }
+
     private function checkConfig(){
 
         if(!$this->config)

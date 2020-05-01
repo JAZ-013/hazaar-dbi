@@ -6,25 +6,33 @@ class Console extends \Hazaar\Console\Module {
 
     private $db;
 
-    public function load(){
+    public function menu(){
+
+        $this->db = new \Hazaar\DBI\Adapter();
 
         $group = $this->addMenuItem('Databases', 'database');
 
-        $group->addMenuItem('Migration', 'migrate', 'random');
+        if($this->db->ready()){
 
-        $group->addMenuItem('Snapshot', 'snapshot', 'camera');
+            $group->addMenuItem('Migration', 'migrate', 'random');
 
-        $group->addMenuItem('Data Sync', 'sync', 'refresh');
+            $group->addMenuItem('Snapshot', 'snapshot', 'camera');
 
+            $group->addMenuItem('Data Sync', 'sync', 'refresh');
+
+        }
+
+        return $group;
+        
     }
 
     public function init(){
 
-        $this->view->link('css/main.css');
+        //$this->view->link('css/main.css');
 
-        $this->view->requires('js/dbi.js');
+        //$this->view->requires('js/dbi.js');
 
-        $this->notice('This module is currently under active development!', 'exclamation-triangle', 'warning');
+       // $this->notice('This module is currently under active development!', 'exclamation-triangle', 'warning');
 
         $this->db = new \Hazaar\DBI\Adapter();
 
