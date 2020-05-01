@@ -31,33 +31,33 @@ class Table {
 
     private $adapter;
 
-    private $name;
+    protected $name;
 
-    private $alias;
+    protected $alias;
 
-    private $criteria = array();
+    protected $criteria = array();
 
-    private $fields = array();
+    protected $fields = array();
 
-    private $group = array();
+    protected $group = array();
 
-    private $having = array();
+    protected $having = array();
 
-    private $window = array();
+    protected $window = array();
 
-    private $joins = array();
+    protected $joins = array();
 
-    private $order = array();
+    protected $order = array();
 
-    private $limit;
+    protected $limit;
 
-    private $offset;
+    protected $offset;
 
-    private $result;
+    protected $result;
 
-    private $options;
+    protected $options;
 
-    function __construct(Adapter $adapter, $name, $alias = NULL, $options = null) {
+    function __construct(Adapter $adapter, $name = null, $alias = NULL, $options = null) {
 
         $this->adapter = $adapter;
 
