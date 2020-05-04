@@ -82,19 +82,90 @@ class SQL extends \Hazaar\DBI\Table {
 
     private function parseCondition($line){
 
-        $delimeters = array('AND', 'OR');
+        $symbols = array();
 
-        $parts = preg_split('/\s*(' . implode('|', $delimeters) . ')\s*/i', $line, -1, PREG_SPLIT_DELIM_CAPTURE);
+        while(preg_match('/(\((?:\(??[^\(]*?\)))+/', $line, $chunks)){
 
-        foreach($parts as $part){
+            $id = uniqid();
 
-            //if(in_array(\strtoupper($part), $delimeters))
+            $symbols[$id] = $this->parseCondition(trim($chunks[0], '()'));
+
+            $line = str_replace($chunks[0], $id, $line);
 
         }
 
-        //dump($parts);
+        $delimeters = array('and', 'or');
 
-        return array();
+        $parts = preg_split('/\s*(' . implode('|', $delimeters) . ')\s*/i', $line, -1, PREG_SPLIT_DELIM_CAPTURE);
+
+        if(count($parts) > 1){
+
+            $conditions = array_combine($delimeters, array_fill(0, count($delimeters), array()));
+
+            for($i=0; $i<count($parts); $i++){
+
+                if(!($glu = strtolower(ake($parts, $i+1))))
+                    $glu = strtolower(ake($parts, $i-1));
+
+                $conditions['$' . $glu][] = array_unflatten($parts[$i]);
+
+                $i++;
+
+            }
+
+        }else{
+
+            $conditions = array_unflatten($parts[0]);
+
+        }
+
+        array_remove_empty($conditions);
+
+        if(!count($symbols) > 0)
+            return $conditions;
+
+        $root = uniqid();
+
+        $symbols[$root] = $conditions;
+
+        foreach($symbols as $id => &$symbol){
+
+            foreach($symbol as $glu => &$chunk){
+
+                foreach($chunk as &$condition){
+
+                    foreach($condition as $key => &$value){
+
+                        if(substr($value, 0, 1) === "'" && substr($value, -1, 1) === "'"){
+    
+                            $value = substr($value, 1, -1);
+    
+                        }elseif(is_numeric($value)){
+    
+                            if(strpos($value, '.') === false)
+                                $value = intval($value);
+                            else
+                                $value = floatval($value);
+    
+                        }elseif(is_boolean($value)){
+    
+                            $value = boolify($value);
+    
+                        }elseif(array_key_exists($value, $symbols)){
+    
+                            $condition[$key] =& $symbols[$value];
+    
+                        }
+
+                    }
+
+                }
+
+            }
+
+        }
+
+        return $symbols[$root];
 
     }
 
@@ -118,7 +189,7 @@ class SQL extends \Hazaar\DBI\Table {
 
     public function processWHERE($line){
 
-        $this->where = $this->parseCondition($line);
+        $this->criteria = $this->parseCondition($line);
 
     }
 
