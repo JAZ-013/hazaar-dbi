@@ -118,7 +118,7 @@ class SQL extends \Hazaar\DBI\Table {
 
     }
 
-    private function parseCondition($line){
+    private function parseCondition($line, $use_refs = false){
 
         $symbols = array();
 
@@ -159,9 +159,6 @@ class SQL extends \Hazaar\DBI\Table {
 
         array_remove_empty($conditions);
 
-        if(!count($symbols) > 0)
-            return $conditions;
-
         $root = uniqid();
 
         $symbols[$root] = $conditions;
@@ -201,6 +198,10 @@ class SQL extends \Hazaar\DBI\Table {
     
                             $condition[$key] =& $symbols[$value];
     
+                        }elseif($use_refs === true){
+
+                            $condition[$key] = array('$ref' => $value);
+
                         }
 
                     }
@@ -298,7 +299,7 @@ class SQL extends \Hazaar\DBI\Table {
                 $this->joins[$alias] = array(
                     'type' => $type,
                     'ref' => $references,
-                    'on' => $this->parseCondition($parts['ON'][0]),
+                    'on' => $this->parseCondition($parts['ON'][0], true),
                     'alias' => $alias
                 );
 
