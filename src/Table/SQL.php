@@ -201,9 +201,9 @@ class SQL extends \Hazaar\DBI\Table {
             'JOIN'
         );
 
-        $chunks = $this->splitWordBoundaries($line, $keywords, $pos);
-
-        if(!$pos > 0)
+        if(!($chunks = $this->splitWordBoundaries($line, $keywords, $pos)))
+            $pos = strlen($line);
+        elseif(!$pos > 0)
             throw new \Exception('Parse error.  Got JOIN on missing table.');
 
         $parts = preg_split('/\s+/', trim(substr($line, 0, $pos)), 2); 
@@ -213,6 +213,9 @@ class SQL extends \Hazaar\DBI\Table {
 
         if(array_key_exists(1, $parts))
             $this->alias = ake($parts, 1);
+
+        if(count($chunks) == 0)
+            return;
 
         reset($chunks);
 
