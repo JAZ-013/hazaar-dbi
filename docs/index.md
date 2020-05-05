@@ -6,3 +6,4 @@ The Hazaar DBI library provides an advanced *object-oriented* database abstracti
 * [Schema Management](schema_manager.md)
 * [Data Sync Files](data_sync.md)
 * [Hazaar DBI Filesystem Backend](filesystem.md)
+* [SQL SELECT Parser](parser.md)

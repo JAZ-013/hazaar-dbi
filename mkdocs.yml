@@ -7,6 +7,7 @@ pages:
     - Overview: schema_manager.md
     - Data Sync Files: data_sync.md
   - DBI Filesystem: filesystem.md
+  - SQL SELECT parser: parser.md
 
 markdown_extensions:
     - admonition
