@@ -205,33 +205,30 @@ class SQL extends \Hazaar\DBI\Table {
 
     }
 
-    public function processWINDOW($line){
-
-        return null;
-
-    }
-
     public function parseUNION($line){
 
-        //TODO: Find all string between ( and )
+        if(!array_key_exists('union', $this->subselects))
+            $this->subselects['union'] = array();
 
-        return null;
+        $this->subselects['union'][] = new SQL($line);
 
     }
 
     public function processINTERSECT($line){
 
-        //TODO: Find all string between ( and )
+        if(!array_key_exists('intersect', $this->subselects))
+            $this->subselects['intersect'] = array();
 
-        return null;
+        $this->subselects['intersect'][] = new SQL($line);
 
     }
 
     public function processEXCEPT($line){
 
-        //TODO: Find all string between ( and )
+        if(!array_key_exists('except', $this->subselects))
+            $this->subselects['except'] = array();
 
-        return null;
+        $this->subselects['except'][] = new SQL($line);
 
     }
 

@@ -47,6 +47,8 @@ class Table {
 
     protected $joins = array();
 
+    protected $subselects = array();
+
     protected $order = array();
 
     protected $limit;
