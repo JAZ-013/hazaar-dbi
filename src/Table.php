@@ -31,33 +31,37 @@ class Table {
 
     private $adapter;
 
-    private $name;
+    protected $name;
 
-    private $alias;
+    protected $alias;
 
-    private $criteria = array();
+    protected $criteria = array();
 
-    private $fields = array();
+    protected $fields = array();
 
-    private $group = array();
+    protected $group = array();
 
-    private $having = array();
+    protected $having = array();
 
-    private $window = array();
+    protected $window = array();
 
-    private $joins = array();
+    protected $joins = array();
 
-    private $order = array();
+    protected $subselects = array();
 
-    private $limit;
+    protected $order = array();
 
-    private $offset;
+    protected $limit;
 
-    private $result;
+    protected $offset;
 
-    private $options;
+    protected $fetch;
 
-    function __construct(Adapter $adapter, $name, $alias = NULL, $options = null) {
+    protected $result;
+
+    protected $options;
+
+    function __construct(Adapter $adapter, $name = null, $alias = NULL, $options = null) {
 
         $this->adapter = $adapter;
 
@@ -246,6 +250,18 @@ class Table {
             $sql .= ' OFFSET ' . (string) (int) $this->offset;
 
         /* FETCH */
+
+        if(is_array($this->fetch) && array_key_exists('which', $this->fetch)){
+
+            $sql .= ' FETCH';
+            
+            if(array_key_exists('which', $this->fetch))
+                $sql .= ' ' . strtoupper($this->fetch['which']);
+
+            if(array_key_exists('count', $this->fetch))
+                $sql .= ' ' . (($this->fetch['count'] > 1) ? $this->fetch['count'] . ' ROWS' : 'ROW');
+
+        }
 
         /* FOR */
 

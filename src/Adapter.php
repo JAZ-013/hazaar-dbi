@@ -506,4 +506,18 @@ class Adapter {
 
     }
 
+   
+    /**
+     * Parse an SQL query into a DBI Table query so that it can be manipulated
+     * 
+     * @param string $sql The SQL query to parse
+     * 
+     * @return \Hazaar\DBI\Table
+     */
+    public function parseSQL($sql){
+
+        return new Table\SQL($this, $sql);
+
+    }
+
 }
