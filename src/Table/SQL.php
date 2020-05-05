@@ -4,7 +4,7 @@ namespace Hazaar\DBI\Table;
 
 class SQL extends \Hazaar\DBI\Table {
 
-    private $keywords = array(
+    static private $keywords = array(
         'SELECT',
         'FROM',
         'WHERE', 
@@ -30,35 +30,31 @@ class SQL extends \Hazaar\DBI\Table {
 
     }
 
-    public function parse($sql){
+    private function splitWordBoundaries($string, $keywords, &$start_pos = null){
 
-        if(strtoupper(substr(trim($sql), 0, 6)) !== 'SELECT')
-            return false;
+        $chunks = array();
 
-        $this->sql = $sql;
+        foreach($keywords as $keyword){
 
-        $uSQL = strtoupper($sql);
-
-        $loc = array();
-
-        foreach($this->keywords as $keyword){
-
-            if(($pos = strpos($uSQL, $keyword)) === false)
+            if(($pos = stripos($string, $keyword)) === false)
                 continue;
 
-            if(substr($uSQL, $pos - 1, 1) === '"')
+            if(substr($string, $pos - 1, 1) === "'")
                 continue;
 
-            $loc[$keyword] = $pos;
+            if($start_pos === null)
+                $start_pos = $pos;
+
+            $chunks[$keyword] = $pos;
 
         }
 
-        foreach($loc as $keyword => $pos){
+        foreach($chunks as $keyword => &$pos){
 
-            $next = strlen($sql);
+            $next = strlen($string);
 
             //Find the next position.  We intentionally do this instead of a sort so that SQL is processed in a known order.
-            foreach(array_values($loc) as $value){
+            foreach(array_values($chunks) as $value){
 
                 if($value <= $pos || $value >= $next)
                     continue;
@@ -67,12 +63,29 @@ class SQL extends \Hazaar\DBI\Table {
 
             }
 
-            $line = trim(substr($sql, $pos + strlen($keyword), $next - ($pos + strlen($keyword))));
+            $pos = trim(substr($string, $pos + strlen($keyword), $next - ($pos + strlen($keyword))));
+
+        }
+
+        return $chunks;
+
+    }
+
+    public function parse($sql){
+
+        if(strtoupper(substr(trim($sql), 0, 6)) !== 'SELECT')
+            return false;
+
+        $this->sql = $sql;
+
+        $chunks = $this->splitWordBoundaries($sql, self::$keywords);
+
+        foreach($chunks as $keyword => $chunk){
 
             $method = 'process' . str_replace(' ', '_', $keyword);
 
             if(method_exists($this, $method))
-                call_user_func(array($this, $method), $line);
+                call_user_func(array($this, $method), $chunk);
 
         }
 
@@ -177,13 +190,70 @@ class SQL extends \Hazaar\DBI\Table {
 
     public function processFROM($line){
 
-        $parts = preg_split('/\s+/', $line, 2); 
+        $keywords = array(
+            'CROSS',
+            'INNER',
+            'LEFT',
+            'RIGHT', 
+            'FULL', 
+            'OUTER', 
+            'NATURAL',
+            'JOIN'
+        );
+
+        $chunks = $this->splitWordBoundaries($line, $keywords, $pos);
+
+        if(!$pos > 0)
+            throw new \Exception('Parse error.  Got JOIN on missing table.');
+
+        $parts = preg_split('/\s+/', trim(substr($line, 0, $pos)), 2); 
 
         if(array_key_exists(0, $parts))
             $this->name = ake($parts, 0);
 
         if(array_key_exists(1, $parts))
             $this->alias = ake($parts, 1);
+
+        reset($chunks);
+
+        while(key($chunks) !== null){
+
+            $pos = null;
+
+            $references = null;
+
+            $alias = null;
+
+            $type = key($chunks);
+
+            if(current($chunks))
+                $type = 'INNER';
+            elseif(next($chunks) === null || key($chunks) !== 'JOIN')
+                throw new \Exception('Parse error.  Expecting JOIN');
+
+            $join = current($chunks);
+
+            $parts = $this->splitWordBoundaries($join, array('ON'), $pos);
+
+            if(!$pos > 0)
+                throw new \Exception('Parse error.  Expecting join table name!');
+
+            $join_parts = preg_split('/\s+/', trim(substr($join, 0, $pos)), 2); 
+
+            $references = ake($join_parts, 0);
+
+            $alias = ake($join_parts, 1, $references);
+
+            $this->joins[$alias] = array(
+                'type' => $type,
+                'ref' => $references,
+                'on' => $this->parseCondition($parts['ON']),
+                'alias' => $alias
+            );
+
+            next($chunks);
+
+        }
 
     }
 
