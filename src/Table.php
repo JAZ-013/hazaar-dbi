@@ -813,4 +813,24 @@ class Table {
 
     }
 
+    /**
+     * List all tables that will be accessed in this table query
+     * 
+     * Returns an array of table names of all tables used in this query, including joins.
+     */
+    public function listUsedTables(){
+
+        $tables = array($this->name);
+
+        if(is_array($this->joins)){
+
+            foreach($this->joins as $join)
+                $tables[] = $join['ref'];
+
+        }
+
+        return $tables;
+
+    }
+
 }
