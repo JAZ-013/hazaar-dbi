@@ -34,13 +34,14 @@ class SQL extends \Hazaar\DBI\Table {
 
         $chunks = array();
 
+        $start_pos = null;
+
         foreach($keywords as $keyword){
 
-            if(($pos = stripos($string, $keyword)) === false)
+            if(preg_match("/\b$keyword\b/i", $string, $matches, PREG_OFFSET_CAPTURE) === 0)
                 continue;
 
-            if(substr($string, $pos - 1, 1) === "'")
-                continue;
+            $pos = $matches[0][1] + ((substr($matches[0][0], 0, 1) === ' ') ? 1 : 0);
 
             if($start_pos === null)
                 $start_pos = $pos;
@@ -109,11 +110,11 @@ class SQL extends \Hazaar\DBI\Table {
 
         $delimeters = array('and', 'or');
 
-        $parts = preg_split('/\s*(' . implode('|', $delimeters) . ')\s*/i', $line, -1, PREG_SPLIT_DELIM_CAPTURE);
+        $parts = preg_split('/\b(' . implode('|', $delimeters) . ')\b/i', $line, -1, PREG_SPLIT_DELIM_CAPTURE);
+
+        $conditions = array_combine($delimeters, array_fill(0, count($delimeters), array()));
 
         if(count($parts) > 1){
-
-            $conditions = array_combine($delimeters, array_fill(0, count($delimeters), array()));
 
             for($i=0; $i<count($parts); $i++){
 
@@ -128,7 +129,7 @@ class SQL extends \Hazaar\DBI\Table {
 
         }else{
 
-            $conditions = array_unflatten($parts[0]);
+            $conditions['$and'][] = array_unflatten($parts[0]);
 
         }
 
@@ -144,6 +145,14 @@ class SQL extends \Hazaar\DBI\Table {
         foreach($symbols as $id => &$symbol){
 
             foreach($symbol as $glu => &$chunk){
+
+                if(!is_array($chunk)){
+
+                    $glu = '$and';
+
+                    $chunk = array($chunk);
+
+                }
 
                 foreach($chunk as &$condition){
 
@@ -184,7 +193,18 @@ class SQL extends \Hazaar\DBI\Table {
 
     public function processSELECT($line){
 
-        $this->fields = preg_split('/\s*,\s*/', $line);
+        $this->fields = array();
+
+        $parts = preg_split('/\s*,\s*/', $line);
+
+        foreach($parts as $part){
+
+            if($chunks = $this->splitWordBoundaries($part, array('AS'), $pos))
+                $this->fields[$chunks['AS']] = trim(substr($part, 0, $pos));
+            else
+                $this->fields[] = $part;
+
+        }
 
     }
 
@@ -261,6 +281,11 @@ class SQL extends \Hazaar\DBI\Table {
     }
 
     public function processWHERE($line){
+
+        $line = trim($line);
+
+        if(!(substr($line, 0, 1) === '(' && substr($line, -1, 1) === ')'))
+            $line = '(' . $line . ')';
 
         $this->criteria = $this->parseCondition($line);
 
