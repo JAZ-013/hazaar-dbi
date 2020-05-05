@@ -606,31 +606,31 @@ class Table {
 
     }
 
-    public function fetch($cursor_orientation = \PDO::FETCH_ORI_NEXT, $offset = 0) {
+    public function fetch($cursor_orientation = \PDO::FETCH_ORI_NEXT, $offset = 0, $clobber_dup_named_cols = false) {
 
         if ($result = $this->execute())
-            return $result->fetch((is_assoc($this->fields) ? \PDO::FETCH_NAMED : \PDO::FETCH_ASSOC), $cursor_orientation, $offset);
+            return $result->fetch(($clobber_dup_named_cols !== true && is_assoc($this->fields) ? \PDO::FETCH_NAMED : \PDO::FETCH_ASSOC), $cursor_orientation, $offset);
 
         return FALSE;
 
     }
 
-    public function fetchAll($fetch_argument = null, $ctor_args = array()) {
+    public function fetchAll($fetch_argument = null, $ctor_args = array(), $clobber_dup_named_cols = false) {
 
         if ($result = $this->execute())
-            return $result->fetchAll((is_assoc($this->fields) ? \PDO::FETCH_NAMED : \PDO::FETCH_ASSOC), $fetch_argument, $ctor_args);
+            return $result->fetchAll(($clobber_dup_named_cols !== true && is_assoc($this->fields) ? \PDO::FETCH_NAMED : \PDO::FETCH_ASSOC), $fetch_argument, $ctor_args);
 
         return FALSE;
 
     }
 
-    public function fetchAllColumn($column_name, $fetch_argument = null, $ctor_args = array()) {
+    public function fetchAllColumn($column_name, $fetch_argument = null, $ctor_args = array(), $clobber_dup_named_cols = false) {
 
         $this->fields = array($column_name);
 
         if ($result = $this->execute()){
 
-            $data = $result->fetchAll((is_assoc($this->fields) ? \PDO::FETCH_NAMED : \PDO::FETCH_ASSOC), $fetch_argument, $ctor_args);
+            $data = $result->fetchAll(($clobber_dup_named_cols !== true && is_assoc($this->fields) ? \PDO::FETCH_NAMED : \PDO::FETCH_ASSOC), $fetch_argument, $ctor_args);
 
             return array_column($data, $column_name);
 

@@ -38,37 +38,57 @@ class SQL extends \Hazaar\DBI\Table {
 
         foreach($keywords as $keyword){
 
-            if(preg_match("/\b$keyword\b/i", $string, $matches, PREG_OFFSET_CAPTURE) === 0)
+            if(preg_match_all("/\b$keyword\b/i", $string, $matches, PREG_OFFSET_CAPTURE) === 0)
                 continue;
 
-            $pos = $matches[0][1] + ((substr($matches[0][0], 0, 1) === ' ') ? 1 : 0);
+            foreach($matches[0] as $match){
 
-            if($start_pos === null)
-                $start_pos = $pos;
+                $pos = $match[1] + ((substr($match[0], 0, 1) === ' ') ? 1 : 0);
 
-            $chunks[$keyword] = $pos;
+                if($start_pos === null)
+                    $start_pos = $pos;
 
-        }
+                if(!array_key_exists($keyword, $chunks))
+                    $chunks[$keyword] = array();
 
-        foreach($chunks as $keyword => &$pos){
-
-            $next = strlen($string);
-
-            //Find the next position.  We intentionally do this instead of a sort so that SQL is processed in a known order.
-            foreach(array_values($chunks) as $value){
-
-                if($value <= $pos || $value >= $next)
-                    continue;
-
-                $next = $value;
+                $chunks[$keyword][] = $pos;
 
             }
 
-            $pos = trim(substr($string, $pos + strlen($keyword), $next - ($pos + strlen($keyword))));
+        }
+
+        $result = array();
+
+        foreach($chunks as $keyword => &$positions){
+
+            foreach($positions as &$pos){
+
+                $next = strlen($string);
+
+                //Find the next position.  We intentionally do this instead of a sort so that SQL is processed in a known order.
+                foreach(array_values($chunks) as $values){
+
+                    foreach($values as $value){
+
+                        if(is_int($value) && ($value <= $pos || $value >= $next))
+                            continue;
+
+                        $next = $value;
+
+                    }
+
+                }
+
+                if(!array_key_exists($keyword, $result))
+                    $result[$keyword] = array();
+
+                $result[$keyword][] = trim(substr($string, $pos + strlen($keyword), $next - ($pos + strlen($keyword))));
+
+            }
 
         }
 
-        return $chunks;
+        return $result;
 
     }
 
@@ -81,12 +101,16 @@ class SQL extends \Hazaar\DBI\Table {
 
         $chunks = $this->splitWordBoundaries($sql, self::$keywords);
 
-        foreach($chunks as $keyword => $chunk){
+        foreach($chunks as $keyword => $values){
 
-            $method = 'process' . str_replace(' ', '_', $keyword);
+            foreach($values as $chunk){
 
-            if(method_exists($this, $method))
-                call_user_func(array($this, $method), $chunk);
+                $method = 'process' . str_replace(' ', '_', $keyword);
+
+                if(method_exists($this, $method))
+                    call_user_func(array($this, $method), $chunk);
+
+            }
 
         }
 
@@ -94,7 +118,7 @@ class SQL extends \Hazaar\DBI\Table {
 
     }
 
-    private function parseCondition($line){
+    private function parseCondition($line, $use_refs = false){
 
         $symbols = array();
 
@@ -135,9 +159,6 @@ class SQL extends \Hazaar\DBI\Table {
 
         array_remove_empty($conditions);
 
-        if(!count($symbols) > 0)
-            return $conditions;
-
         $root = uniqid();
 
         $symbols[$root] = $conditions;
@@ -177,6 +198,10 @@ class SQL extends \Hazaar\DBI\Table {
     
                             $condition[$key] =& $symbols[$value];
     
+                        }elseif($use_refs === true){
+
+                            $condition[$key] = array('$ref' => $value);
+
                         }
 
                     }
@@ -200,7 +225,7 @@ class SQL extends \Hazaar\DBI\Table {
         foreach($parts as $part){
 
             if($chunks = $this->splitWordBoundaries($part, array('AS'), $pos))
-                $this->fields[$chunks['AS']] = trim(substr($part, 0, $pos));
+                $this->fields[ake($chunks['AS'], 0)] = trim(substr($part, 0, $pos));
             else
                 $this->fields[] = $part;
 
@@ -249,31 +274,37 @@ class SQL extends \Hazaar\DBI\Table {
 
             $type = key($chunks);
 
-            if(current($chunks))
-                $type = 'INNER';
-            elseif(next($chunks) === null || key($chunks) !== 'JOIN')
-                throw new \Exception('Parse error.  Expecting JOIN');
+            if($type !== 'JOIN'){
 
-            $join = current($chunks);
+                next($chunks);
 
-            $parts = $this->splitWordBoundaries($join, array('ON'), $pos);
+                if(key($chunks) !== 'JOIN')
+                    throw new \Exception('Parse error.  Expecting JOIN');
 
-            if(!$pos > 0)
-                throw new \Exception('Parse error.  Expecting join table name!');
+            }
+            
+            foreach(current($chunks) as $id => $join){
 
-            $join_parts = preg_split('/\s+/', trim(substr($join, 0, $pos)), 2); 
+                $parts = $this->splitWordBoundaries($join, array('ON'), $pos);
 
-            $references = ake($join_parts, 0);
+                if(!$pos > 0)
+                    throw new \Exception('Parse error.  Expecting join table name!');
 
-            $alias = ake($join_parts, 1, $references);
+                $join_parts = preg_split('/\s+/', trim(substr($join, 0, $pos)), 2); 
 
-            $this->joins[$alias] = array(
-                'type' => $type,
-                'ref' => $references,
-                'on' => $this->parseCondition($parts['ON']),
-                'alias' => $alias
-            );
+                $references = ake($join_parts, 0);
 
+                $alias = ake($join_parts, 1, $references);
+
+                $this->joins[$alias] = array(
+                    'type' => $type,
+                    'ref' => $references,
+                    'on' => $this->parseCondition($parts['ON'][0], true),
+                    'alias' => $alias
+                );
+
+            }
+            
             next($chunks);
 
         }
