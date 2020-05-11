@@ -577,10 +577,10 @@ abstract class BaseDriver implements Driver_Interface {
 
                 $field_def[] = $this->prepareFields($fields, null, $tables);
 
-            }elseif(($pos = strpos($value, '*')) !== false){
+            }elseif(preg_match('/^((\w+)\.)?\*$/', trim($value), $matches) > 0){
 
-                if($pos > 0)
-                    $alias = ake($tables, substr($value, 0, $pos - 1));
+                if(count($matches) > 1)
+                    $alias = ake($tables, $matches[2]);
                 else{
 
                     $alias = reset($tables);
