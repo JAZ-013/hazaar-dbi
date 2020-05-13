@@ -39,8 +39,6 @@ class Result implements \ArrayAccess, \Countable, \Iterator {
      */
     private $reset = true;
 
-    private $array_columns = array();
-
     private $type_map = array(
         'numeric'       => 'integer',
         'int2'          => 'integer',
@@ -100,21 +98,40 @@ class Result implements \ArrayAccess, \Countable, \Iterator {
 
             if(substr($meta['native_type'], 0, 1) == '_'){
 
-                $this->array_columns[] = array(substr($meta['native_type'], 1), $meta['name']);
-
-                $type = substr($meta['native_type'], 1);
-
                 $def['type'] = 'array';
 
-                $def['arrayOf'] =  ake($this->type_map, $type, 'string');
+                $def['arrayOf'] = ake($this->type_map, substr($meta['native_type'], 1), 'string');
+
+                $def['prepare'] = function($value, $meta){ 
+                    
+                    $elements = explode(',', trim($value, '{}'));
+
+                    foreach($elements as &$element){
+        
+                        if(substr($meta->arrayOf, 0, 3) == 'int')
+                            $element = intval($element);
+                        elseif(substr($meta->arrayOf, 0, 5) == 'float')
+                            $element = floatval($element);
+                        elseif($meta->arrayOf == 'text' || $meta->arrayOf == 'varchar')
+                            $element = trim($element, "'");
+                        elseif($meta->arrayOf == 'bool')
+                            $element = boolify($element);
+                        elseif($meta->arrayOf == 'timestamp' || $meta->arrayOf == 'date' || $meta->arrayOf == 'time')
+                            $element = new \Hazaar\Date(trim($element, '"'));
+                        elseif($meta->arrayOf == 'json')
+                            $element = json_decode($element);
+        
+                    }
+
+                    return $elements;
+
+                 };
 
             }elseif ($meta['pdo_type'] == \PDO::PARAM_STR && (substr(ake($meta, 'native_type'), 0, 4) == 'json'
                     || (!array_key_exists('native_type', $meta) && in_array('blob', ake($meta, 'flags'))))){
 
-                $this->array_columns[] = array('json', $meta['name']);
-
                 $def['prepare'] = function($value){ if(is_string($value)) return json_decode($value); return $value; };
-
+            
             }else{
 
                 $def['type'] = ake($this->type_map, $meta['native_type'], 'string');
@@ -340,85 +357,61 @@ class Result implements \ArrayAccess, \Countable, \Iterator {
 
     }
 
+    private function fixColumnType($meta, &$value){
+
+        /**
+         * First, make sure the value type is correct
+         */
+        if(property_exists($meta, 'prepare')){
+
+            $value = ($meta->prepare)($value, $meta);
+
+        }elseif(property_exists($meta, 'type')){
+
+            if($meta->type[0] === '\\')
+                $value = new $meta->type($value);
+            else
+                settype($value, $meta->type);
+
+        }
+
+    }
+
     private function fix(&$record) {
 
         if (!$record)
             return null;
 
-        if (!((count($this->array_columns) + count($this->select_groups)) > 0))
-            return $record;
-
-        foreach($this->array_columns as $item){
-
-            list($type, $col) = $item;
-
-            if($type == 'json'){
-
-                $record[$col] = json_decode($record[$col]);
-
-                continue;
-
-            }
-
-            if(!($record[$col] && substr($record[$col], 0, 1) == '{' && substr($record[$col], -1, 1) == '}'))
-                continue;
-
-            $elements = explode(',', trim($record[$col], '{}'));
-
-            foreach($elements as &$element){
-
-                if(substr($type, 0, 3) == 'int')
-                    $element = intval($element);
-                elseif(substr($type, 0, 5) == 'float')
-                    $element = floatval($element);
-                elseif($type == 'text' || $type == 'varchar')
-                    $element = trim($element, "'");
-                elseif($type == 'bool')
-                    $element = boolify($element);
-                elseif($type == 'timestamp' || $type == 'date' || $type == 'time')
-                    $element = new \Hazaar\Date(trim($element, '"'));
-                elseif($type == 'json')
-                    $element = json_decode($element);
-
-            }
-
-            $record[$col] = $elements;
-
-        }
-
         $objs = array();
 
-        foreach($record as $name => $value){
+        foreach($record as $name => &$value){
 
-            if(array_key_exists($name, $this->select_groups)){
-
-                $objs[$this->select_groups[$name]] = $value;
-
-                unset($record[$name]);
-
+            if(!array_key_exists($name, $this->meta))
                 continue;
-
-            }
 
             $aliases = array();
 
-            $meta = null;
+            $meta = $this->meta[$name];
 
-            if(is_array($this->meta[$name])){
+            if(is_array($meta) && !is_array($value))
+                $meta = end($meta);
 
-                $meta = array();
+            if(is_array($meta)){
 
-                foreach($this->meta[$name] as $col){
+                foreach($meta as $i => $m){
 
-                    $meta[] = $col;
+                    $this->fixColumnType($m, $value[$i]);
 
-                    $aliases[] = ake($col, 'table');
+                    if(!($alias = ake($m, 'table')))
+                        continue;
+
+                    $aliases[] = $alias;
 
                 }
 
             }else{
 
-                $meta = $this->meta[$name];
+                $this->fixColumnType($meta, $value);
 
                 if(!($alias = ake($meta, 'table')))
                     continue;
@@ -427,20 +420,33 @@ class Result implements \ArrayAccess, \Countable, \Iterator {
 
             }
 
-            foreach($aliases as $idx => $alias){
+            /**
+             * Check if the column is a select group
+             */
+            if(array_key_exists($name, $this->select_groups)){
 
-                if(!array_key_exists($alias, $this->select_groups))
-                    continue;
-
-                while(array_key_exists($alias, $this->select_groups) && $this->select_groups[$alias] !== $alias)
-                    $alias = $this->select_groups[$alias];
-
-                if(!isset($objs[$alias]))
-                    $objs[$alias] = array();
-
-                $objs[$alias][$name] = (is_array($value) && is_array($meta)) ? $value[$idx] : $value;
+                $objs[$this->select_groups[$name]] = $value;
 
                 unset($record[$name]);
+
+            }else{
+
+                foreach($aliases as $idx => $alias){
+
+                    if(!array_key_exists($alias, $this->select_groups))
+                        continue;
+
+                    while(array_key_exists($alias, $this->select_groups) && $this->select_groups[$alias] !== $alias)
+                        $alias = $this->select_groups[$alias];
+
+                    if(!isset($objs[$alias]))
+                        $objs[$alias] = array();
+
+                    $objs[$alias][$name] = (is_array($value) && is_array($meta)) ? $value[$idx] : $value;
+
+                    unset($record[$name]);
+
+                }
 
             }
 

@@ -609,7 +609,7 @@ class Table {
     public function fetch($cursor_orientation = \PDO::FETCH_ORI_NEXT, $offset = 0, $clobber_dup_named_cols = false) {
 
         if ($result = $this->execute())
-            return $result->fetch(($clobber_dup_named_cols !== true && is_assoc($this->fields) ? \PDO::FETCH_NAMED : \PDO::FETCH_ASSOC), $cursor_orientation, $offset);
+            return $result->fetch(($clobber_dup_named_cols !== true && count($this->joins) > 0 ? \PDO::FETCH_NAMED : \PDO::FETCH_ASSOC), $cursor_orientation, $offset);
 
         return FALSE;
 
@@ -618,7 +618,7 @@ class Table {
     public function fetchAll($fetch_argument = null, $ctor_args = array(), $clobber_dup_named_cols = false) {
 
         if ($result = $this->execute())
-            return $result->fetchAll(($clobber_dup_named_cols !== true && is_assoc($this->fields) ? \PDO::FETCH_NAMED : \PDO::FETCH_ASSOC), $fetch_argument, $ctor_args);
+            return $result->fetchAll(($clobber_dup_named_cols !== true && count($this->joins) > 0 ? \PDO::FETCH_NAMED : \PDO::FETCH_ASSOC), $fetch_argument, $ctor_args);
 
         return FALSE;
 
@@ -630,7 +630,7 @@ class Table {
 
         if ($result = $this->execute()){
 
-            $data = $result->fetchAll(($clobber_dup_named_cols !== true && is_assoc($this->fields) ? \PDO::FETCH_NAMED : \PDO::FETCH_ASSOC), $fetch_argument, $ctor_args);
+            $data = $result->fetchAll(($clobber_dup_named_cols !== true && count($this->joins) > 0 ? \PDO::FETCH_NAMED : \PDO::FETCH_ASSOC), $fetch_argument, $ctor_args);
 
             return array_column($data, $column_name);
 
