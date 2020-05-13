@@ -379,12 +379,22 @@ class Result implements \ArrayAccess, \Countable, \Iterator {
 
             if(is_string($value)){
 
-                if(substr($value, 0, 1) === '"' && substr($value, -1) === '"')
-                    $value = substr($value, 1, -1);
-                elseif(is_numeric($value))
+                if(substr($value, 0, 1) === '"' && substr($value, -1) === '"'){
+
+                    if(preg_match('/^"(\d{4}\-\d{2}\-\d{2} \d{2}:\d{2}:[\d\.\+]+)"$/', $value, $matches) > 0)
+                        $value = new \Hazaar\Date($matches[1]);
+                    else
+                        $value = substr($value, 1, -1);
+                
+                }elseif(is_numeric($value)){
+
                     $value = ((strpos('.', $value) === false) ? intval($value) : floatval($value));
-                elseif(is_boolean($value))
+
+                }elseif(is_boolean($value)){
+
                     $value = boolify($value);
+
+                }
 
             }
 
