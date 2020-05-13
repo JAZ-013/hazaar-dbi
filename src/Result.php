@@ -132,6 +132,22 @@ class Result implements \ArrayAccess, \Countable, \Iterator {
 
                 $def['prepare'] = function($value){ if(is_string($value)) return json_decode($value); return $value; };
             
+            }elseif($meta['native_type'] === 'record'){
+
+                $def['prepare'] = function($value, $meta){ 
+
+                    if(!(substr($value, 0, 1) === '(' && substr($value, -1) === ')'))
+                        return $value;
+
+                    $values = preg_split("/,(?=(?:[^\"]*\"[^\"]*\")*[^\"]*$)/", trim($value, '()'));
+
+                    foreach($values as &$value)
+                        $this->fixColumnType($value);
+
+                    return $values;
+
+                };
+
             }else{
 
                 $def['type'] = ake($this->type_map, $meta['native_type'], 'string');
@@ -357,21 +373,38 @@ class Result implements \ArrayAccess, \Countable, \Iterator {
 
     }
 
-    private function fixColumnType($meta, &$value){
+    private function fixColumnType(&$value, $meta = null){
 
-        /**
-         * First, make sure the value type is correct
-         */
-        if(property_exists($meta, 'prepare')){
+        if($meta === null){
 
-            $value = ($meta->prepare)($value, $meta);
+            if(is_string($value)){
 
-        }elseif(property_exists($meta, 'type')){
+                if(substr($value, 0, 1) === '"' && substr($value, -1) === '"')
+                    $value = substr($value, 1, -1);
+                elseif(is_numeric($value))
+                    $value = ((strpos('.', $value) === false) ? intval($value) : floatval($value));
+                elseif(is_boolean($value))
+                    $value = boolify($value);
 
-            if($meta->type[0] === '\\')
-                $value = new $meta->type($value);
-            else
-                settype($value, $meta->type);
+            }
+
+        }else{
+
+            /**
+             * First, make sure the value type is correct
+             */
+            if(property_exists($meta, 'prepare')){
+
+                $value = ($meta->prepare)($value, $meta);
+
+            }elseif(property_exists($meta, 'type')){
+
+                if($meta->type[0] === '\\')
+                    $value = new $meta->type($value);
+                else
+                    settype($value, $meta->type);
+
+            }
 
         }
 
@@ -393,6 +426,7 @@ class Result implements \ArrayAccess, \Countable, \Iterator {
 
             $meta = $this->meta[$name];
 
+            //If the meta is an array but the value is not, the value is being clobbered because PDO::FETCH_NAMED was not used.
             if(is_array($meta) && !is_array($value))
                 $meta = end($meta);
 
@@ -400,7 +434,7 @@ class Result implements \ArrayAccess, \Countable, \Iterator {
 
                 foreach($meta as $i => $m){
 
-                    $this->fixColumnType($m, $value[$i]);
+                    $this->fixColumnType($value[$i], $m);
 
                     if(!($alias = ake($m, 'table')))
                         continue;
@@ -411,7 +445,7 @@ class Result implements \ArrayAccess, \Countable, \Iterator {
 
             }else{
 
-                $this->fixColumnType($meta, $value);
+                $this->fixColumnType($value, $meta);
 
                 if(!($alias = ake($meta, 'table')))
                     continue;
