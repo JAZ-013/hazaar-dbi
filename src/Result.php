@@ -398,7 +398,7 @@ class Result implements \ArrayAccess, \Countable, \Iterator {
 
             }
 
-        }else{
+        }elseif($value !== null){
 
             /**
              * First, make sure the value type is correct
