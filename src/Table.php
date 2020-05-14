@@ -61,6 +61,8 @@ class Table {
 
     protected $options;
 
+    protected $fetch_named = false;
+
     function __construct(Adapter $adapter, $name = null, $alias = NULL, $options = null) {
 
         $this->adapter = $adapter;
@@ -343,6 +345,8 @@ class Table {
             if (!($this->result = $this->adapter->query($sql)))
                 throw $this->adapter->errorException();
 
+            $this->fetch_named = count(DBD\BaseDriver::$select_groups) > 0 ? true : false;
+
             $this->result->setSelectGroups(DBD\BaseDriver::$select_groups);
 
         }
@@ -608,7 +612,7 @@ class Table {
 
     private function getFetchMode($clobber_dup_named_cols = false){
 
-        return ($clobber_dup_named_cols !== true && count($this->joins) > 0 && is_assoc($this->fields)? \PDO::FETCH_NAMED : \PDO::FETCH_ASSOC);
+        return ($clobber_dup_named_cols !== true && $this->fetch_named === true ? \PDO::FETCH_NAMED : \PDO::FETCH_ASSOC);
 
     }
 
