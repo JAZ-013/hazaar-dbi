@@ -411,7 +411,7 @@ class Result implements \ArrayAccess, \Countable, \Iterator {
 
                 if($meta->type[0] === '\\')
                     $value = new $meta->type($value);
-                else
+                elseif(is_string($value)) //We only convert strings to other types.  This prevents us from screwing up things like BYTEA resources.
                     settype($value, $meta->type);
 
             }
