@@ -734,7 +734,7 @@ abstract class BaseDriver implements Driver_Interface {
 
     }
 
-    public function update($table, $fields, $criteria = array(), $from = array()) {
+    public function update($table, $fields, $criteria = array(), $from = array(), $returning = null) {
 
         if($fields instanceof \Hazaar\Map)
             $fields = $fields->toArray();
@@ -780,6 +780,14 @@ abstract class BaseDriver implements Driver_Interface {
 
         if(is_array($criteria) && count($criteria) > 0)
             $sql .= ' WHERE ' . $this->prepareCriteria($criteria);
+
+        if(is_array($returning) && count($returning) > 0){
+
+            $sql .= ' RETURNING ' . $this->prepareFields($returning);
+
+            return $this->query($sql);
+            
+        }
 
         return $this->exec($sql);
 

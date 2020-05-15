@@ -428,9 +428,14 @@ class Adapter {
 
     }
 
-    public function update($table, $fields, $criteria = array(), $from = array()){
+    public function update($table, $fields, $criteria = array(), $from = array(), $returning = array()){
 
-        return $this->driver->update($table, $this->encrypt($table, $fields), $criteria, $from);
+        $result = $this->driver->update($table, $this->encrypt($table, $fields), $criteria, $from, $returning);
+
+        if($result instanceof \PDOStatement)
+            return new Result($this, $result, $this->options);
+
+        return $result;
 
     }
 
