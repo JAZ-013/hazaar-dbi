@@ -102,7 +102,7 @@ class Result implements \ArrayAccess, \Countable, \Iterator {
 
                 $def['arrayOf'] = ake($this->type_map, substr($meta['native_type'], 1), 'string');
 
-                $def['prepare'] = function($value, $meta){ 
+                $def['convert'] = function($value, $meta){ 
                     
                     $elements = explode(',', trim($value, '{}'));
 
@@ -130,11 +130,11 @@ class Result implements \ArrayAccess, \Countable, \Iterator {
             }elseif ($meta['pdo_type'] == \PDO::PARAM_STR && (substr(ake($meta, 'native_type'), 0, 4) == 'json'
                     || (!array_key_exists('native_type', $meta) && in_array('blob', ake($meta, 'flags'))))){
 
-                $def['prepare'] = function($value){ if(is_string($value)) return json_decode($value); return $value; };
+                $def['convert'] = function($value){ if(is_string($value)) return json_decode($value); return $value; };
             
             }elseif($meta['native_type'] === 'record'){
 
-                $def['prepare'] = function($value, $meta){ 
+                $def['convert'] = function($value, $meta){ 
 
                     if(!(substr($value, 0, 1) === '(' && substr($value, -1) === ')'))
                         return $value;
@@ -403,9 +403,9 @@ class Result implements \ArrayAccess, \Countable, \Iterator {
             /**
              * First, make sure the value type is correct
              */
-            if(property_exists($meta, 'prepare')){
+            if(property_exists($meta, 'convert')){
 
-                $value = ($meta->prepare)($value, $meta);
+                $value = ($meta->convert)($value, $meta);
 
             }elseif(property_exists($meta, 'type')){
 
