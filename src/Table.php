@@ -542,7 +542,7 @@ class Table {
 
     }
 
-    public function update($criteria, $fields) {
+    public function update($criteria, $fields, $returning = null) {
 
         $from = array();
 
@@ -560,7 +560,7 @@ class Table {
 
         $name = $this->adapter->field($this->name) . ($this->alias ? ' ' . $this->alias : null);
 
-        return $this->adapter->update($name, $fields, $criteria, $from);
+        return $this->adapter->update($name, $fields, $criteria, $from, $returning);
 
     }
 
