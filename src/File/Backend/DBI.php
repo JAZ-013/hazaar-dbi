@@ -480,6 +480,8 @@ class DBI implements _Interface {
 
         $md5 = md5($bytes);
 
+        $chunk_id = null;
+        
         if($info = $this->db->hz_file->findOne(array('md5' => $md5))) {
 
             $chunk_id = $info['start_chunk'];
@@ -628,8 +630,10 @@ class DBI implements _Interface {
 
         $target['parent'] = $dstParent['id'];
 
-        if(!$this->db->hz_file->insert($target))
+        if(!($id = $this->db->hz_file->insert($target, 'id')))
             return false;
+
+        $target['id'] = $id;
 
         if(!array_key_exists('items', $dstParent))
             $dstParent['items'] = array();
