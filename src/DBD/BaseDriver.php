@@ -679,7 +679,7 @@ abstract class BaseDriver implements Driver_Interface {
 
     }
 
-    public function insert($table, $fields, $returning = null) {
+    public function insert($table, $fields, $returning = null, $conflict_target = null, $conflict_update = null) {
 
         if($fields instanceof \Hazaar\Map)
             $fields = $fields->toArray();
@@ -710,14 +710,39 @@ abstract class BaseDriver implements Driver_Interface {
 
         }
 
-        if (is_string($returning)){
+        if($conflict_target !== null){
 
-            $returning = trim($returning);
+            $sql .= ' ON CONFLICT(' . $this->field($conflict_target) . ')';
 
-            $sql .= ' RETURNING ' . $this->field($returning);
+            if($conflict_update === null){
 
-        }elseif(is_array($returning))
-            $sql .= ' RETURNING ' . $this->prepareFields($returning);
+                $sql .= ' DO NOTHING';
+
+            }else{
+                
+                if($conflict_update === true)
+                    $conflict_update = array_keys($fields);
+
+                if(is_array($conflict_update) && count($conflict_update) > 0){
+
+                    $update_defs = array();
+
+                    foreach($conflict_update as $field){
+
+                        if(!array_key_exists($field, $fields))
+                            continue;
+
+                        $update_defs[] = $this->field($field) . ' = EXCLUDED.' . $field;
+
+                    }
+
+                    $sql .= ' DO UPDATE SET ' . implode(', ', $update_defs);
+
+                }
+
+            }
+
+        }
 
         $return_value = FALSE;
 
@@ -730,12 +755,25 @@ abstract class BaseDriver implements Driver_Interface {
             if ($result = $this->query($sql))
                 $return_value = (int) $this->lastinsertid();
 
-        } elseif ($result = $this->query($sql)){
+        } else{
+            
+            if (is_string($returning)){
 
-            if (is_string($returning) && $returning !== '*')
-                $return_value = $result->fetchColumn(0);
-            elseif(is_array($returning) || $returning === '*')
-                $return_value = $result->fetch(\PDO::FETCH_ASSOC);
+                $returning = trim($returning);
+    
+                $sql .= ' RETURNING ' . $this->field($returning);
+    
+            }elseif(is_array($returning))
+                $sql .= ' RETURNING ' . $this->prepareFields($returning);
+            
+            if ($result = $this->query($sql)){
+
+                if (is_string($returning) && $returning !== '*')
+                    $return_value = $result->fetchColumn(0);
+                elseif(is_array($returning) || $returning === '*')
+                    $return_value = $result->fetch(\PDO::FETCH_ASSOC);
+
+            }
 
         }
 
