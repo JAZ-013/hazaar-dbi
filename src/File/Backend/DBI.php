@@ -145,6 +145,34 @@ class DBI implements _Interface {
 
     }
 
+    private function dedupDirectory($parent, $filename){
+
+        if(!($q = $this->db->hz_file->find(array('parent' => $parent, 'filename' => $filename))->sort('created_on')))
+            return false;
+
+        $dups = $q->fetchAll();
+
+        if(count($dups) < 2)
+            return true;
+
+        $master = array_shift($dups);
+
+        foreach($dups as $dup){
+
+            if($dup['kind'] !== 'dir')
+                continue;
+
+            $q = $this->db->hz_file->find(array('parent' => $dup['id']));
+
+            while($child = $q->fetch())
+                $this->db->hz_file->update(array('id' => $child['id']), array('parent' => $master['id']));
+
+            $this->db->hz_file->delete(array('id' => $dup['id']));
+
+        }
+        
+    }
+
     public function fsck($skip_root_reload = false) {
 
         $c = $this->db->hz_file->find(array(), array('id', 'filename', 'parent'));
@@ -172,6 +200,53 @@ class DBI implements _Interface {
 
         if($skip_root_reload !== true)
             $this->loadRootObject();
+
+        //Check and de-dup any directories that have been duplicated accidentally
+        $select = $this->db->hz_file
+            ->group(array('parent', 'filename'))
+            ->having(array('count(*)' => array('$gt' => 1)))
+            ->find(array('kind' => 'dir'), array('parent', 'filename'));
+
+        for($i = 0; $i < 16; $i++){
+
+            $select->reset();
+
+            $select->execute();
+
+            if($select->count() === 0)
+                break;
+
+            while($row = $select->fetch())
+                $this->dedupDirectory($row['parent'], $row['filename']);
+
+        }
+
+        //Check and de-dup any files
+        $select = $this->db->hz_file
+            ->group(array('parent', 'filename'))
+            ->having(array('count(*)' => array('$gt' => 1)))
+            ->find(array('kind' => 'file'), array('parent', 'filename'));
+
+        while($row = $select->fetch()){
+
+            $copies = 0;
+
+            $dups = $this->db->hz_file->find(array('parent' => $row['parent'], 'filename' => $row['filename']))
+                ->sort('created_on')
+                ->fetchAll();
+
+            $master = array_shift($dups);
+
+            foreach($dups as $dup){
+
+                if($dup['start_chunk'] === $master['start_chunk'])
+                    $this->db->hz_file->delete(array('id' => $dup['id']));
+                else
+                    $this->db->hz_file->update(array('id' => $dup['id']), array('filename' => $dup['filename'] . ' (Copy #' . ++$copies . ')'));
+
+            }
+
+        }
 
         $this->db->repair();
 
