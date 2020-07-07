@@ -1,0 +1,29 @@
+
+<div class="row">
+    <div class="col col-12">
+        <div class="panel">
+            <div class="panel-header">
+                DBI File Systems
+            </div>
+            <div class="panel-content">
+                <table class="table" style="table-layout: fixed;">
+                    <tr>
+                        <th style="width: 150px;">ID</th>
+                        <th>Name</th>
+                        <th>Tools</th>
+                        <th>Status</th>
+                    </tr>
+                    <?php foreach($this->filesystems as $name => $info): ?>
+                    <tr>
+                        <td><?=$name;?></td>
+                        <td><?=ake($info, 'name');?></td>
+                        <td><button type="submit" class="btnFSCK primary pull-left" data-fsname="<?=$name;?>">Run File System Check</button></td>
+                        <td class="status"></td>
+                    </tr>
+                    <?php endforeach; ?>
+            </div>
+            <div id="fsckresult" class="panel-content"></div>
+        </div>
+    </div>
+</div>
+
