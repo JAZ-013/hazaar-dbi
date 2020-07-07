@@ -449,8 +449,14 @@ class DBI implements _Interface {
             'modified_on'  => null
         );
 
-        if(!($id = $this->db->hz_file->insert($info, 'id')) > 0)
+        if(!($id = $this->db->hz_file->insert($info, 'id')) > 0){
+
+            if($id === false && $this->db->errorCode() === "23505") //Directory exists but not in memory so reload
+                $this->loadObjects($parent);
+
             return false;
+
+        }
 
         $info['id'] = $id;
 
