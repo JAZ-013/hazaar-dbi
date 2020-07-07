@@ -207,7 +207,9 @@ class DBI implements _Interface {
             ->having(array('count(*)' => array('$gt' => 1)))
             ->find(array('kind' => 'dir'), array('parent', 'filename'));
 
-        for($i = 0; $i < 16; $i++){
+        $count = 0;
+
+        while(true){
 
             $select->reset();
 
@@ -219,20 +221,24 @@ class DBI implements _Interface {
             while($row = $select->fetch())
                 $this->dedupDirectory($row['parent'], $row['filename']);
 
+            if($count++ > 16)
+                throw new \Exception('Maximum attempts to de-duplicate directories reached! (max=16)');
+
         }
 
         //Check and de-dup any files
         $select = $this->db->hz_file
             ->group(array('parent', 'filename'))
             ->having(array('count(*)' => array('$gt' => 1)))
-            ->find(array('kind' => 'file'), array('parent', 'filename'));
+            ->find(array(), array('parent', 'filename'));
 
         while($row = $select->fetch()){
 
             $copies = 0;
 
+            //IMPORTANT: We sort by kind so that 'dir' is first.  This means it will end up being the master.
             $dups = $this->db->hz_file->find(array('parent' => $row['parent'], 'filename' => $row['filename']))
-                ->sort('created_on')
+                ->sort(array('kind' => 1, 'created_on' => 1))
                 ->fetchAll();
 
             $master = array_shift($dups);
