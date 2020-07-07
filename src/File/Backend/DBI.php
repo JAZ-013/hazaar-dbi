@@ -221,6 +221,33 @@ class DBI implements _Interface {
 
         }
 
+        //Check and de-dup any files
+        $select = $this->db->hz_file
+            ->group(array('parent', 'filename'))
+            ->having(array('count(*)' => array('$gt' => 1)))
+            ->find(array('kind' => 'file'), array('parent', 'filename'));
+
+        while($row = $select->fetch()){
+
+            $copies = 0;
+
+            $dups = $this->db->hz_file->find(array('parent' => $row['parent'], 'filename' => $row['filename']))
+                ->sort('created_on')
+                ->fetchAll();
+
+            $master = array_shift($dups);
+
+            foreach($dups as $dup){
+
+                if($dup['start_chunk'] === $master['start_chunk'])
+                    $this->db->hz_file->delete(array('id' => $dup['id']));
+                else
+                    $this->db->hz_file->update(array('id' => $dup['id']), array('filename' => $dup['filename'] . ' (Copy #' . ++$copies . ')'));
+
+            }
+
+        }
+
         $this->db->repair();
 
         return true;
