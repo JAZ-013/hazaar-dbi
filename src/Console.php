@@ -130,6 +130,8 @@ class Console extends \Hazaar\Console\Module {
 
         if($this->request->isPOST()){
 
+            \set_time_limit(300);
+
             $result = false;
 
             if($m = \Hazaar\File\Manager::select($this->request->fs))
