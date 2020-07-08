@@ -828,15 +828,38 @@ abstract class BaseDriver implements Driver_Interface {
         if(is_array($criteria) && count($criteria) > 0)
             $sql .= ' WHERE ' . $this->prepareCriteria($criteria);
 
-        if(is_array($returning) && count($returning) > 0){
+        $return_value = FALSE;
 
-            $sql .= ' RETURNING ' . $this->prepareFields($returning);
+        if ($returning === TRUE)
+            $returning = '*';
 
-            return $this->query($sql);
+        if ($returning === NULL || $returning === FALSE) {
+
+            $return_value = $this->exec($sql);
+
+        } else{
             
+            if (is_string($returning)){
+
+                $returning = trim($returning);
+    
+                $sql .= ' RETURNING ' . $this->field($returning);
+    
+            }elseif(is_array($returning))
+                $sql .= ' RETURNING ' . $this->prepareFields($returning);
+            
+            if ($result = $this->query($sql)){
+
+                if (is_string($returning) && $returning !== '*')
+                    $return_value = $result->fetchColumn(0);
+                elseif(is_array($returning) || $returning === '*')
+                    $return_value = $result->fetch(\PDO::FETCH_ASSOC);
+
+            }
+
         }
 
-        return $this->exec($sql);
+        return $return_value;
 
     }
 
