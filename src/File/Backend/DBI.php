@@ -686,7 +686,7 @@ class DBI implements _Interface {
 
     }
 
-    public function copy($src, $dst, $recursive = false) {
+    public function copy($src, $dst, $overwrite = false) {
 
         if(!($source = $this->info($src)))
             return false;
@@ -694,19 +694,7 @@ class DBI implements _Interface {
         if(!($dstParent =& $this->info($this->dirname($dst))))
             throw new \Hazaar\Exception('Unable to determine parent of path: ' . $dst);
 
-        if($dstParent) {
-
-            if($dstParent['kind'] !== 'dir')
-                return false;
-
-        } else {
-
-            if(!($dstParent =& $this->info($this->dirname($dst))))
-                throw new \Hazaar\Exception('Unable to determine parent of path: ' . $dst);
-
-        }
-
-        if(!$dstParent)
+        if($dstParent['kind'] !== 'dir')
             return false;
 
         $target = $source;
@@ -723,9 +711,7 @@ class DBI implements _Interface {
         $target['id'] = $id;
 
         if(!array_key_exists('items', $dstParent))
-            $dstParent['items'] = array();
-
-        $dstParent['items'][$target['filename']] = $target;
+            $this->loadObjects($dstParent);
 
         return true;
 
@@ -771,7 +757,7 @@ class DBI implements _Interface {
 
     }
 
-    public function move($src, $dst) {
+    public function move($src, $dst, $overwrite = false) {
 
         if(substr($dst, 0, strlen($src)) == $src)
             return false;
@@ -793,6 +779,15 @@ class DBI implements _Interface {
 
             $data['filename'] = basename($dst);
 
+            if(array_key_exists($data['filename'], $dstParent['items'])){
+
+                if($overwrite !== true || $dstParent['items'][$data['filename']]['kind'] !== 'file')
+                    return false;
+
+                $this->db->hz_file->delete(array('id' => $dstParent['items'][$data['filename']]['id']));
+
+            }
+
             //Update the parents items array key with the new name.
             $basename = basename($src);
 
@@ -810,8 +805,10 @@ class DBI implements _Interface {
 
         }
 
-        if(!$this->db->hz_file->update(array('id' => $source['id']), $data))
+        if(!($target = $this->db->hz_file->update(array('id' => $source['id']), $data, '*')))
             throw new \Hazaar\Exception($this->db->errorInfo()[2]);
+
+        $dstParent['items'][$data['filename']] = $target;
 
         return true;
 
