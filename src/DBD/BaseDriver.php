@@ -833,7 +833,7 @@ abstract class BaseDriver implements Driver_Interface {
         if ($returning === TRUE)
             $returning = '*';
 
-        if ($returning === NULL || $returning === FALSE) {
+        if ($returning === NULL || $returning === FALSE || (is_array($returning) && count($returning) === 0)) {
 
             $return_value = $this->exec($sql);
 
@@ -845,7 +845,7 @@ abstract class BaseDriver implements Driver_Interface {
     
                 $sql .= ' RETURNING ' . $this->field($returning);
     
-            }elseif(is_array($returning))
+            }elseif(is_array($returning) && count($returning) > 0)
                 $sql .= ' RETURNING ' . $this->prepareFields($returning);
             
             if ($result = $this->query($sql)){

@@ -699,19 +699,37 @@ class DBI implements _Interface {
 
         $target = $source;
 
-        unset($target['id']);
+        $target['filename'] = basename($dst);
 
         $target['modified_on'] = new \Hazaar\Date();
 
         $target['parent'] = $dstParent['id'];
 
-        if(!($id = $this->db->hz_file->insert($target, 'id')))
-            return false;
+        unset($target['id']);
 
-        $target['id'] = $id;
+        if($existing =& $this->info($dst)){
 
+            if($overwrite !== true)
+                return false;
+
+            unset($dstParent['items'][$target['filename']]);
+
+            if(!($id = $this->db->hz_file->update(array('id' => $existing['id']), $target)))
+                return false;
+
+        }else{
+
+            if(!($id = $this->db->hz_file->insert($target, 'id')))
+                return false;
+
+            $target['id'] = $id;
+
+        }
+            
         if(!array_key_exists('items', $dstParent))
             $this->loadObjects($dstParent);
+        else
+            $dstParent['items'][$target['filename']] = $target;
 
         return true;
 
