@@ -435,7 +435,17 @@ class Adapter {
      */
     public function insert($table, $fields, $returning = null, $update_columns = null, $update_where = null){
 
-        return $this->driver->insert($table, $this->encrypt($table, $fields), $returning, $update_columns, $update_where);
+        $result = $this->driver->insert($table, $this->encrypt($table, $fields), $returning, $update_columns, $update_where);
+
+        if($result instanceof \PDOStatement){
+
+            $result = new Result($this, $result, $this->options);
+
+            return $result->fetch();
+
+        }
+        
+        return $result;
 
     }
 
@@ -443,8 +453,13 @@ class Adapter {
 
         $result = $this->driver->update($table, $this->encrypt($table, $fields), $criteria, $from, $returning);
 
-        if($result instanceof \PDOStatement)
-            return new Result($this, $result, $this->options);
+        if($result instanceof \PDOStatement){
+
+            $result = new Result($this, $result, $this->options);
+
+            return $result->fetch();
+
+        }
 
         return $result;
 
