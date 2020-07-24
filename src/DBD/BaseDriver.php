@@ -746,7 +746,7 @@ abstract class BaseDriver implements Driver_Interface {
 
         $return_value = FALSE;
 
-        if ($returning === NULL || $returning === FALSE) {
+        if ($returning === NULL || $returning === FALSE || (is_array($returning) && count($returning) === 0)) {
 
             $return_value = $this->exec($sql);
 
@@ -763,20 +763,14 @@ abstract class BaseDriver implements Driver_Interface {
     
                 $sql .= ' RETURNING ' . $this->field($returning);
     
-            }elseif(is_array($returning))
+            }elseif(is_array($returning) && count($returning) > 0)
                 $sql .= ' RETURNING ' . $this->prepareFields($returning);
             
-            if ($result = $this->query($sql)){
-
-                if (is_string($returning) && $returning !== '*')
-                    $return_value = $result->fetchColumn(0);
-                elseif(is_array($returning) || $returning === '*')
-                    $return_value = $result->fetch(\PDO::FETCH_ASSOC);
-
-            }
+            if ($result = $this->query($sql))
+                $return_value = (is_string($returning) && $returning !== '*') ? $result->fetchColumn(0) : $result;
 
         }
-
+        
         return $return_value;
 
     }
