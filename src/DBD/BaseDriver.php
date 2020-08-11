@@ -1316,7 +1316,7 @@ abstract class BaseDriver implements Driver_Interface {
         if($schema === null)
             $schema = $this->schema;
 
-        $sql = "SELECT r.routine_schema, r.routine_name FROM INFORMATION_SCHEMA.routines r WHERE r.specific_schema=" . $this->prepareValue($schema);
+        $sql = "SELECT r.routine_schema, r.routine_name FROM INFORMATION_SCHEMA.routines r WHERE r.specific_schema=" . $this->prepareValue($schema) . " AND routine_body != 'EXTERNAL'";
 
         $q = $this->query($sql);
 
