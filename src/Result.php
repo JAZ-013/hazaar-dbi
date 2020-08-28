@@ -372,7 +372,7 @@ class Result implements \ArrayAccess, \Countable, \Iterator {
                 elseif(substr($type, 0, 5) == 'float')
                     $element = floatval($element);
                 elseif($type == 'text' || $type == 'varchar')
-                    $element = trim($element, "'");
+                    $element = trim($element, "'\"");
                 elseif($type == 'bool')
                     $element = boolify($element);
                 elseif($type == 'timestamp' || $type == 'date' || $type == 'time')
