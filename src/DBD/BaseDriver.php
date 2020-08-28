@@ -329,6 +329,9 @@ abstract class BaseDriver implements Driver_Interface {
 
         $parts = array();
 
+        if(count($criteria) === 0) 
+            return 'TRUE';
+
         foreach($criteria as $key => $value) {
 
             if(is_int($key) && is_string($value)){
