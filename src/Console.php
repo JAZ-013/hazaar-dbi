@@ -20,6 +20,10 @@ class Console extends \Hazaar\Console\Module {
 
             $group->addMenuItem('Data Sync', 'sync', 'refresh');
 
+            $group->addMenuItem('File System', 'fsck', 'folder');
+
+            $this->view->requires('js/dbi.js');
+
         }
 
         return $group;
@@ -129,6 +133,38 @@ class Console extends \Hazaar\Console\Module {
         }
 
         $this->view('sync');
+
+    }
+
+    public function fsck(){
+
+        if($this->request->isPOST()){
+
+            \set_time_limit(300);
+
+            $result = false;
+
+            if($m = \Hazaar\File\Manager::select($this->request->fs))
+                $result = $m->fsck();
+
+            return array('ok' => $result);
+
+        }
+
+        $this->view('files');
+
+        $filesystems = array();
+
+        $config = new \Hazaar\Application\Config('media');
+
+        foreach($config as $name => $info){
+
+            if($info['type'] === 'DBI')
+                $filesystems[$name] = $info->toArray();
+
+        }
+
+        $this->view->filesystems = $filesystems;
 
     }
 

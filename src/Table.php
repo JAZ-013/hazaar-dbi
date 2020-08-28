@@ -532,13 +532,24 @@ class Table {
 
     }
 
-    public function insert($fields, $returning = NULL) {
+    /**
+     * Insert a record into a database table
+     * 
+     * Using $update_columns it's possible to perform an "upsert".  An upsert is an INSERT, that
+     * when it fails, columns can be updated in the existing row.
+     * 
+     * @param array $fields The fields to be inserted.
+     * @param string $returning A column to return when the row is inserted (usually the primary key).
+     * @param array $update_columns The names of the columns to be updated if the row exists.
+     * @param array $update_where Not used yet
+     */
+    public function insert($fields, $returning = NULL, $update_columns = null, $update_where = null) {
 
-        return $this->adapter->insert($this->name, $fields, $returning);
+        return $this->adapter->insert($this->name, $fields, $returning, $update_columns, $update_where);
 
     }
 
-    public function update($criteria, $fields) {
+    public function update($criteria, $fields, $returning = null) {
 
         $from = array();
 
@@ -556,7 +567,7 @@ class Table {
 
         $name = $this->adapter->field($this->name) . ($this->alias ? ' ' . $this->alias : null);
 
-        return $this->adapter->update($name, $fields, $criteria, $from);
+        return $this->adapter->update($name, $fields, $criteria, $from, $returning);
 
     }
 

@@ -145,6 +145,34 @@ class DBI implements _Interface {
 
     }
 
+    private function dedupDirectory($parent, $filename){
+
+        if(!($q = $this->db->hz_file->find(array('parent' => $parent, 'filename' => $filename))->sort('created_on')))
+            return false;
+
+        $dups = $q->fetchAll();
+
+        if(count($dups) < 2)
+            return true;
+
+        $master = array_shift($dups);
+
+        foreach($dups as $dup){
+
+            if($dup['kind'] !== 'dir')
+                continue;
+
+            $q = $this->db->hz_file->find(array('parent' => $dup['id']));
+
+            while($child = $q->fetch())
+                $this->db->hz_file->update(array('id' => $child['id']), array('parent' => $master['id']));
+
+            $this->db->hz_file->delete(array('id' => $dup['id']));
+
+        }
+        
+    }
+
     public function fsck($skip_root_reload = false) {
 
         $c = $this->db->hz_file->find(array(), array('id', 'filename', 'parent'));
@@ -172,6 +200,59 @@ class DBI implements _Interface {
 
         if($skip_root_reload !== true)
             $this->loadRootObject();
+
+        //Check and de-dup any directories that have been duplicated accidentally
+        $select = $this->db->hz_file
+            ->group(array('parent', 'filename'))
+            ->having(array('count(*)' => array('$gt' => 1)))
+            ->find(array('kind' => 'dir'), array('parent', 'filename'));
+
+        $count = 0;
+
+        while(true){
+
+            $select->reset();
+
+            $select->execute();
+
+            if($select->count() === 0)
+                break;
+
+            while($row = $select->fetch())
+                $this->dedupDirectory($row['parent'], $row['filename']);
+
+            if($count++ > 16)
+                throw new \Exception('Maximum attempts to de-duplicate directories reached! (max=16)');
+
+        }
+
+        //Check and de-dup any files
+        $select = $this->db->hz_file
+            ->group(array('parent', 'filename'))
+            ->having(array('count(*)' => array('$gt' => 1)))
+            ->find(array(), array('parent', 'filename'));
+
+        while($row = $select->fetch()){
+
+            $copies = 0;
+
+            //IMPORTANT: We sort by kind so that 'dir' is first.  This means it will end up being the master.
+            $dups = $this->db->hz_file->find(array('parent' => $row['parent'], 'filename' => $row['filename']))
+                ->sort(array('kind' => 1, 'created_on' => 1))
+                ->fetchAll();
+
+            $master = array_shift($dups);
+
+            foreach($dups as $dup){
+
+                if($dup['start_chunk'] === $master['start_chunk'])
+                    $this->db->hz_file->delete(array('id' => $dup['id']));
+                else
+                    $this->db->hz_file->update(array('id' => $dup['id']), array('filename' => $dup['filename'] . ' (Copy #' . ++$copies . ')'));
+
+            }
+
+        }
 
         $this->db->repair();
 
@@ -368,8 +449,14 @@ class DBI implements _Interface {
             'modified_on'  => null
         );
 
-        if(!($id = $this->db->hz_file->insert($info, 'id')) > 0)
+        if(!($id = $this->db->hz_file->insert($info, 'id')) > 0){
+
+            if($id === false && $this->db->errorCode() === "23505") //Directory exists but not in memory so reload
+                $this->loadObjects($parent);
+
             return false;
+
+        }
 
         $info['id'] = $id;
 
@@ -480,6 +567,8 @@ class DBI implements _Interface {
 
         $md5 = md5($bytes);
 
+        $chunk_id = null;
+        
         if($info = $this->db->hz_file->findOne(array('md5' => $md5))) {
 
             $chunk_id = $info['start_chunk'];
@@ -597,7 +686,7 @@ class DBI implements _Interface {
 
     }
 
-    public function copy($src, $dst, $recursive = false) {
+    public function copy($src, $dst, $overwrite = false) {
 
         if(!($source = $this->info($src)))
             return false;
@@ -605,36 +694,42 @@ class DBI implements _Interface {
         if(!($dstParent =& $this->info($this->dirname($dst))))
             throw new \Hazaar\Exception('Unable to determine parent of path: ' . $dst);
 
-        if($dstParent) {
-
-            if($dstParent['kind'] !== 'dir')
-                return false;
-
-        } else {
-
-            if(!($dstParent =& $this->info($this->dirname($dst))))
-                throw new \Hazaar\Exception('Unable to determine parent of path: ' . $dst);
-
-        }
-
-        if(!$dstParent)
+        if($dstParent['kind'] !== 'dir')
             return false;
 
         $target = $source;
 
-        unset($target['id']);
+        $target['filename'] = basename($dst);
 
         $target['modified_on'] = new \Hazaar\Date();
 
         $target['parent'] = $dstParent['id'];
 
-        if(!$this->db->hz_file->insert($target))
-            return false;
+        unset($target['id']);
 
+        if($existing =& $this->info($dst)){
+
+            if($overwrite !== true)
+                return false;
+
+            unset($dstParent['items'][$target['filename']]);
+
+            if(!($id = $this->db->hz_file->update(array('id' => $existing['id']), $target)))
+                return false;
+
+        }else{
+
+            if(!($id = $this->db->hz_file->insert($target, 'id')))
+                return false;
+
+            $target['id'] = $id;
+
+        }
+            
         if(!array_key_exists('items', $dstParent))
-            $dstParent['items'] = array();
-
-        $dstParent['items'][$target['filename']] = $target;
+            $this->loadObjects($dstParent);
+        else
+            $dstParent['items'][$target['filename']] = $target;
 
         return true;
 
@@ -680,7 +775,7 @@ class DBI implements _Interface {
 
     }
 
-    public function move($src, $dst) {
+    public function move($src, $dst, $overwrite = false) {
 
         if(substr($dst, 0, strlen($src)) == $src)
             return false;
@@ -702,6 +797,15 @@ class DBI implements _Interface {
 
             $data['filename'] = basename($dst);
 
+            if(array_key_exists($data['filename'], $dstParent['items'])){
+
+                if($overwrite !== true || $dstParent['items'][$data['filename']]['kind'] !== 'file')
+                    return false;
+
+                $this->db->hz_file->delete(array('id' => $dstParent['items'][$data['filename']]['id']));
+
+            }
+
             //Update the parents items array key with the new name.
             $basename = basename($src);
 
@@ -719,8 +823,10 @@ class DBI implements _Interface {
 
         }
 
-        if(!$this->db->hz_file->update(array('id' => $source['id']), $data))
+        if(!($target = $this->db->hz_file->update(array('id' => $source['id']), $data, '*')))
             throw new \Hazaar\Exception($this->db->errorInfo()[2]);
+
+        $dstParent['items'][$data['filename']] = $target;
 
         return true;
 

@@ -180,6 +180,15 @@
                     "table": "hz_file_chunk",
                     "column": "id"
                 }
+            },
+            "hz_file_parent_fkey": {
+                "table": "hz_file",
+                "column": "parent",
+                "type": "FOREIGN KEY",
+                "references": {
+                    "table": "hz_file",
+                    "column": "id"
+                }
             }
         }
     },
@@ -202,6 +211,13 @@
                     "md5"
                 ],
                 "unique": false
+            },
+            "hz_file_parent_filename_idx": {
+                "columns": [
+                    "parent",
+                    "filename"
+                ],
+                "unique": true
             }
         },
         "hz_file_chunk": {

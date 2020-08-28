@@ -577,10 +577,10 @@ abstract class BaseDriver implements Driver_Interface {
 
                 $field_def[] = $this->prepareFields($fields, null, $tables);
 
-            }elseif(($pos = strpos($value, '*')) !== false){
+            }elseif(preg_match('/^((\w+)\.)?\*$/', trim($value), $matches) > 0){
 
-                if($pos > 0)
-                    $alias = ake($tables, substr($value, 0, $pos - 1));
+                if(count($matches) > 1)
+                    $alias = ake($tables, $matches[2]);
                 else{
 
                     $alias = reset($tables);
@@ -679,7 +679,7 @@ abstract class BaseDriver implements Driver_Interface {
 
     }
 
-    public function insert($table, $fields, $returning = null) {
+    public function insert($table, $fields, $returning = null, $conflict_target = null, $conflict_update = null) {
 
         if($fields instanceof \Hazaar\Map)
             $fields = $fields->toArray();
@@ -710,9 +710,43 @@ abstract class BaseDriver implements Driver_Interface {
 
         }
 
+        if($conflict_target !== null){
+
+            $sql .= ' ON CONFLICT(' . $this->field($conflict_target) . ')';
+
+            if($conflict_update === null){
+
+                $sql .= ' DO NOTHING';
+
+            }else{
+                
+                if($conflict_update === true)
+                    $conflict_update = array_keys($fields);
+
+                if(is_array($conflict_update) && count($conflict_update) > 0){
+
+                    $update_defs = array();
+
+                    foreach($conflict_update as $field){
+
+                        if(!array_key_exists($field, $fields))
+                            continue;
+
+                        $update_defs[] = $this->field($field) . ' = EXCLUDED.' . $field;
+
+                    }
+
+                    $sql .= ' DO UPDATE SET ' . implode(', ', $update_defs);
+
+                }
+
+            }
+
+        }
+
         $return_value = FALSE;
 
-        if ($returning === NULL || $returning === FALSE) {
+        if ($returning === NULL || $returning === FALSE || (is_array($returning) && count($returning) === 0)) {
 
             $return_value = $this->exec($sql);
 
@@ -721,20 +755,27 @@ abstract class BaseDriver implements Driver_Interface {
             if ($result = $this->query($sql))
                 $return_value = (int) $this->lastinsertid();
 
-        } elseif (is_string($returning)) {
+        } else{
+            
+            if (is_string($returning)){
 
-            $sql .= ' RETURNING ' . $returning;
-
+                $returning = trim($returning);
+    
+                $sql .= ' RETURNING ' . $this->field($returning);
+    
+            }elseif(is_array($returning) && count($returning) > 0)
+                $sql .= ' RETURNING ' . $this->prepareFields($returning);
+            
             if ($result = $this->query($sql))
-                $return_value = $result->fetchColumn(0);
+                $return_value = (is_string($returning) && $returning !== '*') ? $result->fetchColumn(0) : $result;
 
         }
-
+        
         return $return_value;
 
     }
 
-    public function update($table, $fields, $criteria = array(), $from = array()) {
+    public function update($table, $fields, $criteria = array(), $from = array(), $returning = null) {
 
         if($fields instanceof \Hazaar\Map)
             $fields = $fields->toArray();
@@ -781,7 +822,32 @@ abstract class BaseDriver implements Driver_Interface {
         if(is_array($criteria) && count($criteria) > 0)
             $sql .= ' WHERE ' . $this->prepareCriteria($criteria);
 
-        return $this->exec($sql);
+        $return_value = FALSE;
+
+        if ($returning === TRUE)
+            $returning = '*';
+
+        if ($returning === NULL || $returning === FALSE || (is_array($returning) && count($returning) === 0)) {
+
+            $return_value = $this->exec($sql);
+
+        } else{
+            
+            if (is_string($returning)){
+
+                $returning = trim($returning);
+    
+                $sql .= ' RETURNING ' . $this->field($returning);
+    
+            }elseif(is_array($returning) && count($returning) > 0)
+                $sql .= ' RETURNING ' . $this->prepareFields($returning);
+            
+            if ($result = $this->query($sql))
+                $return_value = (is_string($returning) && $returning !== '*') ? $result->fetchColumn(0) : $result;
+
+        }
+
+        return $return_value;
 
     }
 
@@ -1250,7 +1316,7 @@ abstract class BaseDriver implements Driver_Interface {
         if($schema === null)
             $schema = $this->schema;
 
-        $sql = "SELECT r.routine_schema, r.routine_name FROM INFORMATION_SCHEMA.routines r WHERE r.specific_schema=" . $this->prepareValue($schema);
+        $sql = "SELECT r.routine_schema, r.routine_name FROM INFORMATION_SCHEMA.routines r WHERE r.specific_schema=" . $this->prepareValue($schema) . " AND routine_body != 'EXTERNAL'";
 
         $q = $this->query($sql);
 

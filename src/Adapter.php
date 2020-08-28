@@ -442,15 +442,46 @@ class Adapter {
 
     }
 
-    public function insert($table, $fields, $returning = null){
+    /**
+     * Perform and "upsert"
+     * 
+     * An upsert is an INSERT, that when it fails, columns can be updated in the existing row.
+     * 
+     * @param string $table The table to insert a record into.
+     * @param array $fields The fields to be inserted.
+     * @param string $returning A column to return when the row is inserted (usually the primary key).
+     * @param array $update_columns The names of the columns to be updated if the row exists.
+     * @param array $update_where Not used yet
+     */
+    public function insert($table, $fields, $returning = null, $update_columns = null, $update_where = null){
 
-        return $this->driver->insert($table, $this->encrypt($table, $fields), $returning);
+        $result = $this->driver->insert($table, $this->encrypt($table, $fields), $returning, $update_columns, $update_where);
+
+        if($result instanceof \PDOStatement){
+
+            $result = new Result($this, $result, $this->options);
+
+            return $result->fetch();
+
+        }
+        
+        return $result;
 
     }
 
-    public function update($table, $fields, $criteria = array(), $from = array()){
+    public function update($table, $fields, $criteria = array(), $from = array(), $returning = array()){
 
-        return $this->driver->update($table, $this->encrypt($table, $fields), $criteria, $from);
+        $result = $this->driver->update($table, $this->encrypt($table, $fields), $criteria, $from, $returning);
+
+        if($result instanceof \PDOStatement){
+
+            $result = new Result($this, $result, $this->options);
+
+            return $result->fetch();
+
+        }
+
+        return $result;
 
     }
 

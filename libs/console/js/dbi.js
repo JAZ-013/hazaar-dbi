@@ -33,4 +33,14 @@ $(document).ready(function () {
         }).fail(handleError);
         return false;
     });
+    $('button.btnFSCK').click(function () {
+        let label = $('<i class="label">').html('Working...');
+        $(this).parent().next(".status").html(label);
+        $.post(hazaar.url('dbi', 'fsck', { fs: $(this).attr('data-fsname') })).done(function (result) {
+            if (result.ok) label.addClass('success').html('Check Completed Successfully!');
+            else label.addClass('danger').html('Unknown Error');
+            label.removeClass('default');
+        }).fail(handleError);
+        return false;
+    });
 });
