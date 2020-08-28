@@ -30,7 +30,10 @@
     "psr-4": {
       "Hazaar\\DBI\\": "src/"
     },
-    "classmap": [ "src/File/Backend" ]
+    "classmap": [
+      "src/File/Backend",
+      "src/Auth/Adapter/DBITable.php"
+    ]
   },
   "require": {
     "php": "^5.6 || ^7.0",
