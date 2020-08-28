@@ -346,14 +346,22 @@ class Adapter {
 
     }
 
-    public function call($method, $args = array()) {
+    public function call($method, $args = array(), $criteria = null) {
 
         $arglist = array();
+
+        if($args !== null && !is_array($args))
+            $args = array($args);
 
         foreach($args as $arg)
             $arglist[] = (is_numeric($arg) ? $arg : $this->quote($arg));
 
-        $sql = 'SELECT ' . $method . '(' . implode(',', $arglist) . ');';
+        $sql = 'SELECT * FROM ' . $method . '(' . implode(',', $arglist) . ')';
+
+        if($criteria !== null)
+            $sql .= ' WHERE ' . $this->prepareCriteria($criteria);
+
+        $sql .= ';';
 
         return $this->query($sql);
 
