@@ -2489,7 +2489,7 @@ class Manager {
 
                 }else{
 
-                    throw new \Hazaar\Exception("Can not migrate data on table '$table' without primary key!");
+                    throw new \Hazaar\Exception("No primary key found for table '$table'.  Does the table exist?");
 
                 }
 
