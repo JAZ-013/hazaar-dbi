@@ -100,7 +100,10 @@ class Result implements \ArrayAccess, \Countable, \Iterator {
 
             if(substr($meta['native_type'], 0, 1) == '_'){
 
-                $this->array_columns[] = array(substr($meta['native_type'], 1), $meta['name']);
+                if(!array_key_exists($meta['name'], $this->array_columns))
+                    $this->array_columns[$meta['name']] = array();
+
+                $this->array_columns[$meta['name']][] = substr($meta['native_type'], 1);
 
                 $type = substr($meta['native_type'], 1);
 
@@ -111,7 +114,10 @@ class Result implements \ArrayAccess, \Countable, \Iterator {
             }elseif ($meta['pdo_type'] == \PDO::PARAM_STR && (substr(ake($meta, 'native_type'), 0, 4) == 'json'
                     || (!array_key_exists('native_type', $meta) && in_array('blob', ake($meta, 'flags'))))){
 
-                $this->array_columns[] = array('json', $meta['name']);
+                if(!array_key_exists($meta['name'], $this->array_columns))
+                    $this->array_columns[$meta['name']] = array();
+    
+                $this->array_columns[$meta['name']][] = 'json';
 
                 $def['prepare'] = function($value){ if(is_string($value)) return json_decode($value); return $value; };
 
@@ -348,41 +354,53 @@ class Result implements \ArrayAccess, \Countable, \Iterator {
         if (!((count($this->array_columns) + count($this->select_groups)) > 0))
             return $record;
 
-        foreach($this->array_columns as $item){
+        foreach($this->array_columns as $col => $array_columns){
 
-            list($type, $col) = $item;
+            if(count($array_columns) > 1)
+                $columns =& $record[$col];
+            else
+                $columns = array(&$record[$col]);
 
-            if($type == 'json'){
+            foreach($array_columns as $index => $type){
 
-                $record[$col] = json_decode($record[$col]);
+                if($columns[$index] === null)
+                    continue;
 
-                continue;
+                if($type == 'json'){
+
+                    $columns[$index] = json_decode($columns[$index]);
+
+                    continue;
+
+                }
+
+                if(!($columns[$index] && substr($columns[$index], 0, 1) == '{' && substr($columns[$index], -1, 1) == '}'))
+                    continue;
+
+                $elements = explode(',', trim($columns[$index], '{}'));
+
+                foreach($elements as &$element){
+
+                    if(substr($type, 0, 3) == 'int')
+                        $element = intval($element);
+                    elseif(substr($type, 0, 5) == 'float')
+                        $element = floatval($element);
+                    elseif($type == 'text' || $type == 'varchar')
+                        $element = trim($element, "'");
+                    elseif($type == 'bool')
+                        $element = boolify($element);
+                    elseif($type == 'timestamp' || $type == 'date' || $type == 'time')
+                        $element = new \Hazaar\Date(trim($element, '"'));
+                    elseif($type == 'json')
+                        $element = json_decode($element);
+
+                }
+
+                $columns[$index] = $elements;
 
             }
 
-            if(!($record[$col] && substr($record[$col], 0, 1) == '{' && substr($record[$col], -1, 1) == '}'))
-                continue;
-
-            $elements = explode(',', trim($record[$col], '{}'));
-
-            foreach($elements as &$element){
-
-                if(substr($type, 0, 3) == 'int')
-                    $element = intval($element);
-                elseif(substr($type, 0, 5) == 'float')
-                    $element = floatval($element);
-                elseif($type == 'text' || $type == 'varchar')
-                    $element = trim($element, "'");
-                elseif($type == 'bool')
-                    $element = boolify($element);
-                elseif($type == 'timestamp' || $type == 'date' || $type == 'time')
-                    $element = new \Hazaar\Date(trim($element, '"'));
-                elseif($type == 'json')
-                    $element = json_decode($element);
-
-            }
-
-            $record[$col] = $elements;
+            unset($columns);
 
         }
 
