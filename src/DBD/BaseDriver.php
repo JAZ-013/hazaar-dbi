@@ -634,7 +634,7 @@ abstract class BaseDriver implements Driver_Interface {
 
     public function prepareValue($value, $key = null) {
 
-        if (is_array($value)) {
+        if (is_array($value) && count($value) > 0) {
 
             $value = $this->prepareCriteria($value, NULL, NULL, NULL, $key);
 
@@ -642,7 +642,7 @@ abstract class BaseDriver implements Driver_Interface {
 
             $value = $this->quote($value->format('Y-m-d H:i:s'));
 
-        } else if (is_null($value)) {
+        } else if (is_null($value) || (is_array($value) && count($value) === 0)) {
 
             $value = 'NULL';
 
