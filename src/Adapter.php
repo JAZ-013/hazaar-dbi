@@ -26,15 +26,22 @@ namespace Hazaar\DBI;
  * * [IBM Informix](http://www.ibm.com/software/data/informix)
  * * [Interbase](http://www.embarcadero.com/products/interbase)
  *
- * Access to database functions is all done using a common class structure.
+ * Access to database functions is all implemented using a common class structure.  This allows developers
+ * to create database queries in code without consideration for the underlying SQL.  SQL is generated 
+ * "under the hood" using a database specific driver that will automatically take care of any differences
+ * in the database servers SQL implementation.
  *
- * h2. Example Usage
+ * ## Example Usage
  *
  * ```php
- * $db = new Hazaar\DBI\Adapter();
+ * $db = Hazaar\DBI\Adapter::getInstance();
+ * 
  * $result = $this->execute('SELECT * FROM users');
+ * 
  * while($row = $result->fetch()){
+ * 
  * //Do things with $row here
+ * 
  * }
  * ```
  */
@@ -57,6 +64,8 @@ class Adapter {
 
     static public $default_checkstring = '!!';
 
+    static private $instances = array();
+
     function __construct($config_env = NULL) {
 
         if(!$config_env)
@@ -73,6 +82,31 @@ class Adapter {
 
         if($config !== NULL)
             $this->configure($config);
+
+        if(!array_key_exists($config_env, self::$instances))
+            self::$instances[$config_env] = $this;
+
+    }
+
+    /**
+     * Return an existing or create a new instance of a DBI Adapter
+     * 
+     * This function should be the main entrypoint to the DBI Adapter class as it implements instance tracking to reduce
+     * the number of individual connections to a database.  Normally, instantiating a new DBI Adapter will create a new
+     * connection to the database, even if one already exists.  This may be desired so this functionality still exists.
+     * 
+     * However, if using `Hazaar\DBI\Adapter::getInstance()` you will be returned an existing instance if one exists allowing
+     * a single connection to be used from multiple sections of code, without the need to pass around an existing reference.
+     * 
+     * NOTE:  Only the first instance created is tracked, so it is still possible to create multiple connections by
+     * instantiating the DBI Adapter directly.  The choice is yours.
+     */
+    static public function getInstance($config_env = null){
+
+        if(array_key_exists($config_env, self::$instances))
+            return self::$instances[$config_env];
+
+        return new Adapter($config_env);
 
     }
 
