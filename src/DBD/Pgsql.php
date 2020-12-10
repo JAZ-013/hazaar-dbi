@@ -308,7 +308,13 @@ class Pgsql extends BaseDriver {
 
                 $set_key = false;
 
-                return $this->prepareValue($value) . " $tissue ANY($key)";
+                return $this->prepareValue($value) . " $tissue ANY ($key)";
+
+            case 'all':
+
+                $set_key = false;
+
+                return $this->prepareValue($value) . " $tissue ALL ($key)";
 
         }
 
