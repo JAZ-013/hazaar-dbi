@@ -77,8 +77,13 @@ class Adapter {
             $config = $this->getDefaultConfig($config_env);
         elseif (is_array($config_env))
             $config = new \Hazaar\Map($config_env);
-        elseif ($config_env instanceof \Hazaar\Map)
+        elseif ($config_env instanceof \Hazaar\Map){
+
             $config = $config_env;
+
+            $config_env = md5(serialize($config));
+
+        }
 
         if($config !== NULL)
             $this->configure($config);
