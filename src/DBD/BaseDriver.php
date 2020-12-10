@@ -322,7 +322,7 @@ abstract class BaseDriver implements Driver_Interface {
 
     }
 
-    public function prepareCriteria($criteria, $bind_type = 'AND', $tissue = '=', $parent_ref = NULL, $optional_key = NULL) {
+    public function prepareCriteria($criteria, $bind_type = 'AND', $tissue = '=', $parent_ref = NULL, $optional_key = NULL, &$set_key = true) {
 
         if(!is_array($criteria))
             return $criteria;
@@ -337,168 +337,22 @@ abstract class BaseDriver implements Driver_Interface {
 
             }elseif(substr($key, 0, 1) == '$') {
 
-                $action = strtolower(substr($key, 1));
+                if($action_parts = $this->prepareCriteriaAction(strtolower(substr($key, 1)), $value, $tissue, $optional_key, $set_key)){
 
-                switch($action) {
-                    case 'and':
+                    if(is_array($action_parts))
+                        $parts = array_merge($parts, $action_parts);
+                    else
+                        $parts[] = $action_parts;
 
-                        $parts[] = $this->prepareCriteria($value, 'AND');
-
-                        break;
-
-                    case 'or':
-
-                        $parts[] = $this->prepareCriteria($value, 'OR');
-
-                        break;
-
-                    case 'ne':
-
-                        if(is_null($value))
-                            $parts[] = 'IS NOT NULL';
-                        else
-                            $parts[] = (is_boolean($value) ? 'IS NOT ' : '!= ') . $this->prepareValue($value);
-
-                        break;
-
-                    case 'not' :
-
-                        $parts[] = 'NOT (' . $this->prepareCriteria($value) . ')';
-
-                        break;
-
-                    case  'ref' :
-
-                        $parts[] = $tissue . ' ' . $value;
-
-                        break;
-
-                    case 'nin' :
-                    case 'in' :
-
-                        if(is_array($value) && count($value) > 0) {
-
-                            $values = array();
-
-                            foreach($value as $val)
-                                $values[] = $this->prepareValue($val);
-
-                            $parts[] = (($action == 'nin') ? 'NOT ' : NULL) . 'IN ( ' . implode(', ', $values) . ' )';
-
-                        }
-
-                        break;
-
-                    case 'gt':
-
-                        $parts[] = '> ' . $this->prepareValue($value);
-
-                        break;
-
-                    case 'gte':
-
-                        $parts[] = '>= ' . $this->prepareValue($value);
-
-                        break;
-
-                    case 'lt':
-
-                        $parts[] = '< ' . $this->prepareValue($value);
-
-                        break;
-
-                    case 'lte':
-
-                        $parts[] = '<= ' . $this->prepareValue($value);
-
-                        break;
-
-                    case 'ilike': //iLike
-
-                        $parts[] = 'ILIKE ' . $this->quote($value);
-
-                        break;
-
-                    case 'like': //Like
-
-                        $parts[] = 'LIKE ' . $this->quote($value);
-
-                        break;
-
-                    case 'bt':
-
-                        if(($count = count($value)) !== 2)
-                            throw new \Hazaar\Exception('DBD: $bt operator requires array argument with exactly 2 elements. ' . $count . ' given.');
-
-                        $parts[] = 'BETWEEN ' . $this->prepareValue(array_values($value)[0])
-                            . ' AND ' . $this->prepareValue(array_values($value)[1]);
-
-                        break;
-
-                    case '~':
-                    case '~*':
-                    case '!~':
-                    case '!~*':
-
-                        $parts[] = $action . ' ' . $this->quote($value);
-
-                        break;
-
-                    case 'exists': //exists
-
-                        foreach($value as $table => $criteria)
-                            $parts[] = 'EXISTS ( SELECT * FROM ' . $table . ' WHERE ' . $this->prepareCriteria($criteria) . ' )';
-
-                        break;
-
-                    case 'sub': //sub query
-
-                        $parts[] = '( ' . $value[0]->toString(FALSE) . ' ) ' . $this->prepareCriteria($value[1]);
-
-                        break;
-
-                    case 'array':
-
-                        if(!is_array($value))
-                            $value = array($value);
-
-                        foreach($value as &$val)
-                            $val = $this->prepareValue($val);
-
-                        $parts[] = 'ARRAY[' . implode(',', $value) . ']';
-
-                        break;
-
-                    case 'json':
-
-                        $parts[] = $this->prepareValue(json_encode($value, JSON_UNESCAPED_UNICODE));
-
-                        break;
-
-                    case 'push':
-
-                        if(!is_array($value))
-                            $value = array($value);
-
-                        foreach($value as &$val)
-                            $val = $this->prepareValue($val);
-
-                        $parts[] = $this->field($optional_key) . ' || ARRAY[' . implode(',', $value) . ']';
-
-                        break;
-
-                    default :
-
-                        $parts[] = ' ' . $tissue . ' ' . $this->prepareCriteria($value, strtoupper(substr($key, 1)));
-
-                        break;
-                }
+                } else $parts[] = ' ' . $tissue . ' ' . $this->prepareCriteria($value, strtoupper(substr($key, 1)));
 
             } else {
 
                 if(is_array($value)) {
 
-                    $sub_value = $this->prepareCriteria($value);
+                    $set = true;
+
+                    $sub_value = $this->prepareCriteria($value, $bind_type, $tissue, $parent_ref, $key, $set);
 
                     if(is_numeric($key)) {
 
@@ -509,7 +363,7 @@ abstract class BaseDriver implements Driver_Interface {
                         if($parent_ref && strpos($key, '.') === FALSE)
                             $key = $parent_ref . '.' . $key;
 
-                        $parts[] = $key . ' ' . $sub_value;
+                        $parts[] = (($set === true) ? $key . ' ' : '' ) . $sub_value;
 
                     }
 
@@ -538,6 +392,112 @@ abstract class BaseDriver implements Driver_Interface {
 
         return $sql;
 
+    }
+
+    public function prepareCriteriaAction($action, $value, $tissue = '=', $key = null, &$set_key = true){
+
+        switch($action) {
+            case 'and':
+
+                return $this->prepareCriteria($value, 'AND');
+
+            case 'or':
+
+                return $this->prepareCriteria($value, 'OR');
+
+            case 'ne':
+
+                if(is_null($value))
+                    return 'IS NOT NULL';
+                
+                return (is_boolean($value) ? 'IS NOT ' : '!= ') . $this->prepareValue($value);
+
+            case 'not' :
+
+                return 'NOT (' . $this->prepareCriteria($value) . ')';
+
+            case  'ref' :
+
+                return $tissue . ' ' . $value;
+
+            case 'nin' :
+            case 'in' :
+
+                if(is_array($value) && count($value) > 0) {
+
+                    $values = array();
+
+                    foreach($value as $val)
+                        $values[] = $this->prepareValue($val);
+
+                    return (($action == 'nin') ? 'NOT ' : NULL) . 'IN ( ' . implode(', ', $values) . ' )';
+
+                }
+
+                break;
+
+            case 'gt':
+
+                return '> ' . $this->prepareValue($value);
+
+            case 'gte':
+
+                return '>= ' . $this->prepareValue($value);
+
+            case 'lt':
+
+                return '< ' . $this->prepareValue($value);
+
+            case 'lte':
+
+                $parts[] = '<= ' . $this->prepareValue($value);
+
+                break;
+
+            case 'ilike': //iLike
+
+                return 'ILIKE ' . $this->quote($value);
+
+            case 'like': //Like
+
+                return 'LIKE ' . $this->quote($value);
+
+            case 'bt':
+
+                if(($count = count($value)) !== 2)
+                    throw new \Hazaar\Exception('DBD: $bt operator requires array argument with exactly 2 elements. ' . $count . ' given.');
+
+                return 'BETWEEN ' . $this->prepareValue(array_values($value)[0])
+                    . ' AND ' . $this->prepareValue(array_values($value)[1]);
+
+            case '~':
+            case '~*':
+            case '!~':
+            case '!~*':
+
+                return $action . ' ' . $this->quote($value);
+
+            case 'exists': //exists
+
+                $parts = array();
+
+                foreach($value as $table => $criteria)
+                    $parts[] = 'EXISTS ( SELECT * FROM ' . $table . ' WHERE ' . $this->prepareCriteria($criteria) . ' )';
+
+                return $parts;
+
+            case 'sub': //sub query
+
+                return '( ' . $value[0]->toString(FALSE) . ' ) ' . $this->prepareCriteria($value[1]);
+
+            case 'json':
+
+                return $this->prepareValue(json_encode($value, JSON_UNESCAPED_UNICODE));
+
+        }
+
+        return null;
+        
     }
 
     public function prepareFields($fields, $exclude = array(), $tables = array()) {

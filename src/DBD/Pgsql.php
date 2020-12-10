@@ -280,4 +280,40 @@ class Pgsql extends BaseDriver {
 
     }
 
+    public function prepareCriteriaAction($action, $value, $tissue = '=', $key = null, &$set_key = true){
+
+        switch($action){
+
+            case 'array':
+
+                if(!is_array($value))
+                    $value = array($value);
+
+                foreach($value as &$val)
+                    $val = $this->prepareValue($val);
+
+                return 'ARRAY[' . implode(',', $value) . ']';
+
+            case 'push':
+
+                if(!is_array($value))
+                    $value = array($value);
+
+                foreach($value as &$val)
+                    $val = $this->prepareValue($val);
+
+                return $this->field($optional_key) . ' || ARRAY[' . implode(',', $value) . ']';
+
+            case 'any':
+
+                $set_key = false;
+
+                return $this->prepareValue($value) . " $tissue ANY($key)";
+
+        }
+
+        return parent::prepareCriteriaAction($action, $value, $tissue, $key, $set_key);
+
+    }
+
 }
