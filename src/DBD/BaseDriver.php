@@ -450,9 +450,7 @@ abstract class BaseDriver implements Driver_Interface {
 
             case 'lte':
 
-                $parts[] = '<= ' . $this->prepareValue($value);
-
-                break;
+                return '<= ' . $this->prepareValue($value);
 
             case 'ilike': //iLike
 
