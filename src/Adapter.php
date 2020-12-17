@@ -132,6 +132,12 @@ class Adapter {
 
         $this->config = $config;
 
+        return $this->reconfigure();
+
+    }
+
+    private function reconfigure($reconnect = false){
+
         $user = ( $this->config->has('user') ? $this->config->user : null );
 
         $password = ( $this->config->has('password') ? $this->config->password : null );
@@ -151,7 +157,7 @@ class Adapter {
 
         }
 
-        if(!$this->connect($dsn, $user, $password))
+        if(!$this->connect($dsn, $user, $password, null, $reconnect))
             throw new Exception\ConnectionFailed($this->config['host']);
 
         if(array_key_exists('encrypt', $this->options) && !array_key_exists('key', $this->options['encrypt'])){
@@ -220,7 +226,7 @@ class Adapter {
 
     }
 
-    public function connect($dsn, $username = NULL, $password = NULL, $driver_options = NULL) {
+    public function connect($dsn, $username = NULL, $password = NULL, $driver_options = NULL, $reconnect = false) {
 
         $driver = ucfirst(substr($dsn, 0, strpos($dsn, ':')));
 
@@ -238,7 +244,7 @@ class Adapter {
             $driver_options
         )));
 
-        if (array_key_exists($hash, Adapter::$connections)) {
+        if ($reconnect !== true && array_key_exists($hash, Adapter::$connections)) {
 
             $this->driver = Adapter::$connections[$hash];
 
@@ -321,12 +327,27 @@ class Adapter {
 
     public function query($sql) {
 
+        $result = false;
+
+        $retries = 0;
+
         $this->checkConfig();
 
-        $result = $this->driver->query($sql);
+        while($retries++ < 3){
 
-        if($result instanceof \PDOStatement)
-            return new Result($this, $result, $this->options);
+            $result = $this->driver->query($sql);
+
+            if($result instanceof \PDOStatement)
+                return new Result($this, $result, $this->options);
+
+            $error = $this->errorCode();
+
+            if(!($error === '57P01' || $error === 'HY000'))
+                break;
+
+            $this->reconfigure(true);
+
+        }
 
         return $result;
 
