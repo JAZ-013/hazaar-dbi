@@ -26,15 +26,22 @@ namespace Hazaar\DBI;
  * * [IBM Informix](http://www.ibm.com/software/data/informix)
  * * [Interbase](http://www.embarcadero.com/products/interbase)
  *
- * Access to database functions is all done using a common class structure.
+ * Access to database functions is all implemented using a common class structure.  This allows developers
+ * to create database queries in code without consideration for the underlying SQL.  SQL is generated 
+ * "under the hood" using a database specific driver that will automatically take care of any differences
+ * in the database servers SQL implementation.
  *
- * h2. Example Usage
+ * ## Example Usage
  *
  * ```php
- * $db = new Hazaar\DBI\Adapter();
+ * $db = Hazaar\DBI\Adapter::getInstance();
+ * 
  * $result = $this->execute('SELECT * FROM users');
+ * 
  * while($row = $result->fetch()){
+ * 
  * //Do things with $row here
+ * 
  * }
  * ```
  */
@@ -57,6 +64,8 @@ class Adapter {
 
     static public $default_checkstring = '!!';
 
+    static private $instances = array();
+
     function __construct($config_env = NULL) {
 
         if(!$config_env)
@@ -68,11 +77,41 @@ class Adapter {
             $config = $this->getDefaultConfig($config_env);
         elseif (is_array($config_env))
             $config = new \Hazaar\Map($config_env);
-        elseif ($config_env instanceof \Hazaar\Map)
+        elseif ($config_env instanceof \Hazaar\Map){
+
             $config = $config_env;
+
+            $config_env = md5(serialize($config));
+
+        }
 
         if($config !== NULL)
             $this->configure($config);
+
+        if(!array_key_exists($config_env, self::$instances))
+            self::$instances[$config_env] = $this;
+
+    }
+
+    /**
+     * Return an existing or create a new instance of a DBI Adapter
+     * 
+     * This function should be the main entrypoint to the DBI Adapter class as it implements instance tracking to reduce
+     * the number of individual connections to a database.  Normally, instantiating a new DBI Adapter will create a new
+     * connection to the database, even if one already exists.  This may be desired so this functionality still exists.
+     * 
+     * However, if using `Hazaar\DBI\Adapter::getInstance()` you will be returned an existing instance if one exists allowing
+     * a single connection to be used from multiple sections of code, without the need to pass around an existing reference.
+     * 
+     * NOTE:  Only the first instance created is tracked, so it is still possible to create multiple connections by
+     * instantiating the DBI Adapter directly.  The choice is yours.
+     */
+    static public function getInstance($config_env = null){
+
+        if(array_key_exists($config_env, self::$instances))
+            return self::$instances[$config_env];
+
+        return new Adapter($config_env);
 
     }
 
@@ -93,6 +132,12 @@ class Adapter {
 
         $this->config = $config;
 
+        return $this->reconfigure();
+
+    }
+
+    private function reconfigure($reconnect = false){
+
         $user = ( $this->config->has('user') ? $this->config->user : null );
 
         $password = ( $this->config->has('password') ? $this->config->password : null );
@@ -112,7 +157,7 @@ class Adapter {
 
         }
 
-        if(!$this->connect($dsn, $user, $password))
+        if(!$this->connect($dsn, $user, $password, null, $reconnect))
             throw new Exception\ConnectionFailed($this->config['host']);
 
         if(array_key_exists('encrypt', $this->options) && !array_key_exists('key', $this->options['encrypt'])){
@@ -201,7 +246,7 @@ class Adapter {
 
     }
 
-    public function connect($dsn, $username = NULL, $password = NULL, $driver_options = NULL) {
+    public function connect($dsn, $username = NULL, $password = NULL, $driver_options = NULL, $reconnect = false) {
 
         $driver = ucfirst(substr($dsn, 0, strpos($dsn, ':')));
 
@@ -219,7 +264,7 @@ class Adapter {
             $driver_options
         )));
 
-        if (array_key_exists($hash, Adapter::$connections)) {
+        if ($reconnect !== true && array_key_exists($hash, Adapter::$connections)) {
 
             $this->driver = Adapter::$connections[$hash];
 
@@ -302,12 +347,27 @@ class Adapter {
 
     public function query($sql) {
 
+        $result = false;
+
+        $retries = 0;
+
         $this->checkConfig();
 
-        $result = $this->driver->query($sql);
+        while($retries++ < 3){
 
-        if($result instanceof \PDOStatement)
-            return new Result($this, $result, $this->options);
+            $result = $this->driver->query($sql);
+
+            if($result instanceof \PDOStatement)
+                return new Result($this, $result, $this->options);
+
+            $error = $this->errorCode();
+
+            if(!($error === '57P01' || $error === 'HY000'))
+                break;
+
+            $this->reconfigure(true);
+
+        }
 
         return $result;
 

@@ -555,7 +555,7 @@ class DBI implements _Interface {
 
     }
 
-    public function write($path, $bytes, $content_type, $overwrite = false) {
+    public function write($path, $bytes, $content_type = null, $overwrite = false) {
 
         if(!($parent =& $this->info($this->dirname($path))))
             throw new \Hazaar\Exception('Unable to determine parent of path: ' . $path);
