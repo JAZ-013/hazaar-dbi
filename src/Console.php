@@ -6,9 +6,9 @@ class Console extends \Hazaar\Console\Module {
 
     private $db;
 
-    public function menu(){
+    public function load(){
 
-        $this->db = new \Hazaar\DBI\Adapter();
+        $this->db = \Hazaar\DBI\Adapter::getInstance();
 
         $group = $this->addMenuItem('Databases', 'database');
 
@@ -22,8 +22,6 @@ class Console extends \Hazaar\Console\Module {
 
             $group->addMenuItem('File System', 'fsck', 'folder');
 
-            $this->view->requires('js/dbi.js');
-
         }
 
         return $group;
@@ -32,13 +30,11 @@ class Console extends \Hazaar\Console\Module {
 
     public function init(){
 
-        //$this->view->link('css/main.css');
+        $this->view->link('css/main.css');
 
-        //$this->view->requires('js/dbi.js');
+        $this->view->requires('js/dbi.js');
 
-       // $this->notice('This module is currently under active development!', 'exclamation-triangle', 'warning');
-
-        $this->db = new \Hazaar\DBI\Adapter();
+        $this->notice('This module is currently under active development!', 'exclamation-triangle', 'warning');
 
         $manager = $this->db->getSchemaManager();
 
