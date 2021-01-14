@@ -798,7 +798,7 @@ class Table {
      *
      * @return array
      */
-    public function collate($index_column, $value_column, $group_column = null){
+    public function collate($index_column, $value_column = null, $group_column = null){
 
         return array_collate($this->fetchAll(), $index_column, $value_column, $group_column);
 
