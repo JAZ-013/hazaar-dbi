@@ -558,6 +558,9 @@ class Manager {
             if(file_exists($this->db_dir))
                 throw new \Hazaar\Exception('Unable to create database migration directory.  It exists but is not a directory!');
 
+            if(!is_writable(dirname($this->db_dir)))
+                throw new \Hazaar\Exception('The directory that contains the database migration directory is not writable!');
+                
             mkdir($this->db_dir);
 
         }
