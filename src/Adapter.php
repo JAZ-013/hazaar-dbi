@@ -157,8 +157,28 @@ class Adapter {
 
         }
 
-        if(!$this->connect($dsn, $user, $password, null, $reconnect))
-            throw new Exception\ConnectionFailed($this->config['host']);
+        $driver = ucfirst(substr($dsn, 0, strpos($dsn, ':')));
+
+        if (!array_key_exists($driver, Adapter::$connections))
+            Adapter::$connections[$driver] = array();
+
+        $hash = md5(serialize($this->config->toArray()));
+
+        if ($reconnect !== true && array_key_exists($hash, Adapter::$connections)) {
+
+            $this->driver = Adapter::$connections[$hash];
+
+        } else {
+
+            if(!$this->connect($dsn, $user, $password, null, $reconnect))
+                throw new Exception\ConnectionFailed($this->config['host']);
+
+            Adapter::$connections[$hash] = $this->driver;
+
+            if($this->config->has('schema'))
+                $this->driver->setSchemaName($this->config->get('schema'));
+
+        }
 
         if(array_key_exists('encrypt', $this->options) && !array_key_exists('key', $this->options['encrypt'])){
 
@@ -233,66 +253,46 @@ class Adapter {
         if (!$driver)
             throw new Exception\DriverNotSpecified();
 
-        if (!array_key_exists($driver, Adapter::$connections))
-            Adapter::$connections[$driver] = array();
+        $DBD = Adapter::getDriverClass($driver);
 
-        $hash = md5(serialize(array(
-            $driver,
-            $dsn,
-            $username,
-            $password,
-            $driver_options
-        )));
+        if (!class_exists($DBD))
+            throw new Exception\DriverNotFound($driver);
 
-        if ($reconnect !== true && array_key_exists($hash, Adapter::$connections)) {
+        $this->driver = new $DBD(array_unflatten(substr($dsn, strpos($dsn, ':') + 1)));
 
-            $this->driver = Adapter::$connections[$hash];
+        if (!$driver_options)
+            $driver_options = array();
 
-        } else {
+        $driver_options = array_replace(array(
+            \PDO::ATTR_STRINGIFY_FETCHES => FALSE,
+            \PDO::ATTR_EMULATE_PREPARES => FALSE
+        ), $driver_options);
 
-            $DBD = Adapter::getDriverClass($driver);
+        if (!$this->driver->connect($dsn, $username, $password, $driver_options))
+            return false;
 
-            if (!class_exists($DBD))
-                throw new Exception\DriverNotFound($driver);
+        if ($this->config->has('master')){
 
-            $this->driver = new $DBD(array_unflatten(substr($dsn, strpos($dsn, ':') + 1)));
+            $master_config = clone $this->config;
 
-            if (!$driver_options)
-                $driver_options = array();
+            $master_config->extend($this->config->master);
 
-            $driver_options = array_replace(array(
-                \PDO::ATTR_STRINGIFY_FETCHES => FALSE,
-                \PDO::ATTR_EMULATE_PREPARES => FALSE
-            ), $driver_options);
+            unset($master_config->master);
 
-            if (!$this->driver->connect($dsn, $username, $password, $driver_options))
-                return false;
+            $DBD2 = Adapter::getDriverClass($master_config->driver);
 
-            Adapter::$connections[$hash] = $this->driver;
+            $master = new $DBD2($master_config);
 
-            if ($this->config->has('master')){
+            if(!$master->connect($DBD2::mkdsn($master_config), $username, $password, $driver_options))
+                throw new Exception\ConnectionFailed($dsn);
 
-                $master_config = clone $this->config;
-
-                $master_config->extend($this->config->master);
-
-                unset($master_config->master);
-
-                $DBD2 = Adapter::getDriverClass($master_config->driver);
-
-                $master = new $DBD2($master_config);
-
-                if(!$master->connect($DBD2::mkdsn($master_config), $username, $password, $driver_options))
-                    throw new Exception\ConnectionFailed($dsn);
-
-                $this->driver->setMasterDBD($master);
-
-            }
-
-            if($this->config->has('timezone'))
-                $this->setTimezone($this->config['timezone']);
+            $this->driver->setMasterDBD($master);
 
         }
+
+        if($this->config->has('timezone'))
+            $this->setTimezone($this->config['timezone']);
+
 
         return TRUE;
 
