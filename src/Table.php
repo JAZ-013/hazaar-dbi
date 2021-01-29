@@ -75,7 +75,7 @@ class Table {
 
     private function from() {
 
-        return $this->adapter->quoteSpecial($this->name) . ($this->alias ? ' ' . $this->alias : NULL);
+        return $this->adapter->schemaTable($this->name) . ($this->alias ? ' ' . $this->alias : NULL);
 
     }
 
@@ -565,9 +565,7 @@ class Table {
 
         }
 
-        $name = $this->adapter->field($this->name) . ($this->alias ? ' ' . $this->alias : null);
-
-        return $this->adapter->update($name, $fields, $criteria, $from, $returning);
+        return $this->adapter->update($this->name . ($this->alias ? ' ' . $this->alias : null), $fields, $criteria, $from, $returning);
 
     }
 
@@ -587,9 +585,7 @@ class Table {
 
         }
 
-        $name = $this->adapter->field($this->name) . ($this->alias ? ' ' . $this->alias : null);
-
-        return $this->adapter->delete($name , $criteria, $from);
+        return $this->adapter->delete($this->name . ($this->alias ? ' ' . $this->alias : null), $criteria, $from);
 
     }
 
