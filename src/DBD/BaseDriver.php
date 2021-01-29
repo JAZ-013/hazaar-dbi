@@ -152,6 +152,12 @@ abstract class BaseDriver implements Driver_Interface {
 
     }
 
+    public function setSchemaName($schema){
+
+        $this->schema = $schema;
+
+    }
+
     public function connect($dsn, $username = null, $password = null, $driver_options = null) {
 
         try{
@@ -288,6 +294,21 @@ abstract class BaseDriver implements Driver_Interface {
 
         return $this->pdo->prepare($sql);
 
+    }
+
+    public function schemaTable($table){
+
+        $alias = null;
+
+        //Check if there is an alias
+        if(($pos = strpos($table, ' ')) !== false)
+            list($table, $alias) = preg_split('/\s*(?<=.{'.$pos.'})\s*/', $table, 2);
+
+        //Check if we already have a schema defined
+        if(strpos($table, '.') === false)
+            $table = $this->schema . '.' . $table;
+
+        return $this->quoteSpecial($table) . ($alias ? ' ' . $this->quoteSpecial($alias) : '');
     }
 
     public function field($string) {
@@ -483,7 +504,7 @@ abstract class BaseDriver implements Driver_Interface {
                 $parts = array();
 
                 foreach($value as $table => $criteria)
-                    $parts[] = 'EXISTS ( SELECT * FROM ' . $table . ' WHERE ' . $this->prepareCriteria($criteria) . ' )';
+                    $parts[] = 'EXISTS ( SELECT * FROM ' . $this->schemaTable($table) . ' WHERE ' . $this->prepareCriteria($criteria) . ' )';
 
                 return $parts;
 
@@ -649,7 +670,7 @@ abstract class BaseDriver implements Driver_Interface {
         elseif($fields instanceof \stdClass)
             $fields = (array)$fields;
 
-        $sql = 'INSERT INTO ' . $this->field($table);
+        $sql = 'INSERT INTO ' . $this->schemaTable($table);
 
         if($fields instanceof \Hazaar\DBI\Table){
 
@@ -773,7 +794,7 @@ abstract class BaseDriver implements Driver_Interface {
         if (count($field_def) == 0)
             throw new Exception\NoUpdate();
 
-        $table = (is_array($table) && isset($table[0])) ? $this->field($table[0]) . ' AS ' . $table[1] : $this->field($table);
+        $table = (is_array($table) && isset($table[0])) ? $this->schemaTable($table[0]) . ' AS ' . $table[1] : $this->schemaTable($table);
 
         $sql = 'UPDATE ' . $table . ' SET ' . implode(', ', $field_def);
 
@@ -814,7 +835,7 @@ abstract class BaseDriver implements Driver_Interface {
 
     public function delete($table, $criteria, $from = array()) {
 
-        $sql = 'DELETE FROM ' . $this->field($table);
+        $sql = 'DELETE FROM ' . $this->schemaTable($table);
 
         if(is_array($from) && count($from) > 0)
             $sql .= ' USING ' . implode(', ', $from);
@@ -827,7 +848,7 @@ abstract class BaseDriver implements Driver_Interface {
 
     public function deleteAll($table) {
 
-        return $this->exec('DELETE FROM ' . $this->field($table));
+        return $this->exec('DELETE FROM ' . $this->schemaTable($table));
 
     }
 
@@ -852,7 +873,7 @@ abstract class BaseDriver implements Driver_Interface {
 
     public function createTable($table_name, $columns) {
 
-        $sql = "CREATE TABLE " . $this->field($table_name) . " (\n";
+        $sql = "CREATE TABLE " . $this->schemaTable($table_name) . " (\n";
 
         $coldefs = array();
 
@@ -987,7 +1008,7 @@ abstract class BaseDriver implements Driver_Interface {
 
         }
 
-        $sql = "ALTER TABLE " . $this->field($from_name) . " RENAME TO " . $this->field($to_name) . ";";
+        $sql = "ALTER TABLE " . $this->schemaTable($from_name) . " RENAME TO " . $this->field($to_name) . ";";
 
         $affected = $this->exec($sql);
 
@@ -1000,7 +1021,7 @@ abstract class BaseDriver implements Driver_Interface {
 
     public function dropTable($name, $cascade = false) {
 
-        $sql = "DROP TABLE " . $this->field($name) . ($cascade?' CASCADE':'') . ";";
+        $sql = "DROP TABLE " . $this->schemaTable($name) . ($cascade?' CASCADE':'') . ";";
 
         $affected = $this->exec($sql);
 
@@ -1019,7 +1040,7 @@ abstract class BaseDriver implements Driver_Interface {
         if (!array_key_exists('data_type', $column_spec))
             return FALSE;
 
-        $sql = 'ALTER TABLE ' . $this->field($table) . ' ADD COLUMN ' . $this->field($column_spec['name']) . ' ' . $this->type($column_spec);
+        $sql = 'ALTER TABLE ' . $this->schemaTable($table) . ' ADD COLUMN ' . $this->field($column_spec['name']) . ' ' . $this->type($column_spec);
 
         if (array_key_exists('not_null', $column_spec) && $column_spec['not_null'])
             $sql .= ' NOT NULL';
@@ -1043,7 +1064,7 @@ abstract class BaseDriver implements Driver_Interface {
         //Check if the column is being renamed and update the name first.
         if(array_key_exists('name', $column_spec)){
 
-            $sql = "ALTER TABLE " . $this->field($table) . " RENAME COLUMN " . $this->field($column) . ' TO ' . $this->field($column_spec['name']);
+            $sql = "ALTER TABLE " . $this->schemaTable($table) . " RENAME COLUMN " . $this->field($column) . ' TO ' . $this->field($column_spec['name']);
 
             $this->exec($sql);
 
@@ -1051,7 +1072,7 @@ abstract class BaseDriver implements Driver_Interface {
 
         }
 
-        $prefix = "ALTER TABLE " . $this->field($table) . " ALTER COLUMN " . $this->field($column);
+        $prefix = "ALTER TABLE " . $this->schemaTable($table) . " ALTER COLUMN " . $this->field($column);
 
         if (array_key_exists('data_type', $column_spec)){
 
@@ -1079,7 +1100,7 @@ abstract class BaseDriver implements Driver_Interface {
 
     public function dropColumn($table, $column) {
 
-        $sql = "ALTER TABLE " . $this->field($table) . " DROP COLUMN " . $this->field($column) . ";";
+        $sql = "ALTER TABLE " . $this->schemaTable($table) . " DROP COLUMN " . $this->field($column) . ";";
 
         $affected = $this->exec($sql);
 
@@ -1134,7 +1155,7 @@ abstract class BaseDriver implements Driver_Interface {
         if (array_key_exists('unique', $idx_info) && $idx_info['unique'])
             $sql .= ' UNIQUE';
 
-        $sql .= " INDEX " . $this->field($index_name) . " ON " . $this->field($table_name) . " (" . implode(',', array_map(array($this, 'field'), $idx_info['columns'])) . ')';
+        $sql .= " INDEX " . $this->field($index_name) . " ON " . $this->schemaTable($table_name) . " (" . implode(',', array_map(array($this, 'field'), $idx_info['columns'])) . ')';
 
         if (array_key_exists('using', $idx_info) && $idx_info['using'])
             $sql .= ' USING ' . $idx_info['using'];
@@ -1209,10 +1230,10 @@ abstract class BaseDriver implements Driver_Interface {
 
         }
 
-        $sql = "ALTER TABLE " . $this->field($info['table']) . " ADD CONSTRAINT " . $this->field($name) . " $info[type] (" . $column . ")";
+        $sql = "ALTER TABLE " . $this->schemaTable($info['table']) . " ADD CONSTRAINT " . $this->field($name) . " $info[type] (" . $column . ")";
 
         if (array_key_exists('references', $info))
-            $sql .= " REFERENCES " . $this->field($info['references']['table']) . " (" . $this->field($info['references']['column']) . ") ON UPDATE $info[update_rule] ON DELETE $info[delete_rule]";
+            $sql .= " REFERENCES " . $this->schemaTable($info['references']['table']) . " (" . $this->field($info['references']['column']) . ") ON UPDATE $info[update_rule] ON DELETE $info[delete_rule]";
 
         $affected = $this->exec($sql);
 
@@ -1225,7 +1246,7 @@ abstract class BaseDriver implements Driver_Interface {
 
     public function dropConstraint($name, $table, $cascade = false) {
 
-        $sql = "ALTER TABLE " . $this->field($table) . " DROP CONSTRAINT " . $this->field($name) . ($cascade?' CASCADE':'');
+        $sql = "ALTER TABLE " . $this->schemaTable($table) . " DROP CONSTRAINT " . $this->field($name) . ($cascade?' CASCADE':'');
 
         $affected = $this->exec($sql);
 
@@ -1526,7 +1547,7 @@ abstract class BaseDriver implements Driver_Interface {
         $sql = 'CREATE TRIGGER ' . $this->field($name)
             . ' ' . ake($spec, 'timing', 'BEFORE')
             . ' ' . implode(' OR ', ake($spec, 'events', array('INSERT')))
-            . ' ON ' . $this->field($table)
+            . ' ON ' . $this->schemaTable($table)
             . ' FOR EACH ' . ake($spec, 'orientation', 'ROW')
             . ' ' . ake($spec, 'content', 'EXECUTE');
 
@@ -1545,7 +1566,7 @@ abstract class BaseDriver implements Driver_Interface {
      */
     public function dropTrigger($name, $table, $cascade = false){
 
-        $sql = 'DROP TRIGGER ' . $this->field($name) . ' ON ' . $this->field($table);
+        $sql = 'DROP TRIGGER ' . $this->field($name) . ' ON ' . $this->schemaTable($table);
 
         $sql .= ' ' . (($cascade === true) ? ' CASCADE' : ' RESTRICT');
 
