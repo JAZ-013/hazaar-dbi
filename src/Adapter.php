@@ -611,4 +611,13 @@ class Adapter {
 
     }
 
+    /**
+     * Return the name of the currently set default schema
+     */
+    public function getSchema(){
+
+        return $this->driver->getSchemaName();
+
+    }
+
 }

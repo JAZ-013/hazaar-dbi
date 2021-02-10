@@ -76,6 +76,8 @@ final class Row extends \Hazaar\Model\Strict {
         if(!$this->statement instanceof \PDOStatement)
             throw new \Hazaar\Exception('Unable to perform updates without the original PDO statement!');
 
+        $schema = $this->adapter->getSchema();
+
         $changes = array();
 
         foreach($this->fields as $key => $def){
@@ -86,9 +88,7 @@ final class Row extends \Hazaar\Model\Strict {
             if(!array_key_exists('table', $def))
                 throw new \Hazaar\Exception('Unable to update ' . $key . ' with unknown table');
 
-            //$changes[$def['table']][] = $key . '=' . $this->adapter->prepareValue($this->get($key), $key, $this->fields[$key]['native_type']);
-
-            $changes[$def['table']][$key] = $this->get($key);
+            $changes[ake($def, 'schema', $schema) . '.' . $def['table']][$key] = $this->get($key);
 
         }
 
@@ -119,21 +119,23 @@ final class Row extends \Hazaar\Model\Strict {
 
         $tables = array();
 
-        if(!preg_match('/FROM\s+"?(\w+)"?(\s+"?(\w+)"?)?/', $this->statement->queryString, $matches))
+        if(!preg_match('/FROM\s+"?(\w+)"?(\."?(\w+)")?(\s+"?(\w+)"?)?/', $this->statement->queryString, $matches))
             throw new \Hazaar\Exception('Can\'t figure out which table we\'re updating!');
 
+        $table_name = $matches[3] ? $matches[1] . '.' . $matches[3] : $matches[1];
+
         //Find the primary key for the primary table so we know which row we are updating
-        foreach($this->adapter->listPrimaryKeys($matches[1]) as $data){
+        foreach($this->adapter->listPrimaryKeys($table_name) as $data){
 
             if(!$this->has($data['column']))
                 continue;
 
-            $tables[$matches[1]] = array();
+            $tables[$table_name] = array();
 
-            if(isset($matches[3]) && !in_array(strtoupper($matches[3]), $keywords))
-                $tables[$matches[1]]['alias'] = $matches[3];
+            if(isset($matches[5]) && !in_array(strtoupper($matches[5]), $keywords))
+                $tables[$table_name]['alias'] = $matches[5];
 
-            $tables[$matches[1]]['condition'] = ake($tables[$matches[1]], 'alias', $matches[1]) . '.' . $data['column'] . '=' . $this->get($data['column']);
+            $tables[$table_name]['condition'] = ake($tables[$table_name], 'alias', $table_name) . '.' . $data['column'] . '=' . $this->get($data['column']);
 
             break;
 
