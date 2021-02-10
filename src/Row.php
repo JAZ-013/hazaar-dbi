@@ -81,14 +81,19 @@ final class Row extends \Hazaar\Model\Strict {
         if(!$this->statement instanceof \PDOStatement)
             throw new \Hazaar\Exception('Unable to perform updates without the original PDO statement!');
 
-        if(is_array($data) && count($data) > 0)
-            $this->extend($data);
-
         $schema = $this->adapter->getSchema();
 
         $changes = array();
 
         foreach($this->fields as $key => $def){
+
+            if(is_array($data) && array_key_exists($key, $data)){
+
+                $def['changed'] = true;
+
+                $value = $data[$key];
+
+            }else $value = $this->get($key);
 
             if(!(array_key_exists('changed', $def) && $def['changed'] === true))
                 continue;
@@ -96,7 +101,7 @@ final class Row extends \Hazaar\Model\Strict {
             if(!array_key_exists('table', $def))
                 throw new \Hazaar\Exception('Unable to update ' . $key . ' with unknown table');
 
-            $changes[ake($def, 'schema', $schema) . '.' . $def['table']][$key] = $this->get($key);
+            $changes[ake($def, 'schema', $schema) . '.' . $def['table']][$key] = $value;
 
         }
 
@@ -168,7 +173,7 @@ final class Row extends \Hazaar\Model\Strict {
 
         }
 
-        $change_count = 0;
+        $committed_updates = [];
 
         $this->adapter->beginTransaction();
 
@@ -195,7 +200,7 @@ final class Row extends \Hazaar\Model\Strict {
             if(array_key_exists('alias', $tables[$table]))
                 $table = array($table, $tables[$table]['alias']);
 
-            if(!$changed_rows = $this->adapter->update($table, $updates, $conditions, $from)){
+            if(!($committed_updates[$table] = $this->adapter->update($table, $updates, $conditions, $from, array_keys($updates)))){
 
                 $this->adapter->rollback();
 
@@ -203,13 +208,22 @@ final class Row extends \Hazaar\Model\Strict {
 
             }
 
-            $change_count += $changed_rows;
-
         }
 
-        if($change_count === count($changes)){
+        if(count($committed_updates) === count($changes)){
 
             $this->adapter->commit();
+
+            foreach($committed_updates as $table => $updates){
+
+                foreach($updates as $update){
+
+                    foreach($update as $key => $value)
+                        $this->set($key, $update[$key]);
+
+                }
+
+            }
 
             return true;
 
