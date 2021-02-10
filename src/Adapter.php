@@ -517,7 +517,7 @@ class Adapter {
 
             $result = new Result($this, $result, $this->options);
 
-            return $result->fetch();
+            return ((is_string($returning) && $returning) || (is_array($returning) && count($returning) > 0)) ? $result->fetchAll() : $result->fetch();
 
         }
 
