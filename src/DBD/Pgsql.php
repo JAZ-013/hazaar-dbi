@@ -139,6 +139,8 @@ class Pgsql extends BaseDriver {
         if(!$this->allow_constraints)
             return false;
 
+        list($schema, $table) = $this->parseSchemaTable($table);
+
         $constraints = array();
 
         $sql = "SELECT
@@ -162,7 +164,7 @@ class Pgsql extends BaseDriver {
             JOIN information_schema.constraint_column_usage AS ccu
                 ON ccu.constraint_name = tc.constraint_name
             LEFT JOIN information_schema.referential_constraints rc ON tc.constraint_name = rc.constraint_name
-            WHERE tc.CONSTRAINT_SCHEMA='{$this->schema}'";
+            WHERE tc.CONSTRAINT_SCHEMA='{$schema}'";
 
         if($table)
             $sql .= "\nAND tc.table_name='$table'";
@@ -217,6 +219,8 @@ class Pgsql extends BaseDriver {
 
     public function listIndexes($table = NULL){
 
+        list($schema, $table) = $this->parseSchemaTable($table);
+
         $sql = "SELECT s.nspname, t.relname as table_name, i.relname as index_name, array_to_string(array_agg(a.attname), ', ') as column_names, ix.indisunique
             FROM pg_namespace s, pg_class t, pg_class i, pg_index ix, pg_attribute a
             WHERE s.oid = t.relnamespace
@@ -225,7 +229,7 @@ class Pgsql extends BaseDriver {
                 AND a.attrelid = t.oid
                 AND a.attnum = ANY(ix.indkey)
                 AND t.relkind = 'r'
-                AND s.nspname = 'public'";
+                AND s.nspname = '$schema'";
 
         if($table)
             $sql .= "\nAND t.relname = '$table'";
@@ -270,8 +274,10 @@ class Pgsql extends BaseDriver {
 
     public function describeView($name){
 
+        list($schema, $name) = $this->parseSchemaTable($name);
+
         $sql = 'SELECT table_schema as "schema", table_name as name, trim(view_definition) as content FROM INFORMATION_SCHEMA.views WHERE table_schema='
-            . $this->prepareValue($this->schema) . ' AND table_name=' . $this->prepareValue($name);
+            . $this->prepareValue($schema) . ' AND table_name=' . $this->prepareValue($name);
 
         if ($result = $this->query($sql))
             return $result->fetch(\PDO::FETCH_ASSOC);

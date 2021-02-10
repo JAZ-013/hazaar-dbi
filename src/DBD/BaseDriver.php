@@ -311,6 +311,17 @@ abstract class BaseDriver implements Driver_Interface {
         return $this->quoteSpecial($table) . ($alias ? ' ' . $this->quoteSpecial($alias) : '');
     }
 
+    public function parseSchemaTable($table){
+
+        $schema = $this->schema;
+
+        if(strpos($table, '.') !== false)
+            list($schema, $table) = explode('.', $table);
+
+        return [ $schema, $table ];
+            
+    }
+
     public function field($string) {
 
         if (in_array(strtoupper($string), $this->reserved_words))
