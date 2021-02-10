@@ -71,10 +71,18 @@ final class Row extends \Hazaar\Model\Strict {
 
     }
 
-    public function update(){
+    /**
+     * Update the database with any changes to the current row, optionally providing updates directly
+     * 
+     * @param $data array Column updates that will be applied to the object directly
+     */
+    public function update($data = null){
 
         if(!$this->statement instanceof \PDOStatement)
             throw new \Hazaar\Exception('Unable to perform updates without the original PDO statement!');
+
+        if(is_array($data) && count($data) > 0)
+            $this->extend($data);
 
         $schema = $this->adapter->getSchema();
 
