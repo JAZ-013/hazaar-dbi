@@ -442,7 +442,7 @@ abstract class BaseDriver implements Driver_Interface {
                 if(is_null($value))
                     return 'IS NOT NULL';
                 
-                return (is_boolean($value) ? 'IS NOT ' : '!= ') . $this->prepareValue($value);
+                return (is_bool($value) ? 'IS NOT ' : '!= ') . $this->prepareValue($value);
 
             case 'not' :
 
