@@ -386,6 +386,12 @@ class Adapter {
 
     }
 
+    public function from($name, $alias = null){
+
+        return $this->table($name, $alias);
+        
+    }
+
     public function call($method, $args = array()) {
 
         $arglist = array();
@@ -561,7 +567,7 @@ class Adapter {
     }
 
     /**
-     * TRUNCATE � empty a table or set of tables
+     * TRUNCATE empty a table or set of tables
      *
      * TRUNCATE quickly removes all rows from a set of tables. It has the same effect as an unqualified DELETE on
      * each table, but since it does not actually scan the tables it is faster. Furthermore, it reclaims disk space
