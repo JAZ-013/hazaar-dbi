@@ -336,28 +336,28 @@ class SQL extends \Hazaar\DBI\Table {
 
     public function parseUNION($line){
 
-        if(!array_key_exists('union', $this->subselects))
-            $this->subselects['union'] = array();
+        if(!array_key_exists('union', $this->combine))
+            $this->combine['union'] = array();
 
-        $this->subselects['union'][] = new SQL($line);
+        $this->combine['union'] = new SQL($line);
 
     }
 
     public function processINTERSECT($line){
 
-        if(!array_key_exists('intersect', $this->subselects))
-            $this->subselects['intersect'] = array();
+        if(!array_key_exists('intersect', $this->combine))
+            $this->combine['intersect'] = array();
 
-        $this->subselects['intersect'][] = new SQL($line);
+        $this->combine['intersect'] = new SQL($line);
 
     }
 
     public function processEXCEPT($line){
 
-        if(!array_key_exists('except', $this->subselects))
-            $this->subselects['except'] = array();
+        if(!array_key_exists('except', $this->combine))
+            $this->combine['except'] = array();
 
-        $this->subselects['except'][] = new SQL($line);
+        $this->combine['except'] = new SQL($line);
 
     }
 
