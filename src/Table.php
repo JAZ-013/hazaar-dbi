@@ -1,9 +1,9 @@
 <?php
 
 /**
- * @file        Hazaar/DBI/Collection.php
+ * @file        Hazaar/DBI/Table.php
  *
- * @author      Jamie Carl <jamie@hazaarlabs.com>
+ * @author      Jamie Carl <jamie@hazaar.io.com>
  *
  * @copyright   Copyright (c) 2012 Jamie Carl (http://www.hazaarlabs.com)
  */
@@ -35,6 +35,8 @@ class Table {
 
     protected $alias;
 
+    protected $tables = array();
+
     protected $criteria = array();
 
     protected $fields = array();
@@ -47,7 +49,7 @@ class Table {
 
     protected $joins = array();
 
-    protected $subselects = array();
+    protected $combine = array();
 
     protected $order = array();
 
@@ -73,9 +75,28 @@ class Table {
 
     }
 
-    private function from() {
+    private function prepareFrom() {
 
-        return $this->adapter->schemaTable($this->name) . ($this->alias ? ' ' . $this->alias : NULL);
+        $tables = array_merge([$this->alias => $this->name], $this->tables);
+
+        foreach($tables as $alias => &$table){
+
+            if($table instanceof Table){
+
+                $table = '(' . $table . ')';
+
+                if(!(is_string($alias) && $alias))
+                    $alias = '_' . uniqid() . '_';
+
+            }elseif(strpos($table, '(') === false)
+                $table = $this->adapter->schemaTable($table);
+                
+            if(is_string($alias) && $alias)
+                $table .= ' AS ' . $alias;
+
+        }
+
+        return implode(', ', $tables);
 
     }
 
@@ -156,7 +177,7 @@ class Table {
             return $this->adapter->tableExists($this->name);
 
         if($criteria !== null)
-            $sql = 'SELECT EXISTS (SELECT * FROM ' . $this->from() . ' WHERE ' . $this->adapter->prepareCriteria($criteria) . ');';
+            $sql = 'SELECT EXISTS (SELECT * FROM ' . $this->prepareFrom() . ' WHERE ' . $this->adapter->prepareCriteria($criteria) . ');';
         else
             $sql = 'SELECT EXISTS (' . $this->toString(false) . ');';
 
@@ -190,7 +211,7 @@ class Table {
             $sql .= ' ' . $this->adapter->prepareFields($this->fields, null, $this->tables());
 
         /* FROM */
-        $sql .= ' FROM ' . $this->from();
+        $sql .= ' FROM ' . $this->prepareFrom();
 
         if (count($this->joins) > 0) {
 
@@ -265,6 +286,9 @@ class Table {
 
         /* FOR */
 
+        /* Combined Queries */
+        if(count($this->combine) === 2)
+            $sql .= "\n" . $this->combine[0] . "\n" . $this->combine[1];
 
         if ($terminate_with_colon)
             $sql .= ';';
@@ -747,7 +771,7 @@ class Table {
 
         } else {
 
-            $sql = 'SELECT count(*) FROM ' . $this->from();
+            $sql = 'SELECT count(*) FROM ' . $this->prepareFrom();
 
             if (count($this->joins) > 0) {
 
@@ -837,6 +861,60 @@ class Table {
         }
 
         return $tables;
+
+    }
+
+    /**
+     * Add a table or function to the FROM table reference
+     * 
+     * PostgreSQL combines table references using a cross-join.  
+     * 
+     * See: [here](https://www.postgresql.org/docs/11/queries-table-expressions.html#QUERIES-FROM) for examples.
+     */
+    public function from(){
+
+        $this->tables = array_merge($this->tables, func_get_args());
+
+        return $this;
+
+    }
+
+    /**
+     * Append a table query using a UNION
+     * 
+     * This will return results from both queries combined together.
+     */
+    public function union(Table $query){
+
+        $this->combine = ['UNION', $query];
+
+        return $this;
+
+    }
+
+    /**
+     * Append a table query using a INTERSECT
+     * 
+     * This will return only results that exist in both queries.
+     */
+    public function intersect(Table $query){
+
+        $this->combine = ['INTERSECT', $query];
+
+        return $this;
+
+    }
+
+    /**
+     * Append a table query using a EXCEPT
+     * 
+     * This will return resulsts from the first query except if they appear in the second.
+     */
+    public function except(Table $query){
+
+        $this->combine = ['EXCEPT', $query];
+
+        return $this;
 
     }
 
