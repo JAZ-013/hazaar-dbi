@@ -406,6 +406,12 @@ class Adapter {
 
     }
 
+    public function from($name, $alias = null){
+
+        return $this->table($name, $alias);
+        
+    }
+
     public function call($method, $args = array(), $criteria = null) {
 
         $arglist = array();
@@ -545,7 +551,7 @@ class Adapter {
 
             $result = new Result($this, $result, $this->options);
 
-            return $result->fetch();
+            return ((is_string($returning) && $returning) || (is_array($returning) && count($returning) > 0)) ? $result->fetchAll() : $result->fetch();
 
         }
 
@@ -589,7 +595,7 @@ class Adapter {
     }
 
     /**
-     * TRUNCATE � empty a table or set of tables
+     * TRUNCATE empty a table or set of tables
      *
      * TRUNCATE quickly removes all rows from a set of tables. It has the same effect as an unqualified DELETE on
      * each table, but since it does not actually scan the tables it is faster. Furthermore, it reclaims disk space
@@ -636,6 +642,15 @@ class Adapter {
     public function parseSQL($sql){
 
         return new Table\SQL($this, $sql);
+
+    }
+
+    /**
+     * Return the name of the currently set default schema
+     */
+    public function getSchema(){
+
+        return $this->driver->getSchemaName();
 
     }
 
