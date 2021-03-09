@@ -51,7 +51,8 @@ class Result implements \ArrayAccess, \Countable, \Iterator {
         'timestamptz'   => '\Hazaar\Date',
         'date'          => ['\Hazaar\Date', ['format' => 'Y-m-d']],
         'bool'          => 'boolean',
-        'money'         => '\Hazaar\Money'
+        'money'         => '\Hazaar\Money',
+        'bytea'         => ['string', ['prepare' => 'readBytea']]
     );
 
     private $meta;
