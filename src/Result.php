@@ -49,7 +49,7 @@ class Result implements \ArrayAccess, \Countable, \Iterator {
         'float8'        => 'float',
         'timestamp'     => '\Hazaar\Date',
         'timestamptz'   => '\Hazaar\Date',
-        'date'          => '\Hazaar\Date',
+        'date'          => ['\Hazaar\Date', ['format' => 'Y-m-d']],
         'bool'          => 'boolean',
         'money'         => '\Hazaar\Money'
     );
@@ -123,7 +123,13 @@ class Result implements \ArrayAccess, \Countable, \Iterator {
 
             }else{
 
-                $def['type'] = ake($this->type_map, $meta['native_type'], 'string');
+                $type_map = ake($this->type_map, $meta['native_type'], 'string');
+
+                $extra = is_array($type_map) ? $type_map[1] : [];
+
+                $type_map = is_array($type_map) ? $type_map[0] : $type_map;
+
+                $def = array_merge($def, ['type' => $type_map], $extra);
 
             }
 
