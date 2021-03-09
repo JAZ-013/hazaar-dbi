@@ -235,4 +235,13 @@ final class Row extends \Hazaar\Model\Strict {
 
     }
 
+    public function readBytea($value){
+
+        if(!is_resource($value))
+            return null;
+
+        return stream_get_contents($value);
+
+    }
+
 }
