@@ -8,6 +8,7 @@ pages:
     - Data Sync Files: data_sync.md
   - DBI Filesystem: filesystem.md
   - SQL SELECT parser: parser.md
+  - Encryption: encryption.md 
 
 markdown_extensions:
     - admonition

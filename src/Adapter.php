@@ -62,9 +62,15 @@ class Adapter {
 
     private $schema_manager;
 
+    static public $default_cipher = 'aes-256-ctr';
+
+    static public $default_key = '000';
+
     static public $default_checkstring = '!!';
 
     static private $instances = array();
+
+    private $encrypt = false;
 
     function __construct($config_env = NULL) {
 
@@ -182,12 +188,14 @@ class Adapter {
 
         if(array_key_exists('encrypt', $this->options) && !array_key_exists('key', $this->options['encrypt'])){
 
-            $keyfile = \Hazaar\Application::getInstance()->runtimePath(ake($this->options['encrypt'], 'keyfile', '.db_key'));
+            $keyfile = \Hazaar\Loader::getFilePath(FILE_PATH_CONFIG, ake($this->options['encrypt'], 'keyfile', '.db_key'));
 
             if(!file_exists($keyfile))
                 throw new \Hazaar\Exception('DBI keyfile is missing.  Database encryption will not work!');
 
             $this->options['encrypt']['key'] = trim(file_get_contents($keyfile));
+
+            $this->encrypt = $this->options['encrypt'];
 
         }
 
@@ -536,25 +544,25 @@ class Adapter {
         if(is_array($table) && isset($table[0]))
             $table = $table[0];
 
-        if($data === null
+        if($this->encrypt === false
+            || $data === null
             || !(is_array($data) && count($data) > 0)
-            || ($encrypt = ake($this->options, 'encrypt', false)) === false
-            || ($encrypted_fields = ake(ake($encrypt, 'table'), $table)) === null)
+            || ($encrypted_fields = ake(ake($this->encrypt, 'table'), $table)) === null)
             return $data;
 
-        $cipher = ake($encrypt, 'cipher', 'aes-256-ctr');
+        $cipher = ake($this->encrypt, 'cipher', Adapter::$default_cipher);
 
-        $key = ake($encrypt, 'key', '0000');
+        $key = ake($this->encrypt, 'key', Adapter::$default_key);
 
-        $checkstring = ake($encrypt, 'checkstring', Adapter::$default_checkstring);
+        $checkstring = ake($this->encrypt, 'checkstring', Adapter::$default_checkstring);
 
-        foreach($data as $key => &$value){
+        foreach($data as $column => &$value){
 
-            if(!in_array($key, $encrypted_fields))
+            if(!(is_array($encrypted_fields) && in_array($column, $encrypted_fields)) && $encrypted_fields !== true)
                 continue;
 
             if(!is_string($value))
-                throw new \Hazaar\Exception('Trying to encrypt non-string field: ' . $key);
+                throw new \Hazaar\Exception('Trying to encrypt non-string field: ' . $column);
 
             $iv = openssl_random_pseudo_bytes(openssl_cipher_iv_length($cipher));
 
