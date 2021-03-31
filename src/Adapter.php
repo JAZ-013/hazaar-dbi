@@ -548,13 +548,13 @@ class Adapter {
 
         $checkstring = ake($encrypt, 'checkstring', Adapter::$default_checkstring);
 
-        foreach($data as $key => &$value){
+        foreach($data as $column => &$value){
 
-            if(!in_array($key, $encrypted_fields))
+            if(!(is_array($encrypted_fields) && in_array($column, $encrypted_fields)) && $encrypted_fields !== true)
                 continue;
 
             if(!is_string($value))
-                throw new \Hazaar\Exception('Trying to encrypt non-string field: ' . $key);
+                throw new \Hazaar\Exception('Trying to encrypt non-string field: ' . $column);
 
             $iv = openssl_random_pseudo_bytes(openssl_cipher_iv_length($cipher));
 
