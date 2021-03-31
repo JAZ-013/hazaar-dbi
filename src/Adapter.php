@@ -182,7 +182,7 @@ class Adapter {
 
         if(array_key_exists('encrypt', $this->options) && !array_key_exists('key', $this->options['encrypt'])){
 
-            $keyfile = \Hazaar\Application::getInstance()->runtimePath(ake($this->options['encrypt'], 'keyfile', '.db_key'));
+            $keyfile = \Hazaar\Loader::getFilePath(FILE_PATH_CONFIG, ake($this->options['encrypt'], 'keyfile', '.db_key'));
 
             if(!file_exists($keyfile))
                 throw new \Hazaar\Exception('DBI keyfile is missing.  Database encryption will not work!');
