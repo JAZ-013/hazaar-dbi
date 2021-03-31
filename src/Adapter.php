@@ -62,9 +62,15 @@ class Adapter {
 
     private $schema_manager;
 
+    static public $default_cipher = 'aes-256-ctr';
+
+    static public $default_key = '000';
+
     static public $default_checkstring = '!!';
 
     static private $instances = array();
+
+    private $encrypt = false;
 
     function __construct($config_env = NULL) {
 
@@ -188,6 +194,8 @@ class Adapter {
                 throw new \Hazaar\Exception('DBI keyfile is missing.  Database encryption will not work!');
 
             $this->options['encrypt']['key'] = trim(file_get_contents($keyfile));
+
+            $this->encrypt = $this->options['encrypt'];
 
         }
 
@@ -536,17 +544,17 @@ class Adapter {
         if(is_array($table) && isset($table[0]))
             $table = $table[0];
 
-        if($data === null
+        if($this->encrypt === false
+            || $data === null
             || !(is_array($data) && count($data) > 0)
-            || ($encrypt = ake($this->options, 'encrypt', false)) === false
-            || ($encrypted_fields = ake(ake($encrypt, 'table'), $table)) === null)
+            || ($encrypted_fields = ake(ake($this->encrypt, 'table'), $table)) === null)
             return $data;
 
-        $cipher = ake($encrypt, 'cipher', 'aes-256-ctr');
+        $cipher = ake($this->encrypt, 'cipher', Adapter::$default_cipher);
 
-        $key = ake($encrypt, 'key', '0000');
+        $key = ake($this->encrypt, 'key', Adapter::$default_key);
 
-        $checkstring = ake($encrypt, 'checkstring', Adapter::$default_checkstring);
+        $checkstring = ake($this->encrypt, 'checkstring', Adapter::$default_checkstring);
 
         foreach($data as $column => &$value){
 

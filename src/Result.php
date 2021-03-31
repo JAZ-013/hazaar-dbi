@@ -719,14 +719,14 @@ class Result implements \ArrayAccess, \Countable, \Iterator {
 
     private function decrypt(&$data){
 
-        if($data === null
-            || !(is_array($data) && count($data) > 0)
-            || $this->encrypt === false)
+        if($this->encrypt === false 
+            || $data === null
+            || !(is_array($data) && count($data) > 0))
             return $data;
 
-        $cipher = ake($this->encrypt, 'cipher', 'aes-256-ctr');
+        $cipher = ake($this->encrypt, 'cipher', Adapter::$default_cipher);
 
-        $key = ake($this->encrypt, 'key', '0000');
+        $key = ake($this->encrypt, 'key', Adapter::$default_key);
 
         $checkstring = ake($this->encrypt, 'checkstring', Adapter::$default_checkstring);
 
