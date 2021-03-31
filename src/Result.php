@@ -358,125 +358,123 @@ class Result implements \ArrayAccess, \Countable, \Iterator {
         if (!$record)
             return null;
 
-        if (!((count($this->array_columns) + count($this->select_groups)) > 0))
-            return $record;
+        if ((count($this->array_columns) + count($this->select_groups)) > 0){
 
-        foreach($this->array_columns as $col => $array_columns){
+            foreach($this->array_columns as $col => $array_columns){
 
-            if(count($array_columns) > 1)
-                $columns =& $record[$col];
-            else
-                $columns = array(&$record[$col]);
+                if(count($array_columns) > 1)
+                    $columns =& $record[$col];
+                else
+                    $columns = array(&$record[$col]);
 
-            foreach($array_columns as $index => $type){
+                foreach($array_columns as $index => $type){
 
-                if($columns[$index] === null)
-                    continue;
+                    if($columns[$index] === null)
+                        continue;
 
-                if($type == 'json'){
+                    if($type == 'json'){
 
-                    $columns[$index] = json_decode($columns[$index]);
+                        $columns[$index] = json_decode($columns[$index]);
 
-                    continue;
+                        continue;
+
+                    }
+
+                    if(!($columns[$index] && substr($columns[$index], 0, 1) == '{' && substr($columns[$index], -1, 1) == '}'))
+                        continue;
+
+                    $elements = explode(',', trim($columns[$index], '{}'));
+
+                    foreach($elements as &$element){
+
+                        if(substr($type, 0, 3) == 'int')
+                            $element = intval($element);
+                        elseif(substr($type, 0, 5) == 'float')
+                            $element = floatval($element);
+                        elseif($type == 'text' || $type == 'varchar')
+                            $element = trim($element, "'");
+                        elseif($type == 'bool')
+                            $element = boolify($element);
+                        elseif($type == 'timestamp' || $type == 'date' || $type == 'time')
+                            $element = new \Hazaar\Date(trim($element, '"'));
+                        elseif($type == 'json')
+                            $element = json_decode($element);
+
+                    }
+
+                    $columns[$index] = $elements;
 
                 }
 
-                if(!($columns[$index] && substr($columns[$index], 0, 1) == '{' && substr($columns[$index], -1, 1) == '}'))
-                    continue;
-
-                $elements = explode(',', trim($columns[$index], '{}'));
-
-                foreach($elements as &$element){
-
-                    if(substr($type, 0, 3) == 'int')
-                        $element = intval($element);
-                    elseif(substr($type, 0, 5) == 'float')
-                        $element = floatval($element);
-                    elseif($type == 'text' || $type == 'varchar')
-                        $element = trim($element, "'");
-                    elseif($type == 'bool')
-                        $element = boolify($element);
-                    elseif($type == 'timestamp' || $type == 'date' || $type == 'time')
-                        $element = new \Hazaar\Date(trim($element, '"'));
-                    elseif($type == 'json')
-                        $element = json_decode($element);
-
-                }
-
-                $columns[$index] = $elements;
+                unset($columns);
 
             }
 
-            unset($columns);
+            $objs = array();
+
+            foreach($record as $name => $value){
+
+                if(array_key_exists($name, $this->select_groups)){
+
+                    $objs[$this->select_groups[$name]] = $value;
+
+                    unset($record[$name]);
+
+                    continue;
+
+                }
+
+                $aliases = array();
+
+                $meta = null;
+
+                if(is_array($this->meta[$name])){
+
+                    $meta = array();
+
+                    foreach($this->meta[$name] as $col){
+
+                        $meta[] = $col;
+
+                        $aliases[] = ake($col, 'table');
+
+                    }
+
+                }else{
+
+                    $meta = $this->meta[$name];
+
+                    if(!($alias = ake($meta, 'table')))
+                        continue;
+
+                    $aliases[] = $alias;
+
+                }
+
+                foreach($aliases as $idx => $alias){
+
+                    if(!array_key_exists($alias, $this->select_groups))
+                        continue;
+
+                    while(array_key_exists($alias, $this->select_groups) && $this->select_groups[$alias] !== $alias)
+                        $alias = $this->select_groups[$alias];
+
+                    if(!isset($objs[$alias]))
+                        $objs[$alias] = array();
+
+                    $objs[$alias][$name] = (is_array($value) && is_array($meta)) ? $value[$idx] : $value;
+
+                    unset($record[$name]);
+
+                }
+
+            }
+
+            $record = array_merge($record, array_from_dot_notation($objs));
 
         }
-
-        $objs = array();
-
-        foreach($record as $name => $value){
-
-            if(array_key_exists($name, $this->select_groups)){
-
-                $objs[$this->select_groups[$name]] = $value;
-
-                unset($record[$name]);
-
-                continue;
-
-            }
-
-            $aliases = array();
-
-            $meta = null;
-
-            if(is_array($this->meta[$name])){
-
-                $meta = array();
-
-                foreach($this->meta[$name] as $col){
-
-                    $meta[] = $col;
-
-                    $aliases[] = ake($col, 'table');
-
-                }
-
-            }else{
-
-                $meta = $this->meta[$name];
-
-                if(!($alias = ake($meta, 'table')))
-                    continue;
-
-                $aliases[] = $alias;
-
-            }
-
-            foreach($aliases as $idx => $alias){
-
-                if(!array_key_exists($alias, $this->select_groups))
-                    continue;
-
-                while(array_key_exists($alias, $this->select_groups) && $this->select_groups[$alias] !== $alias)
-                    $alias = $this->select_groups[$alias];
-
-                if(!isset($objs[$alias]))
-                    $objs[$alias] = array();
-
-                $objs[$alias][$name] = (is_array($value) && is_array($meta)) ? $value[$idx] : $value;
-
-                unset($record[$name]);
-
-            }
-
-        }
-
-        $record = array_merge($record, array_from_dot_notation($objs));
-
-        if($this->encrypt !== false)
-            $this->decrypt($record);
-
-        return $record;
+        
+        return $this->decrypt($record);
 
     }
 
@@ -732,20 +730,29 @@ class Result implements \ArrayAccess, \Countable, \Iterator {
 
         $checkstring = ake($this->encrypt, 'checkstring', Adapter::$default_checkstring);
 
-        foreach($data as $key => &$value){
+        $encrypted_fields = [];
 
-            if(!(in_array($key, ake($this->encrypt['table'], $this->meta[$key]['table'], array())) && $this->meta[$key]['type'] === 'string'))
+        foreach($data as $column => &$value){
+
+            $table = ake($this->meta[$column], 'table');
+
+            if(!array_key_exists($table, $encrypted_fields))
+                $encrypted_fields[$table] = ake($this->encrypt['table'], $table, array());
+
+            if((!(is_array($encrypted_fields[$table]) && in_array($column, $encrypted_fields[$table])) 
+                && $encrypted_fields[$table] !== true)
+                || ake($this->meta[$column], 'type') !== 'string')
                 continue;
 
-            $parts = preg_split('/(?<=.{' . openssl_cipher_iv_length($cipher) . '})/', base64_decode($value), 2);
+            $parts = preg_split('/(?<=.{' . openssl_cipher_iv_length($cipher) . '})/s', base64_decode($value), 2);
 
             if(count($parts) !== 2)
                 continue;
 
-            list($checkbit, $value) = preg_split('/(?<=.{' . strlen($checkstring) . '})/', openssl_decrypt($parts[1], $cipher, $key, OPENSSL_RAW_DATA, $parts[0]), 2);
+            list($checkbit, $decrypted_value) = preg_split('/(?<=.{' . strlen($checkstring) . '})/s', openssl_decrypt($parts[1], $cipher, $key, OPENSSL_RAW_DATA, $parts[0]), 2);
 
-            if($checkbit !== $checkstring)
-                throw new \Hazaar\Exception('Field decryption failed: ' . $key);
+            if($checkbit === $checkstring)
+                $value = $decrypted_value;
 
         }
 
