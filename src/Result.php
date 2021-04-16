@@ -734,6 +734,9 @@ class Result implements \ArrayAccess, \Countable, \Iterator {
 
         foreach($data as $column => &$value){
 
+            if(!array_key_exists($column, $this->meta))
+                continue;
+
             $table = ake($this->meta[$column], 'table');
 
             if(!array_key_exists($table, $encrypted_fields))
